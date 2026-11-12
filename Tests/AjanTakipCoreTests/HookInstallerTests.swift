@@ -91,3 +91,20 @@ private func commands(_ s: [String: Any], _ event: String) -> [String] {
         #expect(try Data(contentsOf: corrupt) == bytes)
     }
 }
+
+@Suite struct HookCommandQuotingTests {
+    @Test func pathWithSpaceIsSingleQuoted() {
+        #expect(HookInstaller.shellQuoted("/Users/Ali Can/.config/ajantakip/ajantakip-hook.sh")
+                == "'/Users/Ali Can/.config/ajantakip/ajantakip-hook.sh'")
+    }
+
+    @Test func embeddedSingleQuoteEscaped() {
+        #expect(HookInstaller.shellQuoted("/a'b/x.sh") == #"'/a'\''b/x.sh'"#)
+    }
+
+    @Test func quotedCommandStillRecognizedAsOurs() {
+        let s = HookInstaller.install(into: [:], command: HookInstaller.shellQuoted("/Users/A B/ajantakip-hook.sh"))
+        #expect(HookInstaller.isInstalled(s))
+        #expect(!HookInstaller.isInstalled(HookInstaller.uninstall(from: s)))
+    }
+}

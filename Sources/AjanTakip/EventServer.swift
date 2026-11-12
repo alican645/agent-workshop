@@ -58,6 +58,10 @@ final class EventServer: @unchecked Sendable {
     }
 
     private func handle(_ request: HTTPRequest) -> String {
+        guard !request.isFromBrowser else {
+            log.error("browser request rejected")
+            return "403 Forbidden"
+        }
         guard request.method == "POST", request.path == "/event" else { return "404 Not Found" }
         do {
             onEvent(try HookEvent.parse(body: request.body, headers: request.headers))

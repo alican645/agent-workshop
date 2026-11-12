@@ -9,13 +9,9 @@ enum CmuxNavigator {
     private static let log = Logger(subsystem: "com.ajantakip.app", category: "cmux")
 
     static func cliPath() -> String? {
-        if FileManager.default.isExecutableFile(atPath: bundledCLI) { return bundledCLI }
-        let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin"
-        for dir in path.split(separator: ":") {
-            let candidate = "\(dir)/cmux"
-            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
-        }
-        return nil
+        ExecutableLocator.find("cmux", preferred: [bundledCLI],
+                               pathEnv: ProcessInfo.processInfo.environment["PATH"],
+                               isExecutable: FileManager.default.isExecutableFile(atPath:))
     }
 
     @MainActor

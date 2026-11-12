@@ -11,6 +11,11 @@ public enum HookInstaller {
     public static let marker = "ajantakip-hook.sh"
     private static let matcherEvents: Set<String> = ["PreToolUse", "PostToolUse"]
 
+    /// Claude Code hook komutu `sh -c` ile çalışır; yolda boşluk/özel karakter olsa da tek argüman kalsın.
+    public static func shellQuoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+    }
+
     public static func install(into settings: [String: Any], command: String) -> [String: Any] {
         var result = uninstall(from: settings)
         var hooks = result["hooks"] as? [String: Any] ?? [:]

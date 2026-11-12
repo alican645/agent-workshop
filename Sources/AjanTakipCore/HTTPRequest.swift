@@ -8,6 +8,11 @@ public struct HTTPRequest: Equatable, Sendable {
     public var headers: [String: String]
     public var body: Data
 
+    /// Tarayıcıdan (web sayfasından) gelen istek mi? Hook script'i (curl) bu başlıkları göndermez.
+    public var isFromBrowser: Bool {
+        headers["origin"] != nil || headers["sec-fetch-site"] != nil || headers["sec-fetch-mode"] != nil
+    }
+
     /// Tam bir istek yoksa (başlıklar veya gövde eksikse) `nil` döner.
     public static func parse(_ buffer: Data) -> HTTPRequest? {
         guard let sep = buffer.range(of: Data("\r\n\r\n".utf8)),

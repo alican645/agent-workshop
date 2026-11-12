@@ -52,7 +52,11 @@ enum HookSetup {
                 try installScript()
                 try FileManager.default.createDirectory(
                     at: settingsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try HookInstaller.installFile(at: settingsURL, command: scriptURL.path, now: .now)
+                try HookInstaller.installFile(at: settingsURL, command: HookInstaller.shellQuoted(scriptURL.path),
+                                              now: .now)
+                refresh(model: model)
+                showInfo("Hook'lar kuruldu.",
+                         "Açık olan Claude Code oturumları yeni hook'ları görmez. Takip edilmeleri için o oturumları kapatıp yeniden başlat; yeni açılan oturumlar otomatik takip edilir.")
             }
         } catch HookInstallerError.unreadableSettings {
             showError("~/.claude/settings.json okunamadı veya geçerli JSON değil. Dosyaya dokunulmadı.")
@@ -71,6 +75,15 @@ enum HookSetup {
         if fm.fileExists(atPath: scriptURL.path) { try fm.removeItem(at: scriptURL) }
         try fm.copyItem(at: source, to: scriptURL)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+    }
+
+    static func showInfo(_ title: String, _ message: String) {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.runModal()
     }
 
     static func showError(_ message: String) {
