@@ -20,7 +20,10 @@ struct PillView: View {
             pill
             if model.isExpanded {
                 SessionListView(sessions: model.store.sessions,
-                                stats: model.showSystemStats ? (model.cpuUsage, model.ramUsage) : nil) { session in
+                                stats: model.showSystemStats ? (model.cpuUsage, model.ramUsage) : nil,
+                                processes: ProcessPanel(metric: model.expandedMetric, items: model.topProcesses,
+                                                        ready: model.processesReady),
+                                onToggleMetric: { model.toggleMetric($0) }) { session in
                     model.isExpanded = false
                     CmuxNavigator.focus(session)
                 }
@@ -57,14 +60,13 @@ struct PillView: View {
             .padding(.horizontal, 4)  // titreme için pay
     }
 
-    /// Uyarı sonrası liste açılana kadar 1,2 sn periyotla yanıp sönen kenarlık.
+    /// Uyarı sonrası kenarlık 3 kez yanıp söner, sonra liste açılana kadar sabit kalır
+    /// (sürekli animasyon ~%3 CPU harcıyordu).
     @ViewBuilder private var pulseBorder: some View {
         if let kind = model.pulsing {
-            let color: Color = kind == .attention ? .orange : .green
-            PhaseAnimator([0.2, 1.0]) { phase in
-                Capsule().strokeBorder(color, lineWidth: 2).opacity(phase)
-            } animation: { _ in .easeInOut(duration: 0.6) }
-            .allowsHitTesting(false)
+            PulseBorder(color: kind == .attention ? .orange : .green)
+                .id(model.lastAlert?.at)  // her yeni uyarıda yeniden yanıp söner
+                .allowsHitTesting(false)
         }
     }
 
@@ -92,6 +94,20 @@ struct PillView: View {
             .onEnded { _ in
                 dragStart = nil
                 dragEnded()
+            }
+    }
+}
+
+private struct PulseBorder: View {
+    let color: Color
+    @State private var bright = false
+
+    var body: some View {
+        Capsule()
+            .strokeBorder(color, lineWidth: 2)
+            .opacity(bright ? 1 : 0.2)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.6).repeatCount(5, autoreverses: true)) { bright = true }
             }
     }
 }

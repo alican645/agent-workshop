@@ -16,8 +16,19 @@ final class AppModel {
     /// Her `.attention` uyarısında artar; titreme animasyonunu tetikler.
     var shakeCount = 0
     var isExpanded = false {
-        didSet { if isExpanded { pulsing = nil } }
+        didSet {
+            if isExpanded { pulsing = nil } else { expandedMetric = nil }
+        }
     }
+
+    /// Hangi kullanım satırının (CPU/RAM) program listesi açık.
+    var expandedMetric: ProcessUsage.Metric?
+    /// Açık metriğe göre en çok tüketen programlar.
+    var topProcesses: [AppUsage] = []
+    /// CPU için ilk iki örnek alınana kadar false.
+    var processesReady = false
+    private var lastProcesses: [ProcessSample]?
+    private var lastProcessSampleAt: Date?
     var serverError: String?
     var hooksInstalled = false
 
@@ -49,7 +60,40 @@ final class AppModel {
         statsTimer?.tolerance = 0.2
     }
 
+    func toggleMetric(_ metric: ProcessUsage.Metric) {
+        expandedMetric = expandedMetric == metric ? nil : metric
+        lastProcesses = nil
+        processesReady = false
+        topProcesses = []
+        guard expandedMetric != nil else { return }
+        sampleProcesses()
+        // CPU için ikinci örneği beklemeden kısa sürede göster.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.sampleProcesses() }
+    }
+
+    /// Yalnızca bir program listesi açıkken süreçleri tarar (arka planda).
+    private func sampleProcesses() {
+        guard expandedMetric != nil, isExpanded else { return }
+        let apps = ProcessSampler.runningApps()
+        Task.detached(priority: .utility) { [weak self] in
+            let samples = ProcessSampler.sample()
+            await self?.ingest(samples, apps: apps, at: Date())
+        }
+    }
+
+    private func ingest(_ samples: [ProcessSample], apps: [AppBundle], at now: Date) {
+        guard let metric = expandedMetric else { return }
+        let interval = lastProcessSampleAt.map { now.timeIntervalSince($0) } ?? 0
+        let usage = ProcessUsage.aggregate(previous: lastProcesses ?? [], current: samples,
+                                           interval: interval, apps: apps)
+        processesReady = lastProcesses != nil || metric == .memory
+        topProcesses = ProcessUsage.top(usage, by: metric)
+        lastProcesses = samples
+        lastProcessSampleAt = now
+    }
+
     private func sampleStats() {
+        sampleProcesses()
         guard showSystemStats else {
             lastTicks = nil
             return
