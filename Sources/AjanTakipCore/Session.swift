@@ -19,6 +19,8 @@ public struct Session: Identifiable, Equatable, Sendable {
     public var workspace: String?
     public var surface: String?
     public var pid: Int32?
+    /// Son bildirilen çalışma klasörü.
+    public var cwd: String?
     var lastTool: String?
 }
 

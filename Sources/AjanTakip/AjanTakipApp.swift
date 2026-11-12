@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
     private var panel: PillPanel?
     private var detailPanel: DetailPanel?
+    private var todoPanel: DetailPanel?
     private var server: EventServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -45,6 +46,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         detailRef = detail
         detailPanel = detail
         observeDetail()
+
+        var todoRef: DetailPanel?
+        let todo = DetailPanel(rootView: TodoView(
+            todos: model.todos,
+            moveWindow: { todoRef?.move(topLeft: $0) },
+            windowTopLeft: { todoRef?.topLeft ?? .zero },
+            contentSizeChanged: { todoRef?.fit(contentSize: $0) }))
+        todo.allowsKey = true
+        todoRef = todo
+        todoPanel = todo
+        observeTodo()
+        let model = model
+        model.todos.start { model.store.sessions }
 
         startServer()
         model.accounts.refreshAuth()
@@ -92,6 +106,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.panel?.orderOut(nil)
                 }
                 self.observeUIState()
+            }
+        }
+    }
+
+    /// TODO penceresini openRoot'a göre açar/kapatır; CPU/RAM penceresi açıksa onun yanına yerleşir.
+    private func observeTodo() {
+        withObservationTracking {
+            _ = model.todos.openRoot
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, let todo = self.todoPanel else { return }
+                if self.model.todos.openRoot != nil {
+                    if !todo.isVisible, let pill = self.panel {
+                        let anchor = self.detailPanel?.isVisible == true ? self.detailPanel!.frame : pill.frame
+                        todo.place(nextTo: anchor, pillEdge: pill.edge)
+                    }
+                    todo.orderFrontRegardless()
+                } else {
+                    todo.orderOut(nil)
+                }
+                self.observeTodo()
             }
         }
     }

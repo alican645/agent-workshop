@@ -9,6 +9,7 @@ struct SessionListView: View {
     /// Detay penceresinde açık olan metrik.
     let openMetric: ProcessUsage.Metric?
     let accounts: AccountManager
+    let todos: TodoManager
     let onToggleMetric: (ProcessUsage.Metric) -> Void
     let onSelect: (Session) -> Void
 
@@ -37,7 +38,10 @@ struct SessionListView: View {
                         .padding(.vertical, 6)
                 }
                 ForEach(sessions) { s in
-                    SessionRow(session: s, now: context.date)
+                    SessionRow(session: s, now: context.date, todo: todos.progress(for: s),
+                               todoOpen: todos.openRoot != nil && todos.openRoot == todos.root(for: s),
+                               hasCwd: s.cwd != nil,
+                               onTodo: { todos.toggleWindow(for: s) })
                         .contentShape(Rectangle())
                         .onTapGesture { onSelect(s) }
                 }
@@ -190,6 +194,10 @@ private struct MiniBar: View {
 private struct SessionRow: View {
     let session: Session
     let now: Date
+    let todo: (done: Int, total: Int)?
+    let todoOpen: Bool
+    let hasCwd: Bool
+    let onTodo: () -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -207,6 +215,7 @@ private struct SessionRow: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 4)
+            todoBadge
             if session.workspace == nil {
                 Image(systemName: "exclamationmark.circle")
                     .foregroundStyle(.white.opacity(0.4))
@@ -217,6 +226,31 @@ private struct SessionRow: View {
         .padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.12 : 0)))
         .onHover { hovering = $0 }
+    }
+
+    /// Dosya varsa "☑ 3/7"; yoksa yalnızca üzerine gelince soluk bir simge (yeni liste başlatmak için).
+    @ViewBuilder private var todoBadge: some View {
+        if let todo {
+            HStack(spacing: 3) {
+                Image(systemName: todoOpen ? "checklist.checked" : "checklist")
+                Text("\(todo.done)/\(todo.total)").monospacedDigit()
+            }
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(todoOpen ? 0.95 : 0.6))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(.white.opacity(todoOpen ? 0.2 : 0.08)))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTodo)
+            .help("TODO.local.md")
+        } else if hasCwd && (hovering || todoOpen) {
+            Image(systemName: "checklist")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(todoOpen ? 0.9 : 0.35))
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onTodo)
+                .help("TODO.local.md oluştur")
+        }
     }
 
     private var detail: String {

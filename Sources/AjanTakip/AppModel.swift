@@ -32,6 +32,7 @@ final class AppModel {
     private var lastProcessSampleAt: Date?
     var serverError: String?
     let accounts = AccountManager()
+    let todos = TodoManager()
     var hooksInstalled = false
 
     var soundEnabled = UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true {

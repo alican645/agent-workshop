@@ -42,7 +42,10 @@ public struct SessionStore: Sendable {
 
         var s = sessions[index]
         s.lastEventAt = now
-        if let cwd = e.cwd { s.projectName = Self.projectName(cwd) }
+        if let cwd = e.cwd {
+            s.projectName = Self.projectName(cwd)
+            s.cwd = cwd
+        }
         if let w = e.workspace { s.workspace = w }
         if let x = e.surface { s.surface = x }
         if let p = e.pid { s.pid = p }
