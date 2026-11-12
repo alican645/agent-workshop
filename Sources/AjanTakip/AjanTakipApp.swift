@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         startServer()
         model.startPruneTimer()
+        model.startStatsTimer()
         installCollapseMonitors()
     }
 

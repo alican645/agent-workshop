@@ -28,7 +28,38 @@ final class AppModel {
         didSet { UserDefaults.standard.set(pillVisible, forKey: "pillVisible") }
     }
 
+    /// Sistem kullanımı (0…1); ilk iki örnekten önce nil.
+    var cpuUsage: Double?
+    var ramUsage: Double?
+    var showSystemStats = UserDefaults.standard.object(forKey: "showSystemStats") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showSystemStats, forKey: "showSystemStats") }
+    }
+
     private var pruneTimer: Timer?
+    private var statsTimer: Timer?
+    private var lastTicks: CPUTicks?
+
+    /// Her 2 sn'de CPU/RAM örnekler.
+    func startStatsTimer() {
+        sampleStats()
+        statsTimer?.invalidate()
+        statsTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sampleStats() }
+        }
+        statsTimer?.tolerance = 0.2
+    }
+
+    private func sampleStats() {
+        guard showSystemStats else {
+            lastTicks = nil
+            return
+        }
+        if let ticks = SystemMonitor.cpuTicks() {
+            if let lastTicks { cpuUsage = SystemStats.cpuUsage(previous: lastTicks, current: ticks) }
+            lastTicks = ticks
+        }
+        ramUsage = SystemMonitor.memory()?.usedFraction
+    }
 
     func handle(_ e: HookEvent) {
         let kind = store.apply(e, now: .now)

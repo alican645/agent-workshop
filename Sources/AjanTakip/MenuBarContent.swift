@@ -14,6 +14,7 @@ struct MenuBarContent: View {
         }
         Toggle("Ses", isOn: $model.soundEnabled)
         Toggle("Hapı göster", isOn: $model.pillVisible)
+        Toggle("Sistem kullanımını göster", isOn: $model.showSystemStats)
         Divider()
         Button(model.hooksInstalled ? "Hook'ları kaldır" : "Hook'ları kur") {
             HookSetup.toggle(model: model)
