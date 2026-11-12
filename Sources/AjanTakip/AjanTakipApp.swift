@@ -67,12 +67,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installCollapseMonitors()
     }
 
-    /// Liste açıkken: başka bir yere tıklamak veya Esc listeyi kapatır.
+    /// Başka bir yere tıklamak listeyi, CPU/RAM ve TODO pencerelerini kapatır; Esc listeyi kapatır.
     private func installCollapseMonitors() {
         let model = model
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in
+            // Global izleyici yalnızca başka uygulamalara/masaüstüne yapılan tıklamaları görür;
+            // AjanTakip pencerelerinin içindeki tıklamalar buraya gelmez.
             MainActor.assumeIsolated {
                 if model.isExpanded { model.isExpanded = false }
+                model.closeDetail()
+                model.todos.close()
             }
         }
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
