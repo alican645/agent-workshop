@@ -59,6 +59,23 @@ private func ev(_ name: HookEventName, _ sid: String = "s1", cwd: String? = "/x/
         #expect(s.sessions[0].activity == "bitti")
     }
 
+    @Test func idleNotificationResetsStuckWorkingToIdle() {
+        var s = SessionStore()
+        _ = s.apply(ev(.preToolUse, tool: "Bash", target: "ls"), now: t0)
+        #expect(s.apply(ev(.notification, notif: .idle), now: at(60)) == nil)
+        #expect(s.sessions[0].state == .idle)
+        #expect(s.sessions[0].activity == "boşta")
+        #expect(s.sessions[0].stateSince == at(60))
+    }
+
+    @Test func idleNotificationResetsStuckWaitingToIdle() {
+        var s = SessionStore()
+        _ = s.apply(ev(.preToolUse, tool: "Bash"), now: t0)
+        _ = s.apply(ev(.notification, notif: .permission), now: at(1))
+        #expect(s.apply(ev(.notification, notif: .idle), now: at(61)) == nil)
+        #expect(s.sessions[0].state == .idle)
+    }
+
     @Test func postToolUseClearsWaiting() {
         var s = SessionStore()
         _ = s.apply(ev(.preToolUse, tool: "Bash"), now: t0)

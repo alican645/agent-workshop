@@ -65,6 +65,12 @@ public struct SessionStore: Sendable {
                 newState = .waiting
                 s.activity = s.lastTool.map { "izin: \($0)" } ?? "izin bekliyor"
             }
+            // Kesme (Esc) veya izin reddinde Stop gelmez; "girdini bekliyorum" hatırlatması
+            // takılı kalan çalışıyor/bekliyor durumunu boşta'ya çeker. done olduğu gibi kalır.
+            if e.notificationKind == .idle, s.state == .working || s.state == .waiting {
+                newState = .idle
+                s.activity = "boşta"
+            }
         case .stop:
             newState = .done
             s.activity = "bitti"
