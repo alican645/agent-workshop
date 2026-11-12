@@ -10,6 +10,8 @@ struct PillView: View {
     let windowTopLeft: () -> NSPoint
     /// SwiftUI içeriğinin ölçüsünü panele bildirir.
     let contentSizeChanged: (CGSize) -> Void
+    /// Sürükleme bitince panel en yakın kenara yaslanır.
+    let dragEnded: () -> Void
 
     @State private var dragStart: (mouse: NSPoint, window: NSPoint)?
 
@@ -86,7 +88,10 @@ struct PillView: View {
                 guard let s = dragStart else { return }
                 moveWindow(NSPoint(x: s.window.x + mouse.x - s.mouse.x, y: s.window.y + mouse.y - s.mouse.y))
             }
-            .onEnded { _ in dragStart = nil }
+            .onEnded { _ in
+                dragStart = nil
+                dragEnded()
+            }
     }
 }
 

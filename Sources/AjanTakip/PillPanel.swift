@@ -34,53 +34,70 @@ final class PillPanel: NSPanel {
     override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 
-    /// İçerik boyutuna uyar; üst kenarı sabit tutar (aşağı doğru büyür).
+    private static let edgeKey = "pillEdge"
+
+    /// Hapın yaslı olduğu yatay kenar.
+    private(set) var edge: PanelGeometry.Edge =
+        PanelGeometry.Edge(rawValue: UserDefaults.standard.string(forKey: "pillEdge") ?? "") ?? .right
+
+    private var visibleFrame: NSRect {
+        let center = NSPoint(x: frame.midX, y: frame.midY)
+        let s = NSScreen.screens.first { $0.frame.contains(center) } ?? screen ?? NSScreen.main
+        return s?.visibleFrame ?? .infinite
+    }
+
+    /// Boyut kim tarafından değişirse değişsin (AppKit dahil) sağa yaslıyken sağ kenarı korur.
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        var r = frameRect
+        if edge == .right, r.size.width != frame.width, abs(r.minX - frame.minX) < 0.5, frame.width > 0 {
+            r.origin.x = frame.maxX - r.width
+        }
+        super.setFrame(r, display: flag)
+    }
+
+    /// İçerik boyutuna uyar; üst kenar ve yaslı olunan yan kenar sabit kalır.
     func fit(contentSize size: CGSize) {
         let w = ceil(size.width), h = ceil(size.height)
         guard w > 0, h > 0, w != frame.width || h != frame.height else { return }
-        let visible = (screen ?? NSScreen.main)?.visibleFrame ?? .infinite
-        setFrame(PanelGeometry.fitted(current: frame, size: CGSize(width: w, height: h), visible: visible),
+        setFrame(PanelGeometry.fitted(current: frame, size: CGSize(width: w, height: h),
+                                      visible: visibleFrame, edge: edge),
                  display: true)
     }
 
-    /// Sürükleme: ekran koordinatlarında üst-sol noktayı taşır.
+    /// Sürükleme sırasında: üst-sol noktayı serbestçe taşır.
     func move(topLeft: NSPoint) {
         setFrameTopLeftPoint(topLeft)
-        clampToScreen()
-        UserDefaults.standard.set([frame.minX, frame.maxY], forKey: Self.originKey)
+    }
+
+    /// Sürükleme bitince: en yakın sol/sağ kenara yaslanır (dikey konum korunur) ve kaydedilir.
+    func snapToNearestEdge(animated: Bool = true) {
+        let visible = visibleFrame
+        edge = PanelGeometry.nearestEdge(of: frame, in: visible)
+        let target = PanelGeometry.snapped(frame, to: edge, in: visible)
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.18
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                animator().setFrame(target, display: true)
+            }
+        } else {
+            setFrame(target, display: true)
+        }
+        UserDefaults.standard.set(edge.rawValue, forKey: Self.edgeKey)
+        UserDefaults.standard.set(Double(target.maxY), forKey: Self.originKey)
     }
 
     var topLeft: NSPoint { NSPoint(x: frame.minX, y: frame.maxY) }
 
     private func restorePosition() {
-        if let saved = UserDefaults.standard.array(forKey: Self.originKey) as? [Double], saved.count == 2 {
-            setFrameTopLeftPoint(NSPoint(x: saved[0], y: saved[1]))
-        } else if let screen = NSScreen.main {
-            let v = screen.visibleFrame
-            setFrameTopLeftPoint(NSPoint(x: v.maxX - frame.width - Self.margin, y: v.maxY - Self.margin))
-        }
-        clampToScreen()
+        let v = NSScreen.main?.visibleFrame ?? .zero
+        let top = UserDefaults.standard.object(forKey: Self.originKey) as? Double ?? Double(v.maxY - Self.margin)
+        setFrameTopLeftPoint(NSPoint(x: edge == .left ? v.minX : v.maxX - frame.width, y: top))
+        snapToNearestEdge(animated: false)
     }
 
-    @objc private func screensChanged() { clampToScreen() }
+    @objc private func screensChanged() { snapToNearestEdge(animated: false) }
 
-    /// Hap hiçbir ekranın görünür alanında değilse en yakın ekrana geri çeker.
-    func clampToScreen() {
-        let screens = NSScreen.screens
-        guard !screens.isEmpty else { return }
-        if screens.contains(where: { $0.visibleFrame.contains(NSPoint(x: frame.midX, y: frame.maxY - 1)) }) {
-            return
-        }
-        let target = screens.min { distance($0.visibleFrame) < distance($1.visibleFrame) } ?? screens[0]
-        let v = target.visibleFrame
-        let x = min(max(frame.minX, v.minX + Self.margin), v.maxX - frame.width - Self.margin)
-        let y = min(max(frame.maxY, v.minY + frame.height + Self.margin), v.maxY - Self.margin)
-        setFrameTopLeftPoint(NSPoint(x: x, y: y))
-    }
-
-    private func distance(_ r: NSRect) -> CGFloat {
-        hypot(r.midX - frame.midX, r.midY - frame.midY)
-    }
 }
 
 /// Odakta olmayan panelde ilk tıklamanın da SwiftUI'a ulaşmasını sağlar.

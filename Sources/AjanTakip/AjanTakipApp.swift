@@ -27,7 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model: model,
             moveWindow: { panelRef?.move(topLeft: $0) },
             windowTopLeft: { panelRef?.topLeft ?? .zero },
-            contentSizeChanged: { panelRef?.fit(contentSize: $0) })
+            contentSizeChanged: { panelRef?.fit(contentSize: $0) },
+            dragEnded: { panelRef?.snapToNearestEdge() })
         let panel = PillPanel(rootView: view)
         panelRef = panel
         if model.pillVisible { panel.orderFrontRegardless() }
