@@ -8,13 +8,16 @@ final class EventServer: @unchecked Sendable {
     private static let maxRequestBytes = 1 << 20
     private let port: UInt16
     private let onEvent: @Sendable (HookEvent) -> Void
+    private let onUsage: @Sendable (UsageReport) -> Void
     private let queue = DispatchQueue(label: "ajantakip.server")
     private let log = Logger(subsystem: "com.ajantakip.app", category: "server")
     private var listener: NWListener?
 
-    init(port: UInt16, onEvent: @escaping @Sendable (HookEvent) -> Void) {
+    init(port: UInt16, onEvent: @escaping @Sendable (HookEvent) -> Void,
+         onUsage: @escaping @Sendable (UsageReport) -> Void) {
         self.port = port
         self.onEvent = onEvent
+        self.onUsage = onUsage
     }
 
     /// `onFailure` dinleyici çalışırken başarısız olursa (ör. port dolu) çağrılır.
@@ -62,7 +65,14 @@ final class EventServer: @unchecked Sendable {
             log.error("browser request rejected")
             return "403 Forbidden"
         }
-        guard request.method == "POST", request.path == "/event" else { return "404 Not Found" }
+        guard request.method == "POST" else { return "404 Not Found" }
+        if request.path == "/usage" {
+            guard let report = UsageReport.parse(body: request.body, headers: request.headers, now: Date())
+            else { return "400 Bad Request" }
+            onUsage(report)
+            return "204 No Content"
+        }
+        guard request.path == "/event" else { return "404 Not Found" }
         do {
             onEvent(try HookEvent.parse(body: request.body, headers: request.headers))
             return "204 No Content"

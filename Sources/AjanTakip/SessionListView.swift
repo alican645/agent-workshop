@@ -8,6 +8,7 @@ struct SessionListView: View {
     let stats: (cpu: Double?, ram: Double?)?
     /// Detay penceresinde açık olan metrik.
     let openMetric: ProcessUsage.Metric?
+    let accounts: AccountManager
     let onToggleMetric: (ProcessUsage.Metric) -> Void
     let onSelect: (Session) -> Void
 
@@ -21,6 +22,12 @@ struct SessionListView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
+                    Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 8)
+                }
+                if accounts.hasMultiple || !accounts.usage.isEmpty {
+                    AccountsSection(accounts: accounts, now: context.date)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
                     Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 8)
                 }
                 if sessions.isEmpty {
@@ -88,6 +95,95 @@ private struct UsageBar: View {
         case .high: return .yellow
         case .critical: return .red
         }
+    }
+}
+
+/// Hesap başına 5 saatlik / 7 günlük kullanım; satıra tıklamak hesabı aktif yapar.
+private struct AccountsSection: View {
+    let accounts: AccountManager
+    let now: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(accounts.store.profiles) { p in
+                AccountRow(name: p.name, email: accounts.auth[p.id]?.email,
+                           isActive: accounts.store.activeID == p.id,
+                           usage: accounts.usage[p.id], now: now)
+                    .contentShape(Rectangle())
+                    .onTapGesture { accounts.setActive(p.id) }
+            }
+            if let dup = accounts.duplicateWarning {
+                Text("⚠︎ \(dup)").font(.system(size: 10)).foregroundStyle(.yellow)
+            }
+        }
+    }
+}
+
+private struct AccountRow: View {
+    let name: String
+    let email: String?
+    let isActive: Bool
+    let usage: AccountUsage?
+    let now: Date
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                .font(.system(size: 10))
+                .foregroundStyle(isActive ? .green : .white.opacity(0.45))
+            Text(name)
+                .fontWeight(isActive ? .semibold : .regular)
+                .foregroundStyle(.white.opacity(isActive ? 1 : 0.7))
+                .lineLimit(1)
+                .frame(width: 78, alignment: .leading)
+            MiniBar(label: "5s", fraction: usage?.effectiveFiveHour(now: now), stale: isStale)
+            MiniBar(label: "7g", fraction: usage?.effectiveSevenDay(now: now), stale: isStale)
+        }
+        .help(tooltip)
+    }
+
+    private var isStale: Bool { usage.map { now.timeIntervalSince($0.reportedAt) > 15 * 60 } ?? true }
+
+    private var tooltip: String {
+        var lines = [email ?? "giriş bilgisi yok"]
+        guard let usage else { return (lines + ["henüz kullanım bildirilmedi"]).joined(separator: "\n") }
+        lines.append("son bildirim: \(DurationFormat.short(now.timeIntervalSince(usage.reportedAt))) önce")
+        if let r = usage.fiveHourResetsAt, r > now { lines.append("5s sıfırlanma: \(DurationFormat.short(r.timeIntervalSince(now))) sonra") }
+        if let r = usage.sevenDayResetsAt, r > now { lines.append("7g sıfırlanma: \(DurationFormat.short(r.timeIntervalSince(now))) sonra") }
+        return lines.joined(separator: "\n")
+    }
+}
+
+private struct MiniBar: View {
+    let label: String
+    let fraction: Double?
+    let stale: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.5))
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.12))
+                    Capsule().fill(color).frame(width: geo.size.width * min(1, max(0, fraction ?? 0)))
+                }
+            }
+            .frame(width: 44, height: 5)
+            Text(fraction.map(SystemStats.percentText) ?? "–")
+                .foregroundStyle(fraction == nil ? .white.opacity(0.5) : color)
+                .monospacedDigit()
+                .frame(width: 32, alignment: .trailing)
+        }
+        .opacity(stale ? 0.6 : 1)
+    }
+
+    private var color: Color {
+        let f = fraction ?? 0
+        if f >= AccountStore.warningThreshold { return .red }
+        if f >= 0.7 { return .yellow }
+        return .white.opacity(0.85)
     }
 }
 

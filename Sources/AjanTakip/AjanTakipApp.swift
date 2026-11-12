@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeDetail()
 
         startServer()
+        model.accounts.refreshAuth()
         model.startPruneTimer()
         model.startStatsTimer()
         installCollapseMonitors()
@@ -117,9 +118,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startServer() {
         let model = model
-        let server = EventServer(port: AppModel.configuredPort()) { event in
+        let server = EventServer(port: AppModel.configuredPort(), onEvent: { event in
             Task { @MainActor in model.handle(event) }
-        }
+        }, onUsage: { report in
+            Task { @MainActor in model.handleUsage(report) }
+        })
         do {
             try server.start { message in
                 Task { @MainActor in model.serverError = message }

@@ -31,6 +31,7 @@ final class AppModel {
     private var lastProcesses: [ProcessSample]?
     private var lastProcessSampleAt: Date?
     var serverError: String?
+    let accounts = AccountManager()
     var hooksInstalled = false
 
     var soundEnabled = UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true {
@@ -119,6 +120,15 @@ final class AppModel {
         lastAlert = AlertEvent(kind: kind, at: .now)
         if kind == .attention { shakeCount += 1 }
         if soundEnabled { AlertPlayer.play(kind) }
+    }
+
+    /// Statusline'dan gelen hesap kullanımı; aktif hesap eşiği geçince uyarır.
+    func handleUsage(_ report: UsageReport) {
+        guard accounts.ingest(report) else { return }
+        lastAlert = AlertEvent(kind: .attention, at: .now)
+        pulsing = isExpanded ? nil : .attention
+        shakeCount += 1
+        if soundEnabled { AlertPlayer.play(.attention) }
     }
 
     func startPruneTimer() {

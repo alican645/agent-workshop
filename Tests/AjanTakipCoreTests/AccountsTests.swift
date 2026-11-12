@@ -130,3 +130,33 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
         #expect(!ShellSnippet.contains(in: "x\n"))
     }
 }
+
+@Suite struct AccountIntegrationTests {
+    @Test func authStatusParse() {
+        let s = AuthStatus.parse(Data(#"{"loggedIn":true,"email":"a@b.c","subscriptionType":"max","orgName":"x"}"#.utf8))
+        #expect(s == AuthStatus(loggedIn: true, email: "a@b.c", plan: "max"))
+        #expect(AuthStatus.parse(Data("garbage".utf8)) == nil)
+    }
+
+    @Test func statuslineBlockPostsUsage() {
+        let b = AccountIntegration.statuslineBlock(port: 47823)
+        #expect(b.hasPrefix(ShellSnippet.begin + "\n"))
+        #expect(b.hasSuffix(ShellSnippet.end + "\n"))
+        #expect(b.contains("http://127.0.0.1:47823/usage"))
+        #expect(b.contains("X-Claude-Config-Dir: ${CLAUDE_CONFIG_DIR:-}"))
+        #expect(b.contains(".rate_limits"))
+    }
+
+    @Test func zshBlockWrapsClaude() {
+        let b = AccountIntegration.zshBlock
+        #expect(b.contains("claude() {"))
+        #expect(b.contains("command claude"))
+        #expect(b.contains(".config/ajantakip/active-profile"))
+    }
+
+    @Test func duplicateEmailDetection() {
+        let emails = ["default": "a@b.c", "ikinci": "A@B.C"]
+        #expect(AccountIntegration.duplicateOf("ikinci", emails: emails) == "default")
+        #expect(AccountIntegration.duplicateOf("default", emails: ["default": "a@b.c", "x": "z@z"]) == nil)
+    }
+}
