@@ -2,7 +2,7 @@ import AjanTakipCore
 import AppKit
 import SwiftUI
 
-/// Hap: kapalıyken durum sayaçları.
+/// Hap: kapalıyken durum sayaçları; tıklanınca altında oturum listesi açılır.
 struct PillView: View {
     let model: AppModel
     /// Sürükleme sırasında pencerenin yeni üst-sol noktasını uygular.
@@ -14,20 +14,35 @@ struct PillView: View {
     @State private var dragStart: (mouse: NSPoint, window: NSPoint)?
 
     var body: some View {
-        VStack { content }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        VStack(alignment: .leading, spacing: 6) {
+            pill
+            if model.isExpanded {
+                SessionListView(sessions: model.store.sessions) { session in
+                    model.isExpanded = false
+                    CmuxNavigator.focus(session)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.ultraThinMaterial)
+                        .overlay(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.6)))
+                        .environment(\.colorScheme, .dark))
+            }
+        }
+        .fixedSize()
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            DispatchQueue.main.async { contentSizeChanged(size) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var content: some View {
+    private var pill: some View {
         counters
             .padding(.horizontal, 12)
             .frame(height: 28)
             .background(PillBackground())
-            .fixedSize()
+            .contentShape(Capsule())
             .gesture(drag)
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-                DispatchQueue.main.async { contentSizeChanged(size) }
-            }
+            .onTapGesture { model.isExpanded.toggle() }
     }
 
     @ViewBuilder private var counters: some View {

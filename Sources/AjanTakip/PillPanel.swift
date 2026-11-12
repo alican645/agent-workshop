@@ -17,7 +17,7 @@ final class PillPanel: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
 
-        let host = NSHostingView(rootView: rootView)
+        let host = FirstMouseHostingView(rootView: rootView)
         host.sizingOptions = []
         host.autoresizingMask = [.width, .height]
         contentView = host
@@ -77,4 +77,9 @@ final class PillPanel: NSPanel {
     private func distance(_ r: NSRect) -> CGFloat {
         hypot(r.midX - frame.midX, r.midY - frame.midY)
     }
+}
+
+/// Odakta olmayan panelde ilk tıklamanın da SwiftUI'a ulaşmasını sağlar.
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

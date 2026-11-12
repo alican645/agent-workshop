@@ -35,6 +35,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         startServer()
         model.startPruneTimer()
+        installCollapseMonitors()
+    }
+
+    /// Liste açıkken: başka bir yere tıklamak veya Esc listeyi kapatır.
+    private func installCollapseMonitors() {
+        let model = model
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in
+            MainActor.assumeIsolated {
+                if model.isExpanded { model.isExpanded = false }
+            }
+        }
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.keyCode == 53, model.isExpanded {  // Esc
+                model.isExpanded = false
+                return nil
+            }
+            return event
+        }
+        withObservationTracking { _ = model.isExpanded } onChange: { [weak self] in
+            Task { @MainActor in self?.expandedChanged() }
+        }
+    }
+
+    /// Açılınca paneli key yap (Esc'i alabilmek için); her değişimde izlemeyi yenile.
+    private func expandedChanged() {
+        if model.isExpanded { panel?.makeKey() }
+        withObservationTracking { _ = model.isExpanded } onChange: { [weak self] in
+            Task { @MainActor in self?.expandedChanged() }
+        }
     }
 
     private func startServer() {
