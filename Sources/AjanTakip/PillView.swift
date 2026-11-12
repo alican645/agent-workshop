@@ -19,7 +19,8 @@ struct PillView: View {
         VStack(alignment: .leading, spacing: 6) {
             pill
             if model.isExpanded {
-                SessionListView(sessions: model.store.sessions) { session in
+                SessionListView(sessions: model.store.sessions,
+                                stats: model.showSystemStats ? (model.cpuUsage, model.ramUsage) : nil) { session in
                     model.isExpanded = false
                     CmuxNavigator.focus(session)
                 }
@@ -69,22 +70,13 @@ struct PillView: View {
 
     @ViewBuilder private var counters: some View {
         let c = model.store.counts
-        let hasSessions = c.working + c.waiting + c.done > 0
-        let showStats = model.showSystemStats
         HStack(spacing: 10) {
-            if !hasSessions && !showStats {
+            if c.working + c.waiting + c.done == 0 {
                 Text("○").foregroundStyle(.secondary)
             }
             if c.working > 0 { Counter(symbol: "●", value: c.working, color: .blue) }
             if c.waiting > 0 { Counter(symbol: "◐", value: c.waiting, color: .orange) }
             if c.done > 0 { Counter(symbol: "✓", value: c.done, color: .green) }
-            if showStats {
-                if hasSessions {
-                    Rectangle().fill(.white.opacity(0.25)).frame(width: 1, height: 14)
-                }
-                StatLabel(title: "CPU", fraction: model.cpuUsage)
-                StatLabel(title: "RAM", fraction: model.ramUsage)
-            }
         }
         .font(.system(size: 12, weight: .semibold, design: .rounded))
     }
@@ -101,30 +93,6 @@ struct PillView: View {
                 dragStart = nil
                 dragEnded()
             }
-    }
-}
-
-private struct StatLabel: View {
-    let title: String
-    let fraction: Double?
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Text(title).foregroundStyle(.white.opacity(0.55)).font(.system(size: 10, weight: .semibold, design: .rounded))
-            Text(fraction.map(SystemStats.percentText) ?? "–")
-                .foregroundStyle(color)
-                .monospacedDigit()
-                .frame(minWidth: 30, alignment: .leading)
-        }
-    }
-
-    private var color: Color {
-        guard let fraction else { return .white.opacity(0.55) }
-        switch LoadLevel(fraction: fraction) {
-        case .normal: return .white
-        case .high: return .yellow
-        case .critical: return .red
-        }
     }
 }
 

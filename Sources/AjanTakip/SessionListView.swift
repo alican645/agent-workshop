@@ -4,11 +4,22 @@ import SwiftUI
 /// Hap açıkken gösterilen oturum listesi.
 struct SessionListView: View {
     let sessions: [Session]
+    /// (cpu, ram) 0…1; nil ise sistem kullanımı bölümü gizlenir.
+    let stats: (cpu: Double?, ram: Double?)?
     let onSelect: (Session) -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             VStack(alignment: .leading, spacing: 2) {
+                if let stats {
+                    VStack(spacing: 5) {
+                        UsageBar(title: "CPU", fraction: stats.cpu)
+                        UsageBar(title: "RAM", fraction: stats.ram)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 8)
+                }
                 if sessions.isEmpty {
                     Text("Aktif oturum yok")
                         .foregroundStyle(.secondary)
@@ -25,6 +36,41 @@ struct SessionListView: View {
         }
         .frame(width: 340, alignment: .leading)
         .font(.system(size: 12, design: .rounded))
+    }
+}
+
+/// "CPU ████░░░░ 34%" satırı; renk yüke göre beyaz/sarı/kırmızı.
+private struct UsageBar: View {
+    let title: String
+    let fraction: Double?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 28, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.12))
+                    Capsule().fill(color).frame(width: geo.size.width * min(1, max(0, fraction ?? 0)))
+                }
+            }
+            .frame(height: 6)
+            .animation(.easeOut(duration: 0.4), value: fraction)
+            Text(fraction.map(SystemStats.percentText) ?? "–")
+                .foregroundStyle(fraction == nil ? .white.opacity(0.55) : color)
+                .monospacedDigit()
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+
+    private var color: Color {
+        switch LoadLevel(fraction: fraction ?? 0) {
+        case .normal: return .white.opacity(0.85)
+        case .high: return .yellow
+        case .critical: return .red
+        }
     }
 }
 
