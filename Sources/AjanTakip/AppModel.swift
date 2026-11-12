@@ -31,9 +31,10 @@ final class AppModel {
     private var pruneTimer: Timer?
 
     func handle(_ e: HookEvent) {
-        guard let kind = store.apply(e, now: .now) else { return }
+        let kind = store.apply(e, now: .now)
+        pulsing = Pulse.next(current: pulsing, alert: kind, waitingCount: store.counts.waiting, expanded: isExpanded)
+        guard let kind else { return }
         lastAlert = AlertEvent(kind: kind, at: .now)
-        if !isExpanded { pulsing = kind }
         if kind == .attention { shakeCount += 1 }
         if soundEnabled { AlertPlayer.play(kind) }
     }

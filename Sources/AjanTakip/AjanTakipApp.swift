@@ -65,9 +65,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
+                self.panel?.allowsKey = self.model.isExpanded
                 if self.model.pillVisible {
                     self.panel?.orderFrontRegardless()
-                    if self.model.isExpanded { self.panel?.makeKey() }
+                    if self.model.isExpanded {
+                        self.panel?.makeKey()
+                    } else if self.panel?.isKeyWindow == true {
+                        self.panel?.resignKey()
+                    }
                 } else {
                     self.model.isExpanded = false
                     self.panel?.orderOut(nil)

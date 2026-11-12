@@ -1,3 +1,4 @@
+import AjanTakipCore
 import AppKit
 import SwiftUI
 
@@ -28,15 +29,18 @@ final class PillPanel: NSPanel {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
     }
 
-    override var canBecomeKey: Bool { true }
+    /// Yalnızca liste açıkken (Esc için) key olur; aksi hâlde klavye odağını çalmaz.
+    var allowsKey = false
+    override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 
     /// İçerik boyutuna uyar; üst kenarı sabit tutar (aşağı doğru büyür).
     func fit(contentSize size: CGSize) {
         let w = ceil(size.width), h = ceil(size.height)
         guard w > 0, h > 0, w != frame.width || h != frame.height else { return }
-        let top = frame.maxY
-        setFrame(NSRect(x: frame.minX, y: top - h, width: w, height: h), display: true)
+        let visible = (screen ?? NSScreen.main)?.visibleFrame ?? .infinite
+        setFrame(PanelGeometry.fitted(current: frame, size: CGSize(width: w, height: h), visible: visible),
+                 display: true)
     }
 
     /// Sürükleme: ekran koordinatlarında üst-sol noktayı taşır.

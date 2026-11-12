@@ -37,11 +37,12 @@ enum CmuxNavigator {
 
     @MainActor
     private static func activateCmux() {
-        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
-            app.activate()
-        } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            NSWorkspace.shared.openApplication(at: url, configuration: .init())
-        }
+        // Erişimsiz (accessory) bir uygulamadan NSRunningApplication.activate() reddedilebilir;
+        // openApplication(activates: true) çalışan uygulamayı da öne getirir.
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config)
     }
 
     private static func run(_ cli: String, _ args: [String]) {

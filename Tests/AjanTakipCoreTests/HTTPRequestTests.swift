@@ -26,3 +26,21 @@ import Testing
         #expect(r.body.isEmpty)
     }
 }
+
+@Suite struct HTTPRequestRobustnessTests {
+    @Test func negativeContentLengthRejected() {
+        let raw = "POST /event HTTP/1.1\r\nContent-Length: -5\r\n\r\n{}"
+        #expect(HTTPRequest.parse(Data(raw.utf8)) == nil)
+        #expect(HTTPRequest.isMalformed(Data(raw.utf8)))
+    }
+
+    @Test func garbageContentLengthRejected() {
+        let raw = "POST /event HTTP/1.1\r\nContent-Length: abc\r\n\r\n{}"
+        #expect(HTTPRequest.parse(Data(raw.utf8)) == nil)
+        #expect(HTTPRequest.isMalformed(Data(raw.utf8)))
+    }
+
+    @Test func incompleteIsNotMalformed() {
+        #expect(!HTTPRequest.isMalformed(Data("POST /event HTTP/1.1\r\nContent-Length: 10\r\n\r\nab".utf8)))
+    }
+}

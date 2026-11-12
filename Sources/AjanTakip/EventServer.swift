@@ -48,7 +48,8 @@ final class EventServer: @unchecked Sendable {
 
             if let request = HTTPRequest.parse(buffer) {
                 self.respond(conn, status: self.handle(request))
-            } else if error != nil || isComplete || buffer.count > Self.maxRequestBytes {
+            } else if error != nil || isComplete || buffer.count > Self.maxRequestBytes
+                        || HTTPRequest.isMalformed(buffer) {
                 self.respond(conn, status: "400 Bad Request")
             } else {
                 self.receive(conn, buffer: buffer)

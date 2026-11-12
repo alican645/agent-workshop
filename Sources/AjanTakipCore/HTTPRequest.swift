@@ -25,10 +25,26 @@ public struct HTTPRequest: Equatable, Sendable {
             headers[key] = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
         }
 
-        let length = Int(headers["content-length"] ?? "0") ?? 0
+        guard let length = Int(headers["content-length"] ?? "0"), length >= 0 else { return nil }
         let bodyStart = sep.upperBound
         guard buffer.endIndex - bodyStart >= length else { return nil }
         return HTTPRequest(method: String(requestLine[0]), path: String(requestLine[1]), headers: headers,
                            body: Data(buffer[bodyStart..<(bodyStart + length)]))
+    }
+
+    /// Başlıklar tamamlanmış ama Content-Length geçersizse (negatif / sayı değil) true.
+    /// Eksik istek bozuk sayılmaz.
+    public static func isMalformed(_ buffer: Data) -> Bool {
+        guard let sep = buffer.range(of: Data("\r\n\r\n".utf8)),
+              let head = String(data: buffer[buffer.startIndex..<sep.lowerBound], encoding: .utf8)
+        else { return false }
+        for line in head.components(separatedBy: "\r\n").dropFirst() {
+            guard let colon = line.firstIndex(of: ":"),
+                  line[..<colon].trimmingCharacters(in: .whitespaces).lowercased() == "content-length"
+            else { continue }
+            let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            guard let n = Int(value), n >= 0 else { return true }
+        }
+        return false
     }
 }
