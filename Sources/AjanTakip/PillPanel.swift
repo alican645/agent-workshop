@@ -101,6 +101,6 @@ final class PillPanel: NSPanel {
 }
 
 /// Odakta olmayan panelde ilk tıklamanın da SwiftUI'a ulaşmasını sağlar.
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

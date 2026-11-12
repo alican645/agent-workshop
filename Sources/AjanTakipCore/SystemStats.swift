@@ -26,16 +26,27 @@ public struct MemorySample: Equatable, Sendable {
     public var purgeablePages: UInt64
     public var wiredPages: UInt64
     public var compressedPages: UInt64
+    /// Dosya önbelleği sayfaları (kullanılan sayılmaz).
+    public var externalPages: UInt64
 
     public init(totalBytes: UInt64, pageSize: UInt64, internalPages: UInt64, purgeablePages: UInt64,
-                wiredPages: UInt64, compressedPages: UInt64) {
+                wiredPages: UInt64, compressedPages: UInt64, externalPages: UInt64 = 0) {
         self.totalBytes = totalBytes
         self.pageSize = pageSize
         self.internalPages = internalPages
         self.purgeablePages = purgeablePages
         self.wiredPages = wiredPages
         self.compressedPages = compressedPages
+        self.externalPages = externalPages
     }
+
+    /// Uygulama belleği (internal − purgeable).
+    public var appBytes: UInt64 { (internalPages > purgeablePages ? internalPages - purgeablePages : 0) * pageSize }
+    public var wiredBytes: UInt64 { wiredPages * pageSize }
+    public var compressedBytes: UInt64 { compressedPages * pageSize }
+    public var usedBytes: UInt64 { appBytes + wiredBytes + compressedBytes }
+    /// Önbellek (dosya + temizlenebilir); gerektiğinde boşaltılır.
+    public var cacheBytes: UInt64 { (externalPages + purgeablePages) * pageSize }
 
     /// (uygulama belleği + wired + sıkıştırılmış) / toplam, 0…1
     public var usedFraction: Double {
@@ -60,6 +71,13 @@ public enum SystemStats {
     public static func cpuUsage(previous: CPUTicks, current: CPUTicks) -> Double {
         guard current.total > previous.total, current.busy >= previous.busy else { return 0 }
         return Double(current.busy - previous.busy) / Double(current.total - previous.total)
+    }
+
+    /// "9,7 / 16 GB · 61%"
+    public static func memoryHeader(_ m: MemorySample) -> String {
+        let totalGB = Int((Double(m.totalBytes) / 1_073_741_824).rounded())
+        let usedGB = ProcessUsage.oneDecimal(Double(m.usedBytes) / 1_073_741_824)
+        return "\(usedGB) / \(totalGB) GB · \(percentText(m.usedFraction))"
     }
 
     public static func percentText(_ fraction: Double) -> String {

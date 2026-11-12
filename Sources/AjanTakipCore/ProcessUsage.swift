@@ -45,6 +45,14 @@ public struct AppUsage: Equatable, Sendable {
     }
 }
 
+public struct UsageBreakdown: Equatable, Sendable {
+    public var top: [AppUsage]
+    public var otherCount: Int
+    public var otherMemoryBytes: UInt64
+    /// Tüm bilgisayara oranla (0…1).
+    public var otherCPUShare: Double
+}
+
 public enum ProcessUsage {
     public enum Metric: Sendable { case cpu, memory }
 
@@ -87,6 +95,27 @@ public enum ProcessUsage {
         }
     }
 
+    /// Programın tüm bilgisayara oranla CPU payı (çekirdek sayısına bölünür).
+    public static func machineShare(_ u: AppUsage, cores: Int) -> Double {
+        u.cpu / Double(max(cores, 1))
+    }
+
+    /// İlk `limit` program + geri kalanların özeti.
+    /// CPU'da "diğer", toplam kullanımdan ilk programların payı düşülerek bulunur
+    /// (okunamayan sistem süreçleri dahil); negatif olmaz.
+    public static func breakdown(_ usage: [AppUsage], by metric: Metric, limit: Int = 10,
+                                 cores: Int, totalCPU: Double?) -> UsageBreakdown {
+        let sorted = top(usage, by: metric, limit: usage.count)
+        let topItems = Array(sorted.prefix(limit))
+        let rest = sorted.dropFirst(limit)
+        let topShare = topItems.reduce(0) { $0 + machineShare($1, cores: cores) }
+        return UsageBreakdown(
+            top: topItems,
+            otherCount: rest.count,
+            otherMemoryBytes: rest.reduce(0) { $0 + $1.memoryBytes },
+            otherCPUShare: max(0, (totalCPU ?? topShare) - topShare))
+    }
+
     public static func top(_ usage: [AppUsage], by metric: Metric, limit: Int = 5) -> [AppUsage] {
         let sorted = usage.sorted { a, b in
             switch metric {
@@ -109,7 +138,7 @@ public enum ProcessUsage {
         return "\(Int((Double(bytes) / 1_048_576).rounded())) MB"
     }
 
-    private static func oneDecimal(_ x: Double) -> String {
+    static func oneDecimal(_ x: Double) -> String {
         let tenths = Int((x * 10).rounded())
         return "\(tenths / 10),\(tenths % 10)"
     }

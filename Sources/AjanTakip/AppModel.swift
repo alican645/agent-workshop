@@ -16,17 +16,18 @@ final class AppModel {
     /// Her `.attention` uyarısında artar; titreme animasyonunu tetikler.
     var shakeCount = 0
     var isExpanded = false {
-        didSet {
-            if isExpanded { pulsing = nil } else { expandedMetric = nil }
-        }
+        didSet { if isExpanded { pulsing = nil } }
     }
 
-    /// Hangi kullanım satırının (CPU/RAM) program listesi açık.
-    var expandedMetric: ProcessUsage.Metric?
-    /// Açık metriğe göre en çok tüketen programlar.
-    var topProcesses: [AppUsage] = []
+    /// Ayrı detay penceresinde gösterilen metrik (nil = pencere kapalı).
+    var detailMetric: ProcessUsage.Metric?
+    /// Programa göre gruplanmış kullanım (detay penceresi açıkken güncellenir).
+    var processUsage: [AppUsage] = []
     /// CPU için ilk iki örnek alınana kadar false.
     var processesReady = false
+    /// Son bellek örneği (RAM dağılımı için).
+    var memorySample: MemorySample?
+    let cores = ProcessInfo.processInfo.activeProcessorCount
     private var lastProcesses: [ProcessSample]?
     private var lastProcessSampleAt: Date?
     var serverError: String?
@@ -60,20 +61,26 @@ final class AppModel {
         statsTimer?.tolerance = 0.2
     }
 
-    func toggleMetric(_ metric: ProcessUsage.Metric) {
-        expandedMetric = expandedMetric == metric ? nil : metric
-        lastProcesses = nil
+    /// Satıra tıklama: kapalıysa açar, aynı metrikse kapatır, diğer metrikse ona geçer.
+    func toggleDetail(_ metric: ProcessUsage.Metric) {
+        detailMetric = detailMetric == metric ? nil : metric
         processesReady = false
-        topProcesses = []
-        guard expandedMetric != nil else { return }
+        processUsage = []
+        lastProcesses = nil
+        lastProcessSampleAt = nil
+        guard detailMetric != nil else { return }
         sampleProcesses()
         // CPU için ikinci örneği beklemeden kısa sürede göster.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.sampleProcesses() }
     }
 
-    /// Yalnızca bir program listesi açıkken süreçleri tarar (arka planda).
+    func closeDetail() {
+        if let m = detailMetric { toggleDetail(m) }
+    }
+
+    /// Yalnızca detay penceresi açıkken süreçleri tarar (arka planda).
     private func sampleProcesses() {
-        guard expandedMetric != nil, isExpanded else { return }
+        guard detailMetric != nil else { return }
         let apps = ProcessSampler.runningApps()
         Task.detached(priority: .utility) { [weak self] in
             let samples = ProcessSampler.sample()
@@ -82,19 +89,18 @@ final class AppModel {
     }
 
     private func ingest(_ samples: [ProcessSample], apps: [AppBundle], at now: Date) {
-        guard let metric = expandedMetric else { return }
+        guard let metric = detailMetric else { return }
         let interval = lastProcessSampleAt.map { now.timeIntervalSince($0) } ?? 0
-        let usage = ProcessUsage.aggregate(previous: lastProcesses ?? [], current: samples,
-                                           interval: interval, apps: apps)
+        processUsage = ProcessUsage.aggregate(previous: lastProcesses ?? [], current: samples,
+                                              interval: interval, apps: apps)
         processesReady = lastProcesses != nil || metric == .memory
-        topProcesses = ProcessUsage.top(usage, by: metric)
         lastProcesses = samples
         lastProcessSampleAt = now
     }
 
     private func sampleStats() {
         sampleProcesses()
-        guard showSystemStats else {
+        guard showSystemStats || detailMetric != nil else {
             lastTicks = nil
             return
         }
@@ -102,7 +108,8 @@ final class AppModel {
             if let lastTicks { cpuUsage = SystemStats.cpuUsage(previous: lastTicks, current: ticks) }
             lastTicks = ticks
         }
-        ramUsage = SystemMonitor.memory()?.usedFraction
+        memorySample = SystemMonitor.memory()
+        ramUsage = memorySample?.usedFraction
     }
 
     func handle(_ e: HookEvent) {

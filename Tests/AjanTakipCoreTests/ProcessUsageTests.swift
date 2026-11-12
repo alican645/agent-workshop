@@ -82,3 +82,30 @@ private func p(_ pid: Int32, _ name: String, _ path: String?, cpu: UInt64 = 0, m
         #expect(ProcessUsage.aggregate(previous: [], current: [s], interval: 2, apps: []).map(\.name) == ["claude"])
     }
 }
+
+@Suite struct UsageBreakdownTests {
+    let usage = (1...12).map { AppUsage(name: "p\($0)", cpu: Double($0) / 10, memoryBytes: UInt64($0) * 100) }
+
+    @Test func memoryTopTenAndOthers() {
+        let b = ProcessUsage.breakdown(usage, by: .memory, limit: 10, cores: 10, totalCPU: nil)
+        #expect(b.top.map(\.name) == (3...12).reversed().map { "p\($0)" })
+        #expect(b.otherCount == 2)
+        #expect(b.otherMemoryBytes == 300)  // p1 + p2
+    }
+
+    @Test func cpuSharesAreOfWholeMachineAndOthersCompleteTotal() {
+        // ilk 10: p3…p12 → çekirdek oranı toplamı 7.5 → makine payı 0.75/10 çekirdek = 0.075
+        let b = ProcessUsage.breakdown(usage, by: .cpu, limit: 10, cores: 10, totalCPU: 0.8)
+        #expect(abs(ProcessUsage.machineShare(b.top[0], cores: 10) - 0.12) < 1e-9)
+        #expect(abs(b.otherCPUShare - 0.05) < 1e-9)
+    }
+
+    @Test func othersCPUNeverNegative() {
+        let b = ProcessUsage.breakdown(usage, by: .cpu, limit: 10, cores: 1, totalCPU: 0.1)
+        #expect(b.otherCPUShare == 0)
+    }
+
+    @Test func zeroCoresSafe() {
+        #expect(ProcessUsage.machineShare(AppUsage(name: "a", cpu: 1, memoryBytes: 0), cores: 0) == 1)
+    }
+}

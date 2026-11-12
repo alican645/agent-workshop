@@ -21,9 +21,8 @@ struct PillView: View {
             if model.isExpanded {
                 SessionListView(sessions: model.store.sessions,
                                 stats: model.showSystemStats ? (model.cpuUsage, model.ramUsage) : nil,
-                                processes: ProcessPanel(metric: model.expandedMetric, items: model.topProcesses,
-                                                        ready: model.processesReady),
-                                onToggleMetric: { model.toggleMetric($0) }) { session in
+                                openMetric: model.detailMetric,
+                                onToggleMetric: { model.toggleDetail($0) }) { session in
                     model.isExpanded = false
                     CmuxNavigator.focus(session)
                 }

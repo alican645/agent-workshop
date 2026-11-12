@@ -6,7 +6,8 @@ struct SessionListView: View {
     let sessions: [Session]
     /// (cpu, ram) 0…1; nil ise sistem kullanımı bölümü gizlenir.
     let stats: (cpu: Double?, ram: Double?)?
-    let processes: ProcessPanel
+    /// Detay penceresinde açık olan metrik.
+    let openMetric: ProcessUsage.Metric?
     let onToggleMetric: (ProcessUsage.Metric) -> Void
     let onSelect: (Session) -> Void
 
@@ -42,51 +43,11 @@ struct SessionListView: View {
 }
 
 extension SessionListView {
-    @ViewBuilder
     fileprivate func usageSection(_ metric: ProcessUsage.Metric, title: String, fraction: Double?) -> some View {
-        let open = processes.metric == metric
-        UsageBar(title: title, fraction: fraction, isOpen: open)
+        UsageBar(title: title, fraction: fraction, isOpen: openMetric == metric)
             .contentShape(Rectangle())
             .onTapGesture { onToggleMetric(metric) }
-        if open {
-            ProcessListView(panel: processes)
-                .padding(.leading, 36)
-                .padding(.bottom, 4)
-        }
-    }
-}
-
-/// Açık program listesinin içeriği.
-struct ProcessPanel {
-    var metric: ProcessUsage.Metric?
-    var items: [AppUsage]
-    var ready: Bool
-}
-
-private struct ProcessListView: View {
-    let panel: ProcessPanel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if !panel.ready {
-                Text("ölçülüyor…").foregroundStyle(.white.opacity(0.5))
-            } else if panel.items.isEmpty {
-                Text("veri yok").foregroundStyle(.white.opacity(0.5))
-            }
-            if panel.ready {
-                ForEach(panel.items, id: \.name) { item in
-                    HStack {
-                        Text(item.name).foregroundStyle(.white.opacity(0.85)).lineLimit(1).truncationMode(.middle)
-                        Spacer(minLength: 8)
-                        Text(panel.metric == .cpu ? ProcessUsage.cpuText(item.cpu)
-                                                  : ProcessUsage.memoryText(item.memoryBytes))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .monospacedDigit()
-                    }
-                }
-            }
-        }
-        .font(.system(size: 11, design: .rounded))
+            .help("Programlara göre ayrıntı")
     }
 }
 
@@ -114,9 +75,9 @@ private struct UsageBar: View {
                 .foregroundStyle(fraction == nil ? .white.opacity(0.55) : color)
                 .monospacedDigit()
                 .frame(width: 36, alignment: .trailing)
-            Image(systemName: isOpen ? "chevron.down" : "chevron.right")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.45))
+            Image(systemName: isOpen ? "arrow.up.forward.square.fill" : "arrow.up.forward.square")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(isOpen ? 0.9 : 0.45))
                 .frame(width: 10)
         }
     }

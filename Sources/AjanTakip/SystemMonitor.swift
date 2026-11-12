@@ -32,6 +32,7 @@ enum SystemMonitor {
             internalPages: UInt64(stats.internal_page_count),
             purgeablePages: UInt64(stats.purgeable_count),
             wiredPages: UInt64(stats.wire_count),
-            compressedPages: UInt64(stats.compressor_page_count))
+            compressedPages: UInt64(stats.compressor_page_count),
+            externalPages: UInt64(stats.external_page_count))
     }
 }
