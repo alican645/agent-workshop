@@ -11,15 +11,31 @@ struct AlertEvent: Equatable {
 final class AppModel {
     var store = SessionStore()
     var lastAlert: AlertEvent?
-    var isExpanded = false
+    /// Kenarlık nabzı; liste açılınca temizlenir.
+    var pulsing: AlertKind?
+    /// Her `.attention` uyarısında artar; titreme animasyonunu tetikler.
+    var shakeCount = 0
+    var isExpanded = false {
+        didSet { if isExpanded { pulsing = nil } }
+    }
     var serverError: String?
+    var hooksInstalled = false
+
+    var soundEnabled = UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(soundEnabled, forKey: "soundEnabled") }
+    }
+    var pillVisible = UserDefaults.standard.object(forKey: "pillVisible") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(pillVisible, forKey: "pillVisible") }
+    }
 
     private var pruneTimer: Timer?
 
     func handle(_ e: HookEvent) {
-        if let kind = store.apply(e, now: .now) {
-            lastAlert = AlertEvent(kind: kind, at: .now)
-        }
+        guard let kind = store.apply(e, now: .now) else { return }
+        lastAlert = AlertEvent(kind: kind, at: .now)
+        if !isExpanded { pulsing = kind }
+        if kind == .attention { shakeCount += 1 }
+        if soundEnabled { AlertPlayer.play(kind) }
     }
 
     func startPruneTimer() {

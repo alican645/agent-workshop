@@ -8,7 +8,7 @@ struct AjanTakipApp: App {
 
     var body: some Scene {
         MenuBarExtra("AjanTakip", systemImage: "capsule.fill") {
-            Button("Çıkış") { NSApp.terminate(nil) }
+            MenuBarContent(model: delegate.model)
         }
     }
 }
@@ -30,8 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             contentSizeChanged: { panelRef?.fit(contentSize: $0) })
         let panel = PillPanel(rootView: view)
         panelRef = panel
-        panel.orderFrontRegardless()
+        if model.pillVisible { panel.orderFrontRegardless() }
         self.panel = panel
+        HookSetup.refresh(model: model)
 
         startServer()
         model.startPruneTimer()
@@ -53,16 +54,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return event
         }
-        withObservationTracking { _ = model.isExpanded } onChange: { [weak self] in
-            Task { @MainActor in self?.expandedChanged() }
-        }
+        observeUIState()
     }
 
-    /// Açılınca paneli key yap (Esc'i alabilmek için); her değişimde izlemeyi yenile.
-    private func expandedChanged() {
-        if model.isExpanded { panel?.makeKey() }
-        withObservationTracking { _ = model.isExpanded } onChange: { [weak self] in
-            Task { @MainActor in self?.expandedChanged() }
+    /// Liste açılınca paneli key yap (Esc için); "Hapı göster" ayarını panele uygula.
+    private func observeUIState() {
+        withObservationTracking {
+            _ = model.isExpanded
+            _ = model.pillVisible
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.model.pillVisible {
+                    self.panel?.orderFrontRegardless()
+                    if self.model.isExpanded { self.panel?.makeKey() }
+                } else {
+                    self.model.isExpanded = false
+                    self.panel?.orderOut(nil)
+                }
+                self.observeUIState()
+            }
         }
     }
 

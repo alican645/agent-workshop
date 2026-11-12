@@ -40,9 +40,29 @@ struct PillView: View {
             .padding(.horizontal, 12)
             .frame(height: 28)
             .background(PillBackground())
+            .overlay { pulseBorder }
             .contentShape(Capsule())
             .gesture(drag)
             .onTapGesture { model.isExpanded.toggle() }
+            .keyframeAnimator(initialValue: 0.0, trigger: model.shakeCount) { content, x in
+                content.offset(x: x)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    for x in [-4.0, 4, -4, 4, -2, 0] { LinearKeyframe(x, duration: 0.4 / 6) }
+                }
+            }
+            .padding(.horizontal, 4)  // titreme için pay
+    }
+
+    /// Uyarı sonrası liste açılana kadar 1,2 sn periyotla yanıp sönen kenarlık.
+    @ViewBuilder private var pulseBorder: some View {
+        if let kind = model.pulsing {
+            let color: Color = kind == .attention ? .orange : .green
+            PhaseAnimator([0.2, 1.0]) { phase in
+                Capsule().strokeBorder(color, lineWidth: 2).opacity(phase)
+            } animation: { _ in .easeInOut(duration: 0.6) }
+            .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder private var counters: some View {
