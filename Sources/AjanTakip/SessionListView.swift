@@ -41,6 +41,7 @@ struct SessionListView: View {
                     SessionRow(session: s, now: context.date, todo: todos.progress(for: s),
                                todoOpen: todos.openRoot != nil && todos.openRoot == todos.root(for: s),
                                hasCwd: s.cwd != nil,
+                               showProfile: accounts.hasMultiple,
                                onTodo: { todos.toggleWindow(for: s) })
                         .contentShape(Rectangle())
                         .onTapGesture { onSelect(s) }
@@ -210,6 +211,7 @@ private struct SessionRow: View {
     let todo: (done: Int, total: Int)?
     let todoOpen: Bool
     let hasCwd: Bool
+    let showProfile: Bool
     let onTodo: () -> Void
     @State private var hovering = false
 
@@ -223,6 +225,13 @@ private struct SessionRow: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .frame(width: 100, alignment: .leading)
+            if showProfile && !session.profileName.isEmpty {
+                Text(session.profileName)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .help("Profil: \(session.profileName)")
+            }
             Text(detail)
                 .foregroundStyle(.white.opacity(0.7))
                 .lineLimit(1)

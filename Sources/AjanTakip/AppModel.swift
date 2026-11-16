@@ -115,12 +115,37 @@ final class AppModel {
     }
 
     func handle(_ e: HookEvent) {
-        let kind = store.apply(e, now: .now)
+        alert(store.apply(e, now: .now))
+    }
+
+    /// Mağazadan dönen uyarı (ya da nil): nabız durumunu günceller; uyarı varsa titretir ve ses çalar.
+    private func alert(_ kind: AlertKind?) {
         pulsing = Pulse.next(current: pulsing, alert: kind, waitingCount: store.counts.waiting, expanded: isExpanded)
         guard let kind else { return }
         lastAlert = AlertEvent(kind: kind, at: .now)
         if kind == .attention { shakeCount += 1 }
         if soundEnabled { AlertPlayer.play(kind) }
+    }
+
+    private var registryTimer: Timer?
+    private var scanner = RegistryScanner()
+
+    /// Her saniye tüm profillerin oturum kayıtlarını okur; ilk tarama sessizdir.
+    func startRegistryTimer() {
+        scanRegistry(initial: true)
+        registryTimer?.invalidate()
+        registryTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scanRegistry(initial: false) }
+        }
+        registryTimer?.tolerance = 0.2
+    }
+
+    private func scanRegistry(initial: Bool) {
+        let profiles = accounts.store.profiles
+        let entries = scanner.scan(dirs: profiles.map { ($0.id, $0.configDir) }, isAlive: AppModel.isProcessAlive)
+        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.id == AccountStore.defaultID ? "" : $0.name) })
+        let alerts = store.applyRegistry(entries, profileNames: names, now: .now, initial: initial)
+        if alerts.isEmpty { alert(nil) } else { alerts.forEach(alert) }
     }
 
     /// Statusline'dan gelen hesap kullanımı; aktif hesap eşiği geçince uyarır.

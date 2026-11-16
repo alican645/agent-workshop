@@ -63,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startServer()
         model.accounts.refreshAuth()
         model.startPruneTimer()
+        model.startRegistryTimer()
         model.startStatsTimer()
         installCollapseMonitors()
     }
