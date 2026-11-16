@@ -4,12 +4,15 @@ set -euo pipefail
 cd "${0:A:h}/.."
 
 swift build -c release --product Atolye
+swift build -c release --product atolye-host
 BIN="$(swift build -c release --show-bin-path)/Atolye"
+HOSTBIN="$(swift build -c release --show-bin-path)/atolye-host"
 APP=build/Atölye.app
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Atolye"
+cp "$HOSTBIN" "$APP/Contents/MacOS/atolye-host"
 cp Resources/Atolye-Info.plist "$APP/Contents/Info.plist"
 cp -R Sources/Atolye/Web "$APP/Contents/Resources/Web"
 codesign -s - --force "$APP" >/dev/null

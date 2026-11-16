@@ -26,6 +26,7 @@ struct SceneView: NSViewRepresentable {
 
     func updateNSView(_ web: WKWebView, context: Context) {
         context.coordinator.push(model.snapshotJSON)
+        context.coordinator.setHidden(model.openRoom != nil)
     }
 
     /// Paketlenmiş uygulamada `Contents/Resources/Web`, geliştirmede kaynak klasörü.
@@ -47,6 +48,14 @@ struct SceneView: NSViewRepresentable {
         private var pending: String?
         private var lastSent: String?
         private var observers: [NSObjectProtocol] = []
+        private var hidden = false
+
+        /// Oda açıkken sahne görünmez: yavaşlat.
+        func setHidden(_ h: Bool) {
+            guard h != hidden else { return }
+            hidden = h
+            updateActive()
+        }
 
         init(model: WorkshopModel) { self.model = model }
 
@@ -70,7 +79,15 @@ struct SceneView: NSViewRepresentable {
                 flush()
                 updateActive()
             case "focus":
-                if let id = body["id"] as? String { model.focus(sessionID: id) }
+                if let id = body["id"] as? String { model.open(sessionID: id) }
+            case "openZone":
+                if let id = body["id"] as? String { model.openZone(id) }
+            case "openTerminal":
+                if let id = body["id"] as? String { model.openTerminal(id) }
+            case "addProject":
+                model.addProject()
+            case "unpin":
+                if let id = body["id"] as? String { model.unpin(id) }
             default:
                 break
             }
@@ -90,7 +107,7 @@ struct SceneView: NSViewRepresentable {
 
         private func updateActive() {
             guard ready, let web else { return }
-            let visible = web.window.map { $0.occlusionState.contains(.visible) && !$0.isMiniaturized } ?? false
+            let visible = !hidden && (web.window.map { $0.occlusionState.contains(.visible) && !$0.isMiniaturized } ?? false)
             web.evaluateJavaScript("window.atolye && window.atolye.setActive(\(visible))")
         }
     }

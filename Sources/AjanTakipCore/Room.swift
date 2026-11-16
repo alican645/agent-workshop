@@ -1,18 +1,18 @@
 import Foundation
 
 /// Odadaki bir sekme: yardımcıdaki bir terminal ya da okunacak bir markdown dosyası.
-public enum Tab: Codable, Equatable, Hashable, Sendable {
+public enum RoomTab: Codable, Equatable, Hashable, Sendable {
     case terminal(String)
     case markdown(String)
 }
 
 public struct Pane: Codable, Equatable, Sendable {
-    public var tabs: [Tab]
+    public var tabs: [RoomTab]
     public var selected: Int
     /// Pencere genişliğine oranı (bölmelerin toplamı 1).
     public var width: Double
 
-    public var current: Tab? { tabs.indices.contains(selected) ? tabs[selected] : tabs.first }
+    public var current: RoomTab? { tabs.indices.contains(selected) ? tabs[selected] : tabs.first }
 }
 
 /// Bir projenin odası: soldan sağa bölmeler, her bölmede sekmeler.
@@ -24,7 +24,7 @@ public struct Room: Codable, Equatable, Sendable {
     public init() {}
 
     /// 3 bölmeye kadar yeni bölme, sonra son bölmeye sekme; eklenen seçilir ve odaklanır.
-    public mutating func add(_ t: Tab) {
+    public mutating func add(_ t: RoomTab) {
         if panes.count < Self.maxPanes {
             panes.append(Pane(tabs: [t], selected: 0, width: 0))
             equalize()
@@ -35,7 +35,7 @@ public struct Room: Codable, Equatable, Sendable {
         focusedPane = panes.count - 1
     }
 
-    public mutating func remove(_ t: Tab) {
+    public mutating func remove(_ t: RoomTab) {
         for i in panes.indices {
             guard let j = panes[i].tabs.firstIndex(of: t) else { continue }
             panes[i].tabs.remove(at: j)
@@ -52,7 +52,7 @@ public struct Room: Codable, Equatable, Sendable {
     }
 
     /// Sekmeyi bulursa onu seçer ve bölmesine odaklanır.
-    public mutating func focus(_ t: Tab) -> Bool {
+    public mutating func focus(_ t: RoomTab) -> Bool {
         for i in panes.indices {
             if let j = panes[i].tabs.firstIndex(of: t) {
                 panes[i].selected = j
