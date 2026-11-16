@@ -65,7 +65,7 @@
 <div id="panel" class="hud"></div>
 <button id="home">← atölyeye dön</button>
 <div id="feed" class="hud"><h2>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty">henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud">bölgeye çift tıkla: odaya gir · robota tıkla: terminaline git · sürükle: döndür</div>
+<div id="hint" class="hud">bölgeye çift tıkla: terminalleri yan panelde aç · robota tıkla: terminaline git · sürükle: döndür</div>
 
 <script>
   window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = 'Hata: ' + e.message; });
@@ -346,7 +346,7 @@ function renderPanel() {
   const hist = z.robots.flatMap((r) => r.history.slice(0, 2).map((h) => `<li>${esc(h)} <span style="color:#a09583">· ${esc(r.label)}</span></li>`)).slice(0, 5).join('');
   const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ' <span style="color:#3aa57a">· çalışıyor</span>' : ''}</div>`).join('');
   const html = `<h3><span class="d" style="background:${z.color};width:12px;height:12px"></span>${esc(z.name)}</h3>` +
-    `<button class="enter" id="enterRoom">Odaya gir →</button>` +
+    `<button class="enter" id="enterRoom">Terminalleri aç →</button>` +
     z.robots.map((r) => `<div class="sess" data-id="${esc(r.id)}"><div class="n"><span class="d" style="background:${ST[r.state].c}"></span>${esc(r.label)}${r.profile ? ` <span class="p">· ${esc(r.profile)}</span>` : ''}</div>` +
       `<div class="s">${ST[r.state].t}${r.tool ? ' · ' + esc(r.tool) : ''}</div>` +
       r.helpers.map((h) => `<div class="ag">↳ ${esc(h.task)}${h.tool ? ' · ' + esc(h.tool) : ''}</div>`).join('') +

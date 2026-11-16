@@ -3,14 +3,6 @@ import AppKit
 import AtolyeHostKit
 import Observation
 
-/// Bekleyen bir robot (oda üst çubuğundaki uyarı için).
-struct WaitingRobot: Equatable, Identifiable {
-    var id: String
-    var zone: String
-    var zoneName: String
-    var label: String
-}
-
 /// Saniyede bir tüm profillerin oturumlarını tarar, atölye görüntüsünü üretir; odaları ve terminalleri yönetir.
 @MainActor @Observable
 final class WorkshopModel {
@@ -19,7 +11,6 @@ final class WorkshopModel {
     /// Açık oda (proje kökü); nil ise atölye görünür.
     var openRoom: String?
     private(set) var rooms = RoomStore()
-    private(set) var waiting: [WaitingRobot] = []
     let host = HostConnection()
 
     @ObservationIgnored private var store = SessionStore()
@@ -61,7 +52,7 @@ final class WorkshopModel {
         if room(root).panes.isEmpty { saveRooms() }
     }
 
-    /// Robota tıklanınca: Atölye terminalindeyse odasında o sekme; cmux'taysa cmux; değilse projenin odası.
+    /// Robota tıklanınca: Atölye terminalindeyse yan panelde o sekme; değilse projenin odası.
     func open(sessionID: String) {
         guard let s = store.sessions.first(where: { $0.id == sessionID }) else { return }
         let root = s.cwd.map { Workshop.projectRoot(cwd: $0, fileExists: FileManager.default.fileExists(atPath:)) }
@@ -73,10 +64,6 @@ final class WorkshopModel {
             rooms.rooms[target] = r
             saveRooms()
             openRoom = target
-            return
-        }
-        if let pid = s.pid, ProcessEnv.cmuxIDs(pid: pid) != nil {
-            CmuxLink.focus(pid: pid)
             return
         }
         if let root { openZone(root) }
@@ -234,9 +221,6 @@ final class WorkshopModel {
         let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
                                   terminalOf: terminalOf, pinned: rooms.pinned, now: now, fileExists: fm.fileExists(atPath:))
-        let w = snap.zones.flatMap { z in z.robots.filter { $0.state == "waiting" }.map {
-            WaitingRobot(id: $0.id, zone: z.id, zoneName: z.name, label: $0.label) } }
-        if w != waiting { waiting = w }
         guard snap != lastSnapshot, let data = try? JSONEncoder().encode(snap) else { return }
         lastSnapshot = snap
         snapshotJSON = String(decoding: data, as: UTF8.self)

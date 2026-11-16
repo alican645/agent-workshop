@@ -28,11 +28,7 @@ struct RoomView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button { model.closeRoom() } label: { Label("atölye", systemImage: "chevron.left") }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.barMuted)
-                .help("Atölyeye dön (⌘0)")
-            Text(name).font(.headline).foregroundStyle(Theme.barText)
+            Text(name).font(.headline).foregroundStyle(Theme.barText).lineLimit(1)
             Menu {
                 Button("Claude  ⌘⇧T") { model.add(.claude, in: root) }
                 Button("Terminal  ⌘T") { model.add(.shell, in: root) }
@@ -43,18 +39,12 @@ struct RoomView: View {
                 .fixedSize()
                 .help("Yeni Claude, terminal ya da markdown")
             Spacer()
-            ForEach(model.waiting.filter { $0.zone != root }.prefix(3)) { w in
-                Button { model.open(sessionID: w.id) } label: {
-                    Text("⚠ \(w.label == w.zoneName ? w.label : "\(w.zoneName) · \(w.label)") seni bekliyor").font(.caption.weight(.semibold))
-                        .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background(Capsule().fill(Theme.waiting))
-                        .foregroundStyle(.white)
-                }
+            Button { model.closeRoom() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)) }
                 .buttonStyle(.plain)
-            }
+                .foregroundStyle(Theme.barMuted)
+                .help("Paneli kapat (⌘0) — terminaller arka planda çalışmaya devam eder")
         }
-        .padding(.leading, 78) // pencere düğmeleri
-        .padding(.trailing, 14)
+        .padding(.horizontal, 14)
         .frame(height: 38)
         .background(Theme.bar)
     }
@@ -166,6 +156,5 @@ enum Theme {
     static let barMuted = Color(red: 0.42, green: 0.39, blue: 0.35)
     static let text = Color(red: 0.937, green: 0.902, blue: 0.847)
     static let muted = Color(red: 0.62, green: 0.58, blue: 0.52)
-    static let waiting = Color(red: 1, green: 0.55, blue: 0.18)
     static let ok = Color(red: 0.23, green: 0.65, blue: 0.48)
 }
