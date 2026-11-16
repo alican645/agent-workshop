@@ -26,7 +26,10 @@ public enum ToolSummary {
         if out.isEmpty {
             switch name {
             case "Bash":
-                out = (str("command") ?? "").split(whereSeparator: \.isWhitespace).prefix(3).joined(separator: " ")
+                var cmd = Substring(str("command") ?? "")
+                // Baştaki `cd <klasör> &&` asıl komutu gizlemesin.
+                if cmd.hasPrefix("cd "), let r = cmd.range(of: "&&") { cmd = cmd[r.upperBound...] }
+                out = cmd.split(whereSeparator: \.isWhitespace).prefix(3).joined(separator: " ")
             case "Grep", "Glob":
                 out = str("pattern") ?? ""
             case "WebFetch":

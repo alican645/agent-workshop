@@ -24,6 +24,7 @@ private func append(_ path: String, _ s: String) throws {
         #expect(ToolSummary.target(name: "Edit", input: ["file_path": "/a/b/InvoiceService.cs"]) == "InvoiceService.cs")
         #expect(ToolSummary.target(name: "Read", input: ["file_path": "/x/y.swift"]) == "y.swift")
         #expect(ToolSummary.target(name: "Bash", input: ["command": "swift test --filter Foo && echo ok"]) == "swift test --filter")
+        #expect(ToolSummary.target(name: "Bash", input: ["command": "cd /Users/x/Proje && swift build --product Atolye"]) == "swift build --product")
         #expect(ToolSummary.target(name: "Grep", input: ["pattern": "applyRegistry"]) == "applyRegistry")
         #expect(ToolSummary.target(name: "WebFetch", input: ["url": "https://docs.swift.org/x"]) == "docs.swift.org")
         #expect(ToolSummary.target(name: "Agent", input: ["description": "Review Task 3"]) == "Review Task 3")
