@@ -115,6 +115,16 @@ final class HostConnection {
         return v
     }
 
+    /// Tıklanan görünüm hangi terminalin içinde?
+    func terminalID(containing view: NSView) -> String? {
+        var v: NSView? = view
+        while let cur = v {
+            if let id = views.first(where: { $0.value === cur })?.key { return id }
+            v = cur.superview
+        }
+        return nil
+    }
+
     fileprivate func input(_ id: String, _ data: ArraySlice<UInt8>) {
         client?.send(.input(id: id, data: Data(data)))
     }

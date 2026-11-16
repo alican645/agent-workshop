@@ -11,6 +11,8 @@ final class WorkshopModel {
     /// Açık oda (proje kökü); nil ise atölye görünür.
     var openRoom: String?
     private(set) var rooms = RoomStore()
+    /// Sürüklenmekte olan sekme (sürükle-bırak verisi uygulama içinde kalır).
+    @ObservationIgnored var draggingTab: RoomTab?
     let host = HostConnection()
 
     @ObservationIgnored private var store = SessionStore()
@@ -58,7 +60,7 @@ final class WorkshopModel {
         guard let s = store.sessions.first(where: { $0.id == sessionID }) else { return }
         let root = s.cwd.map { Workshop.projectRoot(cwd: $0, fileExists: FileManager.default.fileExists(atPath:)) }
         if let pid = s.pid, let tid = terminalID(pid: pid) {
-            let owner = rooms.rooms.first { $0.value.panes.contains { $0.tabs.contains(.terminal(tid)) } }?.key
+            let owner = rooms.rooms.first { $0.value.contains(.terminal(tid)) }?.key
             guard let target = owner ?? root else { return }
             var r = room(target)
             if !r.focus(.terminal(tid)) { r.add(.terminal(tid)) }
@@ -72,7 +74,7 @@ final class WorkshopModel {
 
     func openTerminal(_ id: String) {
         guard let t = host.terminals[id] else { return }
-        let root = rooms.rooms.first { $0.value.panes.contains { $0.tabs.contains(.terminal(id)) } }?.key
+        let root = rooms.rooms.first { $0.value.contains(.terminal(id)) }?.key
             ?? Workshop.projectRoot(cwd: t.cwd, fileExists: FileManager.default.fileExists(atPath:))
         var r = room(root)
         if !r.focus(.terminal(id)) { r.add(.terminal(id)) }
@@ -98,6 +100,25 @@ final class WorkshopModel {
         host.create(kind, cwd: root) { [weak self] info in
             self?.update(root) { $0.add(.terminal(info.id)) }
         }
+    }
+
+    /// Odaklı bölmenin kenarında yeni bölme açıp yeni terminali oraya koyar.
+    func split(_ kind: TerminalKind, in root: String, edge: DropEdge) {
+        host.create(kind, cwd: root) { [weak self] info in
+            self?.update(root) { r in
+                if let p = r.focusedPaneID ?? r.panes.last?.id { r.split(.terminal(info.id), beside: p, edge: edge) }
+                else { r.add(.terminal(info.id)) }
+            }
+        }
+    }
+
+    /// Sürüklenen sekme bir bölmeye bırakıldı.
+    @discardableResult
+    func dropTab(in root: String, to paneID: String, edge: DropEdge, index: Int?) -> Bool {
+        guard let tab = draggingTab, room(root).contains(tab) else { return false }
+        draggingTab = nil
+        update(root) { $0.move(tab, to: paneID, edge: edge, index: index) }
+        return true
     }
 
     func addMarkdown(in root: String) {

@@ -49,10 +49,21 @@ struct AtolyeApp: App {
 enum KeyRouter {
     private static var monitor: Any?
 
+    private static var clickMonitor: Any?
+
     static func install(_ model: WorkshopModel) {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
             handle(e, model) ? nil : e
+        }
+        // Terminale tıklanınca o bölme odaklansın (tıklama AppKit görünümüne gider, SwiftUI görmez).
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { e in
+            if let root = model.openRoom, let hit = e.window?.contentView?.hitTest(e.locationInWindow),
+               let id = model.host.terminalID(containing: hit), let pane = model.room(root).paneID(of: .terminal(id)),
+               model.room(root).focusedPaneID != pane {
+                model.update(root) { $0.focusPane(pane) }
+            }
+            return e
         }
     }
 
@@ -66,17 +77,20 @@ enum KeyRouter {
         }
         guard let root = model.openRoom else { return false }
         let room = model.room(root)
+        let panes = room.panes
         if let n = Int(key), (1...9).contains(n) {
-            if n <= room.panes.count { model.update(root) { $0.focusedPane = n - 1 } }
+            if n <= panes.count { model.update(root) { $0.focusPane(panes[n - 1].id) } }
             return true
         }
         switch key {
         case "t":
             model.add(mods.contains(.shift) ? .claude : .shell, in: root)
             return true
+        case "d":
+            model.split(.shell, in: root, edge: mods.contains(.shift) ? .bottom : .right)
+            return true
         case "w":
-            let p = room.focusedPane
-            if room.panes.indices.contains(p), let tab = room.panes[p].current { model.close(tab, in: root) }
+            if let tab = room.focusedPane?.current { model.close(tab, in: root) }
             return true
         default:
             break
@@ -84,10 +98,7 @@ enum KeyRouter {
         // ⌘[ / ⌘] — Türkçe klavyede aynı fiziksel tuşlar ğ / ü.
         let prev = key == "[" || e.keyCode == 33, next = key == "]" || e.keyCode == 30
         if prev || next {
-            let p = room.focusedPane
-            guard room.panes.indices.contains(p), room.panes[p].tabs.count > 1 else { return true }
-            let n = room.panes[p].tabs.count
-            model.update(root) { $0.panes[p].selected = ($0.panes[p].selected + (next ? 1 : n - 1)) % n }
+            model.update(root) { $0.cycleTab(by: next ? 1 : -1) }
             return true
         }
         return false

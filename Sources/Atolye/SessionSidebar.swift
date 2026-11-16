@@ -67,8 +67,7 @@ struct SessionSidebar: View {
 
     private func robotRow(_ r: RobotInfo, zone: ZoneInfo) -> some View {
         let selected = model.openRoom == zone.id && r.terminal != nil
-            && model.room(zone.id).panes.indices.contains(model.room(zone.id).focusedPane)
-            && model.room(zone.id).panes[model.room(zone.id).focusedPane].current == .terminal(r.terminal!)
+            && model.room(zone.id).focusedPane?.current == .terminal(r.terminal!)
         return Button { model.open(sessionID: r.id) } label: {
             HStack(alignment: .top, spacing: 8) {
                 Circle().fill(SidebarTheme.color(r.state)).frame(width: 8, height: 8).padding(.top, 4)
