@@ -1,0 +1,135 @@
+import Foundation
+
+/// Bir robotun sohbet kaydından ve kayıt dosyasından gelen ayrıntıları.
+public struct RobotDetails: Sendable {
+    public var tool: ToolUse?
+    /// Eskiden yeniye.
+    public var history: [ToolUse]
+    public var helpers: [Helper]
+    public var waitingFor: String?
+
+    public init(tool: ToolUse?, history: [ToolUse], helpers: [Helper], waitingFor: String?) {
+        self.tool = tool
+        self.history = history
+        self.helpers = helpers
+        self.waitingFor = waitingFor
+    }
+}
+
+public struct HelperInfo: Codable, Equatable, Sendable {
+    public var id: String
+    public var task: String
+    public var tool: String?
+}
+
+public struct RobotInfo: Codable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+    public var profile: String
+    /// "busy" | "waiting" | "done" | "idle"
+    public var state: String
+    public var tool: String?
+    public var waitingFor: String?
+    public var helpers: [HelperInfo]
+    /// Yeniden eskiye, en çok 5.
+    public var history: [String]
+}
+
+public struct ZoneInfo: Codable, Equatable, Sendable {
+    /// Proje kökünün yolu.
+    public var id: String
+    public var name: String
+    public var color: String
+    public var robots: [RobotInfo]
+    /// Açık TODO maddeleri, en çok 8.
+    public var todos: [String]
+}
+
+public struct WorkshopSnapshot: Codable, Equatable, Sendable {
+    public var zones: [ZoneInfo]
+}
+
+/// Oturumları atölye bölgelerine (projeler) ve robotlara çevirir.
+public enum Workshop {
+    static let historyLimit = 5
+    static let todoLimit = 8
+
+    /// `cwd`'den yukarı doğru `.git` içeren ilk klasör; yoksa `cwd`.
+    public static func projectRoot(cwd: String, fileExists: (String) -> Bool) -> String {
+        var dir = cwd
+        while dir.count > 1 && dir.hasSuffix("/") { dir.removeLast() }
+        var cur = dir
+        while true {
+            if fileExists(cur == "/" ? "/.git" : cur + "/.git") { return cur }
+            let parent = (cur as NSString).deletingLastPathComponent
+            if parent == cur || parent.isEmpty { return dir }
+            cur = parent
+        }
+    }
+
+    /// Proje adından her gün aynı kalan yumuşak bir renk.
+    public static func color(for name: String) -> String {
+        var h: UInt32 = 2_166_136_261
+        for b in name.utf8 { h = (h ^ UInt32(b)) &* 16_777_619 }
+        let hue = Double(h % 360) / 360, s = 0.45, l = 0.62
+        func f(_ n: Double) -> Int {
+            let k = (n + hue * 12).truncatingRemainder(dividingBy: 12)
+            let a = s * min(l, 1 - l)
+            return Int(((l - a * max(-1, min(k - 3, 9 - k, 1))) * 255).rounded())
+        }
+        return String(format: "#%02x%02x%02x", f(0), f(8), f(4))
+    }
+
+    public static func toolText(_ t: ToolUse) -> String {
+        let icon = switch t.name {
+        case "Read": "📖"
+        case "Edit", "Write", "MultiEdit", "NotebookEdit": "✏️"
+        case "Bash": "⌘"
+        case "Grep", "Glob": "🔎"
+        case "WebFetch", "WebSearch": "🌐"
+        case "Agent", "Task": "↳"
+        default: "🔧"
+        }
+        return icon + " " + (t.target.isEmpty ? t.name : t.target)
+    }
+
+    static func stateName(_ s: SessionState) -> String {
+        switch s {
+        case .working: "busy"
+        case .waiting: "waiting"
+        case .done: "done"
+        case .idle: "idle"
+        }
+    }
+
+    public static func build(sessions: [Session], details: [String: RobotDetails], todos: [String: [TodoItem]],
+                             fileExists: (String) -> Bool) -> WorkshopSnapshot {
+        var groups: [String: [(Session, String)]] = [:]
+        for s in sessions {
+            guard let cwd = s.cwd, !cwd.isEmpty else { continue }
+            let root = projectRoot(cwd: cwd, fileExists: fileExists)
+            groups[root, default: []].append((s, cwd))
+        }
+        let zones = groups.map { root, members -> ZoneInfo in
+            let name = (root as NSString).lastPathComponent.isEmpty ? root : (root as NSString).lastPathComponent
+            var used: [String: Int] = [:]
+            let robots = members.sorted { $0.0.id < $1.0.id }.map { s, cwd -> RobotInfo in
+                var base = cwd.hasPrefix(root + "/") ? String(cwd.dropFirst(root.count + 1)) : ""
+                while base.hasSuffix("/") { base.removeLast() }
+                if base.isEmpty { base = name }
+                used[base, default: 0] += 1
+                let label = used[base]! > 1 ? "\(base) \(used[base]!)" : base
+                let d = details[s.id]
+                return RobotInfo(
+                    id: s.id, label: label, profile: s.profileName, state: stateName(s.state),
+                    tool: d?.tool.map(toolText),
+                    waitingFor: s.state == .waiting ? d?.waitingFor : nil,
+                    helpers: (d?.helpers ?? []).map { HelperInfo(id: $0.id, task: $0.task, tool: $0.lastTool.map(toolText)) },
+                    history: (d?.history ?? []).suffix(historyLimit).reversed().map(toolText))
+            }
+            let open = (todos[root] ?? []).filter { !$0.done }.prefix(todoLimit).map(\.text)
+            return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(open))
+        }
+        return WorkshopSnapshot(zones: zones.sorted { ($0.name, $0.id) < ($1.name, $1.id) })
+    }
+}
