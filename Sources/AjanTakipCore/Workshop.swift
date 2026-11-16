@@ -33,6 +33,16 @@ public struct RobotInfo: Codable, Equatable, Sendable {
     public var helpers: [HelperInfo]
     /// Yeniden eskiye, en çok 5.
     public var history: [String]
+    /// Oturum bir Atölye terminalindeyse onun kimliği.
+    public var terminal: String?
+}
+
+/// Atölyede açılmış düz terminal: tezgâhta bir makine.
+public struct MachineInfo: Codable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    /// Son birkaç saniyede çıktı verdi mi.
+    public var active: Bool
 }
 
 public struct ZoneInfo: Codable, Equatable, Sendable {
@@ -43,6 +53,8 @@ public struct ZoneInfo: Codable, Equatable, Sendable {
     public var robots: [RobotInfo]
     /// Açık TODO maddeleri, en çok 8.
     public var todos: [String]
+    public var machines: [MachineInfo]
+    public var pinned: Bool
 }
 
 public struct WorkshopSnapshot: Codable, Equatable, Sendable {
@@ -53,6 +65,8 @@ public struct WorkshopSnapshot: Codable, Equatable, Sendable {
 public enum Workshop {
     static let historyLimit = 5
     static let todoLimit = 8
+    /// Makinenin "çalışıyor" ışığı için son çıktıdan bu yana süre.
+    static let machineActiveWindow: TimeInterval = 3
 
     /// `cwd`'den yukarı doğru `.git` içeren ilk klasör; yoksa `cwd`.
     public static func projectRoot(cwd: String, fileExists: (String) -> Bool) -> String {
@@ -103,13 +117,23 @@ public enum Workshop {
     }
 
     public static func build(sessions: [Session], details: [String: RobotDetails], todos: [String: [TodoItem]],
-                             fileExists: (String) -> Bool) -> WorkshopSnapshot {
+                             terminals: [TerminalInfo] = [], terminalOf: [String: String] = [:], pinned: [String] = [],
+                             now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
         var groups: [String: [(Session, String)]] = [:]
         for s in sessions {
             guard let cwd = s.cwd, !cwd.isEmpty else { continue }
             let root = projectRoot(cwd: cwd, fileExists: fileExists)
             groups[root, default: []].append((s, cwd))
         }
+        var machines: [String: [MachineInfo]] = [:]
+        for t in terminals where t.kind == .shell {
+            let root = projectRoot(cwd: t.cwd, fileExists: fileExists)
+            let active = t.running && (t.lastOutputAt.map { now.timeIntervalSince($0) <= machineActiveWindow } ?? false)
+            machines[root, default: []].append(MachineInfo(id: t.id, title: t.title, active: active))
+            if groups[root] == nil { groups[root] = [] }
+        }
+        let pinnedSet = Set(pinned)
+        for p in pinned where groups[p] == nil { groups[p] = [] }
         let zones = groups.map { root, members -> ZoneInfo in
             let name = (root as NSString).lastPathComponent.isEmpty ? root : (root as NSString).lastPathComponent
             var used: [String: Int] = [:]
@@ -125,10 +149,12 @@ public enum Workshop {
                     tool: d?.tool.map(toolText),
                     waitingFor: s.state == .waiting ? d?.waitingFor : nil,
                     helpers: (d?.helpers ?? []).map { HelperInfo(id: $0.id, task: $0.task, tool: $0.lastTool.map(toolText)) },
-                    history: (d?.history ?? []).suffix(historyLimit).reversed().map(toolText))
+                    history: (d?.history ?? []).suffix(historyLimit).reversed().map(toolText),
+                    terminal: terminalOf[s.id])
             }
             let open = (todos[root] ?? []).filter { !$0.done }.prefix(todoLimit).map(\.text)
-            return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(open))
+            return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(open),
+                            machines: machines[root] ?? [], pinned: pinnedSet.contains(root))
         }
         return WorkshopSnapshot(zones: zones.sorted { ($0.name, $0.id) < ($1.name, $1.id) })
     }

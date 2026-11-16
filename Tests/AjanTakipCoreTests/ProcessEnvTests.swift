@@ -29,4 +29,10 @@ import Testing
     @Test func deadPidIsNil() {
         #expect(ProcessEnv.environment(pid: 999_999) == nil)
     }
+
+    @Test func terminalIDFromEnvironment() {
+        #expect(ProcessEnv.terminalID(env: ["ATOLYE_TERMINAL_ID": "t1"]) == "t1")
+        #expect(ProcessEnv.terminalID(env: ["ATOLYE_TERMINAL_ID": ""]) == nil)
+        #expect(ProcessEnv.terminalID(env: [:]) == nil)
+    }
 }

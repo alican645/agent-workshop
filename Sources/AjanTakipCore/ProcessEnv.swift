@@ -56,4 +56,13 @@ public enum ProcessEnv {
         guard let ws = env["CMUX_WORKSPACE_ID"], !ws.isEmpty else { return nil }
         return CmuxIDs(workspace: ws, surface: env["CMUX_SURFACE_ID"].flatMap { $0.isEmpty ? nil : $0 })
     }
+
+    /// Atölye yardımcısında açılmış terminalin kimliği.
+    public static func terminalID(pid: Int32) -> String? {
+        environment(pid: pid).flatMap(terminalID(env:))
+    }
+
+    static func terminalID(env: [String: String]) -> String? {
+        env["ATOLYE_TERMINAL_ID"].flatMap { $0.isEmpty ? nil : $0 }
+    }
 }
