@@ -32,9 +32,31 @@ public enum AccountIntegration {
     }
 
     /// ~/.zshrc'ye eklenir: CLAUDE_CONFIG_DIR verilmemişse AjanTakip'te seçili profili kullanır.
+    /// `claude mcp add|add-json|add-from-claude-desktop|remove` (project kapsamı hariç) her profilde ayrı çalışır.
     public static let zshBlock = """
         \(ShellSnippet.begin)
         claude() {
+          local list="$HOME/.config/ajantakip/profiles"
+          if [[ "${1:-}" == mcp && "${2:-}" == (add|add-json|add-from-claude-desktop|remove) && -r "$list" ]]; then
+            local a prev="" project=0
+            for a in "$@"; do
+              [[ "$a" == --scope=project || ( "$a" == project && "$prev" == (-s|--scope) ) ]] && project=1
+              prev="$a"
+            done
+            if (( ! project )); then
+              local dir rc=0
+              while IFS= read -r dir <&3; do
+                [[ -n "$dir" ]] || continue
+                print -r -- "── ${dir/#$HOME/~}"
+                if [[ "$dir" == "$HOME/.claude" ]]; then
+                  ( unset CLAUDE_CONFIG_DIR; command claude "$@" ) || rc=1
+                else
+                  CLAUDE_CONFIG_DIR="$dir" command claude "$@" || rc=1
+                fi
+              done 3< "$list"
+              return $rc
+            fi
+          fi
           local d=""
           if [ -z "${CLAUDE_CONFIG_DIR:-}" ] && [ -r "$HOME/.config/ajantakip/active-profile" ]; then
             d=$(<"$HOME/.config/ajantakip/active-profile")

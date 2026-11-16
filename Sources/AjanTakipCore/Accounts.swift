@@ -107,6 +107,11 @@ public struct AccountStore: Equatable, Codable, Sendable {
         activeID == Self.defaultID ? "" : profiles.first { $0.id == activeID }?.configDir ?? ""
     }
 
+    /// `~/.config/ajantakip/profiles`: `claude mcp` eşitlemesi için her profilin config dizini, satır başına bir.
+    public var profilesFileContents: String {
+        profiles.map { $0.configDir + "\n" }.joined()
+    }
+
     public static func needsWarning(_ u: AccountUsage, now: Date) -> Bool {
         (u.effectiveFiveHour(now: now) ?? 0) >= warningThreshold || (u.effectiveSevenDay(now: now) ?? 0) >= warningThreshold
     }

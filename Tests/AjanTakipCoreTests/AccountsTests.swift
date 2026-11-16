@@ -154,6 +154,78 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
         #expect(b.contains(".config/ajantakip/active-profile"))
     }
 
+    @Test func profilesFileListsAllConfigDirs() throws {
+        var s = AccountStore(home: home)
+        try s.addProfile(name: "İş")
+        #expect(s.profilesFileContents == "/Users/u/.claude\n/Users/u/.claude-profiles/is\n")
+    }
+
+    /// Gerçek zsh'de bloğu çalıştırır; sahte `claude` her çağrıyı `CFG=<dizin> <argümanlar> stdin=<ilk satır>` olarak loglar.
+    private func runZsh(_ script: String, profiles: Bool = true, failSecond: Bool = false) throws -> (log: [String], status: Int32, home: String) {
+        let fm = FileManager.default
+        let h = fm.temporaryDirectory.appendingPathComponent("ajantakip-zsh-\(UUID().uuidString)").path
+        let bin = h + "/bin", cfg = h + "/.config/ajantakip"
+        try fm.createDirectory(atPath: bin, withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: cfg, withIntermediateDirectories: true)
+        let fake = """
+            #!/bin/sh
+            line=""; [ -t 0 ] || read -r line
+            echo "CFG=${CLAUDE_CONFIG_DIR:-} $* stdin=$line" >> "\(h)/log"
+            \(failSecond ? "[ -n \"$CLAUDE_CONFIG_DIR\" ] && exit 1" : "")
+            exit 0
+            """
+        try fake.write(toFile: bin + "/claude", atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin + "/claude")
+        try (h + "/.claude-profiles/is").write(toFile: cfg + "/active-profile", atomically: true, encoding: .utf8)
+        if profiles {
+            try "\(h)/.claude\n\(h)/.claude-profiles/is\n".write(toFile: cfg + "/profiles", atomically: true, encoding: .utf8)
+        }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.arguments = ["-f", "-c", AccountIntegration.zshBlock + "\n" + script]
+        p.environment = ["HOME": h, "PATH": bin + ":/usr/bin:/bin"]
+        p.standardInput = FileHandle.nullDevice
+        try p.run(); p.waitUntilExit()
+        let log = ((try? String(contentsOfFile: h + "/log", encoding: .utf8)) ?? "")
+            .split(separator: "\n").map(String.init)
+        return (log, p.terminationStatus, h)
+    }
+
+    @Test func zshBlockFansOutMcpToAllProfiles() throws {
+        let r = try runZsh("claude mcp add x -- y")
+        #expect(r.status == 0)
+        #expect(r.log == ["CFG= mcp add x -- y stdin=", "CFG=\(r.home)/.claude-profiles/is mcp add x -- y stdin="])
+        let rm = try runZsh("claude mcp remove x")
+        #expect(rm.log.count == 2)
+    }
+
+    @Test func zshBlockRunsProjectScopeOnce() throws {
+        for args in ["-s project", "--scope project", "--scope=project"] {
+            let r = try runZsh("claude mcp add \(args) x -- y")
+            #expect(r.log.count == 1, "\(args)")
+        }
+    }
+
+    @Test func zshBlockKeepsNormalBehavior() throws {
+        let r = try runZsh("claude --version")
+        #expect(r.log == ["CFG=\(r.home)/.claude-profiles/is --version stdin="])
+        let list = try runZsh("claude mcp list")
+        #expect(list.log.count == 1)
+        let noFile = try runZsh("claude mcp add x", profiles: false)
+        #expect(noFile.log.count == 1)
+    }
+
+    @Test func zshBlockContinuesAfterFailureAndReturnsError() throws {
+        let r = try runZsh("claude mcp add x", failSecond: true)
+        #expect(r.log.count == 2)
+        #expect(r.status == 1)
+    }
+
+    @Test func zshBlockLeavesStdinToClaude() throws {
+        let r = try runZsh("print ok | claude mcp add-from-claude-desktop")
+        #expect(r.log.first?.hasSuffix("stdin=ok") == true)
+    }
+
     @Test func duplicateEmailDetection() {
         let emails = ["default": "a@b.c", "ikinci": "A@B.C"]
         #expect(AccountIntegration.duplicateOf("ikinci", emails: emails) == "default")
