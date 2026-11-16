@@ -17,7 +17,8 @@ final class WorkshopModel {
     @ObservationIgnored private var scanner = RegistryScanner()
     @ObservationIgnored private var transcripts: [String: Transcript] = [:]
     @ObservationIgnored private var terminalOfPid: [Int32: String?] = [:]
-    @ObservationIgnored private var lastSnapshot: WorkshopSnapshot?
+    /// Son anlık görüntü (sol paneldeki oturum listesi için).
+    private(set) var snapshot: WorkshopSnapshot?
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var pruned = false
 
@@ -221,8 +222,8 @@ final class WorkshopModel {
         let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
                                   terminalOf: terminalOf, pinned: rooms.pinned, now: now, fileExists: fm.fileExists(atPath:))
-        guard snap != lastSnapshot, let data = try? JSONEncoder().encode(snap) else { return }
-        lastSnapshot = snap
+        guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
+        snapshot = snap
         snapshotJSON = String(decoding: data, as: UTF8.self)
     }
 

@@ -26,6 +26,7 @@ struct SceneView: NSViewRepresentable {
 
     func updateNSView(_ web: WKWebView, context: Context) {
         context.coordinator.push(model.snapshotJSON)
+        context.coordinator.setHidden(model.openRoom != nil)
     }
 
     /// Paketlenmiş uygulamada `Contents/Resources/Web`, geliştirmede kaynak klasörü.

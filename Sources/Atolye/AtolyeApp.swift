@@ -13,14 +13,19 @@ struct AtolyeApp: App {
 
     var body: some Scene {
         Window("Atölye", id: "atolye") {
-            // Atölye hep görünür; açık projenin terminalleri sağdaki yan panelde.
-            HSplitView {
-                SceneView(model: model)
-                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
-                if let root = model.openRoom {
-                    RoomView(model: model, root: root)
-                        .frame(minWidth: 380, idealWidth: 760, maxWidth: .infinity, maxHeight: .infinity)
+            // cmux gibi: solda hep oturum listesi; sağda atölye ya da açık projenin terminalleri.
+            HStack(spacing: 0) {
+                SessionSidebar(model: model)
+                    .frame(width: 250)
+                Divider()
+                ZStack {
+                    SceneView(model: model)
+                    if let root = model.openRoom {
+                        RoomView(model: model, root: root)
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.easeOut(duration: 0.15), value: model.openRoom)
             }
             .frame(minWidth: 900, minHeight: 520)
             .ignoresSafeArea()

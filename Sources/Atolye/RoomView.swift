@@ -28,6 +28,10 @@ struct RoomView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
+            Button { model.closeRoom() } label: { Label("atölye", systemImage: "chevron.left") }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.barMuted)
+                .help("Atölyeye dön (⌘0)")
             Text(name).font(.headline).foregroundStyle(Theme.barText).lineLimit(1)
             Menu {
                 Button("Claude  ⌘⇧T") { model.add(.claude, in: root) }
@@ -39,10 +43,6 @@ struct RoomView: View {
                 .fixedSize()
                 .help("Yeni Claude, terminal ya da markdown")
             Spacer()
-            Button { model.closeRoom() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)) }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.barMuted)
-                .help("Paneli kapat (⌘0) — terminaller arka planda çalışmaya devam eder")
         }
         .padding(.horizontal, 14)
         .frame(height: 38)
