@@ -19,7 +19,10 @@ struct AtolyeApp: App {
                     .frame(width: 250)
                 Divider()
                 ZStack {
-                    SceneView(model: model)
+                    VStack(spacing: 0) {
+                        WorkshopToolbar(model: model)
+                        SceneView(model: model)
+                    }
                     if let root = model.openRoom {
                         RoomView(model: model, root: root)
                             .transition(.opacity)

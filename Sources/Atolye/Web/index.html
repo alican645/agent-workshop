@@ -49,7 +49,6 @@
   .mach{font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
   .mach:hover{color:#2c2a26}
   .unpin{font-size:11px;color:#a09583;cursor:pointer;margin-top:10px;display:inline-block}
-  #addProject{margin-top:10px;font-size:12px;padding:4px 10px}
   .tag.m{font-weight:500;color:#5c554b;font-size:10px}
   #empty{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;font-size:14px;color:#8a7f70;display:none}
 </style>
@@ -60,8 +59,8 @@
 <body>
 <div id="loading">robotlar uyanıyor…</div>
 <div id="stage"></div>
-<div id="empty">Atölye sessiz — açık bir oturum yok. Sol üstten “+ proje” ile bir proje ekleyebilirsin.</div>
-<div id="top" class="hud"><h1 id="hello">Günaydın 👋</h1><div class="sub" id="clock"></div><div class="row" id="counts"></div><button id="addProject">+ proje</button></div>
+<div id="empty">Atölye sessiz — açık bir oturum yok. Üstteki “Proje ekle” ile bir proje ekleyebilirsin.</div>
+<div id="top" class="hud"><h1 id="hello">Günaydın 👋</h1><div class="sub" id="clock"></div><div class="row" id="counts"></div></div>
 <div id="panel" class="hud"></div>
 <button id="home">← atölyeye dön</button>
 <div id="feed" class="hud"><h2>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty">henüz bir şey olmadı</div></div></div>
@@ -389,7 +388,6 @@ renderer.domElement.addEventListener('dblclick', (e) => {
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) post({ type: 'openZone', id: [...zones.values()].find((z) => z.hit === zh.object).id });
 });
-document.getElementById('addProject').onclick = () => post({ type: 'addProject' });
 
 // ---------- reconcile snapshot ----------
 function layout() {
