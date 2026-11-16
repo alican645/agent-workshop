@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="utf-8"><title>Atölye</title>
+<style>body{margin:0;padding:24px;background:#f3e9da;font:12px ui-monospace,monospace;color:#2c2a26}</style></head>
+<body><pre id="out">bekleniyor…</pre>
+<script>
+  window.atolye = {
+    update(s) { document.getElementById('out').textContent = new Date().toLocaleTimeString() + '\n' + JSON.stringify(s, null, 2); },
+    setActive(v) {},
+  };
+  webkit.messageHandlers.atolye.postMessage({ type: 'ready' });
+</script>
+</body>
+</html>

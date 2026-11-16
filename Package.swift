@@ -7,6 +7,7 @@ let package = Package(
     targets: [
         .target(name: "AjanTakipCore"),
         .executableTarget(name: "AjanTakip", dependencies: ["AjanTakipCore"]),
+        .executableTarget(name: "Atolye", dependencies: ["AjanTakipCore"], exclude: ["Web"]),
         .testTarget(name: "AjanTakipCoreTests", dependencies: ["AjanTakipCore"]),
     ]
 )
