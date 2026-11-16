@@ -65,6 +65,19 @@ public enum TodoList {
         return ls.joined(separator: "\n")
     }
 
+    /// Ajana gönderilecek metin: maddenin kendisi ve altındaki işaretlenmemiş alt maddeler.
+    public static func prompt(for item: TodoItem, in items: [TodoItem]) -> String {
+        var out = [item.text]
+        if let start = items.firstIndex(where: { $0.line == item.line }) {
+            for child in items[(start + 1)...] {
+                guard child.indent > item.indent else { break }
+                if child.done { continue }
+                out.append(String(repeating: "  ", count: child.indent - item.indent - 1) + "- " + child.text)
+            }
+        }
+        return out.joined(separator: "\n")
+    }
+
     /// Yeni maddeyi son maddenin altına (yoksa dosya sonuna) ekler.
     public static func append(_ text: String, item: String) -> String {
         let clean = item.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }

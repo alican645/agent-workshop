@@ -64,6 +64,27 @@ import Testing
     }
 }
 
+@Suite struct TodoPromptTests {
+    let text = """
+        - [ ] hesap ekranı
+          - [ ] kota çubuğu
+          - [x] bitti alt
+            - [ ] derin
+        - [ ] sonraki
+        """
+
+    @Test func includesOpenChildrenOnly() {
+        let items = TodoList.parse(text)
+        #expect(TodoList.prompt(for: items[0], in: items) == "hesap ekranı\n- kota çubuğu\n  - derin")
+    }
+
+    @Test func leafItemIsJustText() {
+        let items = TodoList.parse(text)
+        #expect(TodoList.prompt(for: items[4], in: items) == "sonraki")
+        #expect(TodoList.prompt(for: items[1], in: items) == "kota çubuğu")
+    }
+}
+
 @Suite struct ProjectRootTests {
     @Test func findsGitRootUpwards() {
         let existing: Set<String> = ["/p/app/.git"]

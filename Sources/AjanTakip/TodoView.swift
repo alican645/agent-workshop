@@ -29,6 +29,9 @@ struct TodoView: View {
                 }
                 if let err = todos.lastError {
                     Text("⚠︎ \(err)").font(.system(size: 10)).foregroundStyle(.yellow)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let info = todos.lastInfo {
+                    Text(info).font(.system(size: 10)).foregroundStyle(.green.opacity(0.85))
                 }
                 TextField("Yeni madde…", text: $newItem)
                     .textFieldStyle(.plain)
@@ -85,7 +88,8 @@ struct TodoView: View {
     }
 
     private func list(_ items: [TodoItem]) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        let targets = todos.targets
+        return VStack(alignment: .leading, spacing: 3) {
             ForEach(items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: item.done ? "checkmark.square.fill" : "square")
@@ -95,6 +99,7 @@ struct TodoView: View {
                         .foregroundStyle(.white.opacity(item.done ? 0.45 : 0.9))
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
+                    if !item.done { sendButton(item, targets: targets) }
                 }
                 .padding(.leading, CGFloat(item.indent) * 14)
                 .contentShape(Rectangle())
@@ -102,6 +107,33 @@ struct TodoView: View {
             }
         }
         .frame(width: 296, alignment: .leading)
+    }
+
+    /// Maddeyi ajana gönderir: tek oturum varsa doğrudan, birden fazlaysa menüden seçilir.
+    @ViewBuilder
+    private func sendButton(_ item: TodoItem, targets: [Session]) -> some View {
+        let icon = Image(systemName: todos.sending == item.line ? "ellipsis" : "paperplane")
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(targets.isEmpty ? 0.2 : 0.55))
+            .frame(width: 18, height: 14)
+            .contentShape(Rectangle())
+        if targets.count > 1 {
+            Menu {
+                ForEach(targets) { s in
+                    Button("\(s.state.symbol) \(s.projectName) — \(s.activity)") { todos.send(item, to: s) }
+                }
+            } label: { icon }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Ajana gönder")
+            .disabled(todos.sending != nil)
+        } else {
+            Button { if let s = targets.first { todos.send(item, to: s) } } label: { icon }
+                .buttonStyle(.plain)
+                .help(targets.isEmpty ? "Bu projede cmux içinde açık oturum yok" : "Ajana gönder")
+                .disabled(targets.isEmpty || todos.sending != nil)
+        }
     }
 
     private var drag: some Gesture {

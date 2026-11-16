@@ -45,6 +45,19 @@ struct SessionListView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { onSelect(s) }
                 }
+                let idle = todos.rootsWithoutSession
+                if !idle.isEmpty {
+                    Text("TODO · ajan yok")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.horizontal, 10)
+                        .padding(.top, sessions.isEmpty ? 0 : 4)
+                    ForEach(idle, id: \.self) { root in
+                        TodoProjectRow(root: root, todo: todos.progress(root: root),
+                                       todoOpen: todos.openRoot == root,
+                                       onTodo: { todos.toggleWindow(root: root) })
+                    }
+                }
             }
             .padding(6)
         }
@@ -231,18 +244,7 @@ private struct SessionRow: View {
     /// Dosya varsa "☑ 3/7"; yoksa yalnızca üzerine gelince soluk bir simge (yeni liste başlatmak için).
     @ViewBuilder private var todoBadge: some View {
         if let todo {
-            HStack(spacing: 3) {
-                Image(systemName: todoOpen ? "checklist.checked" : "checklist")
-                Text("\(todo.done)/\(todo.total)").monospacedDigit()
-            }
-            .font(.system(size: 10, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(todoOpen ? 0.95 : 0.6))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(.white.opacity(todoOpen ? 0.2 : 0.08)))
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onTodo)
-            .help("TODO.local.md")
+            TodoBadge(todo: todo, open: todoOpen, onTap: onTodo)
         } else if hasCwd && (hovering || todoOpen) {
             Image(systemName: "checklist")
                 .font(.system(size: 10, weight: .semibold))
@@ -257,6 +259,59 @@ private struct SessionRow: View {
         let elapsed = DurationFormat.short(now.timeIntervalSince(session.stateSince))
         if session.state == .done { return "bitti · \(elapsed) önce" }
         return "\(session.activity) · \(elapsed)"
+    }
+}
+
+/// "☑ 3/7" rozeti; tıklayınca TODO penceresini açar/kapatır.
+private struct TodoBadge: View {
+    let todo: (done: Int, total: Int)
+    let open: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: open ? "checklist.checked" : "checklist")
+            Text("\(todo.done)/\(todo.total)").monospacedDigit()
+        }
+        .font(.system(size: 10, weight: .semibold, design: .rounded))
+        .foregroundStyle(.white.opacity(open ? 0.95 : 0.6))
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(.white.opacity(open ? 0.2 : 0.08)))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .help("TODO.local.md")
+    }
+}
+
+/// Açık oturumu olmayan ama TODO listesi olan proje satırı; tıklayınca listeyi açar.
+private struct TodoProjectRow: View {
+    let root: String
+    let todo: (done: Int, total: Int)?
+    let todoOpen: Bool
+    let onTodo: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(SessionState.idle.symbol)
+                .foregroundStyle(.white.opacity(0.3))
+                .frame(width: 14)
+            Text((root as NSString).lastPathComponent)
+                .fontWeight(.semibold)
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            if let todo { TodoBadge(todo: todo, open: todoOpen, onTap: onTodo) }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.12 : 0)))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTodo)
+        .onHover { hovering = $0 }
+        .help(root)
     }
 }
 
