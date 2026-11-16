@@ -16,6 +16,7 @@ final class AccountManager {
     private static var configDir: URL { URL(fileURLWithPath: home + "/.config/ajantakip") }
     private static var savedURL: URL { configDir.appendingPathComponent("accounts.json") }
     private static var activeProfileURL: URL { configDir.appendingPathComponent("active-profile") }
+    private static var profilesListURL: URL { configDir.appendingPathComponent("profiles") }
     static var zshrcURL: URL { URL(fileURLWithPath: home + "/.zshrc") }
     static var statuslineURL: URL { URL(fileURLWithPath: home + "/.claude/statusline-command.sh") }
 
@@ -36,6 +37,8 @@ final class AccountManager {
             usage = [:]
         }
         refreshIntegration()
+        upgradeIntegration()
+        save()
     }
 
     var hasMultiple: Bool { store.profiles.count > 1 }
@@ -164,6 +167,16 @@ final class AccountManager {
         integrationInstalled = ShellSnippet.contains(in: z) && ShellSnippet.contains(in: s)
     }
 
+    /// Kurulu `.zshrc` bloğu eski sürümse yedek alarak günceller (aynıysa dosyaya dokunulmaz).
+    private func upgradeIntegration() {
+        guard integrationInstalled else { return }
+        do {
+            try Self.rewrite(Self.zshrcURL) { ShellSnippet.insert(AccountIntegration.zshBlock, into: $0) }
+        } catch {
+            Self.log.error("zsh bloğu güncellenemedi: \(error.localizedDescription)")
+        }
+    }
+
     func toggleIntegration(port: UInt16) throws {
         let install = !integrationInstalled
         try Self.rewrite(Self.zshrcURL) {
@@ -198,6 +211,7 @@ final class AccountManager {
             try FileManager.default.createDirectory(at: Self.configDir, withIntermediateDirectories: true)
             try JSONEncoder().encode(Saved(store: store, usage: usage)).write(to: Self.savedURL, options: .atomic)
             try store.activeConfigDirForShell.write(to: Self.activeProfileURL, atomically: true, encoding: .utf8)
+            try store.profilesFileContents.write(to: Self.profilesListURL, atomically: true, encoding: .utf8)
         } catch {
             Self.log.error("kaydedilemedi: \(error.localizedDescription)")
         }
