@@ -33,9 +33,23 @@ public enum AccountIntegration {
 
     /// ~/.zshrc'ye eklenir: CLAUDE_CONFIG_DIR verilmemişse AjanTakip'te seçili profili kullanır.
     /// `claude mcp add|add-json|add-from-claude-desktop|remove` (project kapsamı hariç) her profilde ayrı çalışır.
+    /// cmux, .zshrc'den sonra ilk istemde kendi `claude()` fonksiyonunu kurup bunu ezer; istem kancası onunkini
+    /// `_ajantakip_claude_inner` olarak içe alır ve bizimkini üste geri koyar, böylece cmux'un sarmalayıcısı da çalışır.
     public static let zshBlock = """
         \(ShellSnippet.begin)
-        claude() {
+        _ajantakip_claude_next() {
+          if (( $+functions[_ajantakip_claude_inner] )); then _ajantakip_claude_inner "$@"; else command claude "$@"; fi
+        }
+        claude() { _ajantakip_claude "$@"; }
+        _ajantakip_claude_rewrap() {
+          if (( $+functions[claude] )) && [[ "${functions[claude]}" != *_ajantakip_claude* ]]; then
+            functions -c claude _ajantakip_claude_inner
+            claude() { _ajantakip_claude "$@"; }
+          fi
+          (( ${precmd_functions[(Ie)_cmux_fix_path]} )) || add-zsh-hook -d precmd _ajantakip_claude_rewrap
+        }
+        autoload -Uz add-zsh-hook && add-zsh-hook precmd _ajantakip_claude_rewrap
+        _ajantakip_claude() {
           local list="$HOME/.config/ajantakip/profiles"
           if [[ "${1:-}" == mcp && "${2:-}" == (add|add-json|add-from-claude-desktop|remove) && -r "$list" ]]; then
             local a prev="" project=0
@@ -49,9 +63,9 @@ public enum AccountIntegration {
                 [[ -n "$dir" ]] || continue
                 print -r -- "── ${dir/#$HOME/~}"
                 if [[ "$dir" == "$HOME/.claude" ]]; then
-                  ( unset CLAUDE_CONFIG_DIR; command claude "$@" ) || rc=1
+                  ( unset CLAUDE_CONFIG_DIR; _ajantakip_claude_next "$@" ) || rc=1
                 else
-                  CLAUDE_CONFIG_DIR="$dir" command claude "$@" || rc=1
+                  CLAUDE_CONFIG_DIR="$dir" _ajantakip_claude_next "$@" || rc=1
                 fi
               done 3< "$list"
               return $rc
@@ -61,7 +75,7 @@ public enum AccountIntegration {
           if [ -z "${CLAUDE_CONFIG_DIR:-}" ] && [ -r "$HOME/.config/ajantakip/active-profile" ]; then
             d=$(<"$HOME/.config/ajantakip/active-profile")
           fi
-          if [ -n "$d" ]; then CLAUDE_CONFIG_DIR="$d" command claude "$@"; else command claude "$@"; fi
+          if [ -n "$d" ]; then CLAUDE_CONFIG_DIR="$d" _ajantakip_claude_next "$@"; else _ajantakip_claude_next "$@"; fi
         }
         \(ShellSnippet.end)
 

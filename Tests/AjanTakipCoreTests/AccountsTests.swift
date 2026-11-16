@@ -161,7 +161,7 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
     }
 
     /// Gerçek zsh'de bloğu çalıştırır; sahte `claude` her çağrıyı `CFG=<dizin> <argümanlar> stdin=<ilk satır>` olarak loglar.
-    private func runZsh(_ script: String, profiles: Bool = true, failSecond: Bool = false) throws -> (log: [String], status: Int32, home: String) {
+    private func runZsh(_ script: String, prelude: String = "", profiles: Bool = true, failSecond: Bool = false) throws -> (log: [String], status: Int32, home: String) {
         let fm = FileManager.default
         let h = fm.temporaryDirectory.appendingPathComponent("ajantakip-zsh-\(UUID().uuidString)").path
         let bin = h + "/bin", cfg = h + "/.config/ajantakip"
@@ -182,7 +182,7 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
         }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-f", "-c", AccountIntegration.zshBlock + "\n" + script]
+        p.arguments = ["-f", "-c", prelude + "\n" + AccountIntegration.zshBlock + "\n" + script]
         p.environment = ["HOME": h, "PATH": bin + ":/usr/bin:/bin"]
         p.standardInput = FileHandle.nullDevice
         try p.run(); p.waitUntilExit()
@@ -219,6 +219,26 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
         let r = try runZsh("claude mcp add x", failSecond: true)
         #expect(r.log.count == 2)
         #expect(r.status == 1)
+    }
+
+    /// cmux, .zshrc'den sonra ilk istemde (precmd) kendi `claude()` fonksiyonunu kurar; bunu taklit eder.
+    private let fakeCmux = """
+        autoload -Uz add-zsh-hook
+        _cmux_fix_path() { add-zsh-hook -d precmd _cmux_fix_path; claude() { command claude --via-cmux "$@"; } }
+        add-zsh-hook precmd _cmux_fix_path
+        """
+    private let firstPrompt = "for f in $precmd_functions; do $f; done"
+
+    @Test func zshBlockSurvivesCmuxReplacingClaude() throws {
+        let r = try runZsh("\(firstPrompt); claude --version", prelude: fakeCmux)
+        #expect(r.log == ["CFG=\(r.home)/.claude-profiles/is --via-cmux --version stdin="])
+        let mcp = try runZsh("\(firstPrompt); claude mcp add x", prelude: fakeCmux)
+        #expect(mcp.log == ["CFG= --via-cmux mcp add x stdin=", "CFG=\(mcp.home)/.claude-profiles/is --via-cmux mcp add x stdin="])
+    }
+
+    @Test func zshBlockPromptHookIsHarmlessWithoutCmux() throws {
+        let r = try runZsh("\(firstPrompt); \(firstPrompt); claude --version")
+        #expect(r.log == ["CFG=\(r.home)/.claude-profiles/is --version stdin="])
     }
 
     @Test func zshBlockLeavesStdinToClaude() throws {
