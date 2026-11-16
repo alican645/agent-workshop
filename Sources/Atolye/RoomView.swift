@@ -30,21 +30,22 @@ struct RoomView: View {
         HStack(spacing: 12) {
             Button { model.closeRoom() } label: { Label("atölye", systemImage: "chevron.left") }
                 .buttonStyle(.plain)
-                .foregroundStyle(Theme.muted)
+                .foregroundStyle(Theme.barMuted)
                 .help("Atölyeye dön (⌘0)")
-            Text(name).font(.headline).foregroundStyle(Theme.text)
+            Text(name).font(.headline).foregroundStyle(Theme.barText)
             Menu {
                 Button("Claude  ⌘⇧T") { model.add(.claude, in: root) }
                 Button("Terminal  ⌘T") { model.add(.shell, in: root) }
                 Button("Markdown dosyası…") { model.addMarkdown(in: root) }
-            } label: { Image(systemName: "plus") }
+            } label: { Image(systemName: "plus").foregroundStyle(Theme.barText) }
                 .menuStyle(.borderlessButton)
+                .tint(Theme.barText)
                 .fixedSize()
                 .help("Yeni Claude, terminal ya da markdown")
             Spacer()
             ForEach(model.waiting.filter { $0.zone != root }.prefix(3)) { w in
                 Button { model.open(sessionID: w.id) } label: {
-                    Text("⚠ \(w.zoneName) · \(w.label) seni bekliyor").font(.caption.weight(.semibold))
+                    Text("⚠ \(w.label == w.zoneName ? w.label : "\(w.zoneName) · \(w.label)") seni bekliyor").font(.caption.weight(.semibold))
                         .padding(.horizontal, 9).padding(.vertical, 4)
                         .background(Capsule().fill(Theme.waiting))
                         .foregroundStyle(.white)
@@ -161,6 +162,8 @@ enum Theme {
     static let tabBar = Color(red: 0.22, green: 0.20, blue: 0.18)
     static let tabBarFocused = Color(red: 0.27, green: 0.24, blue: 0.21)
     static let tabSelected = Color(red: 0.165, green: 0.149, blue: 0.133)
+    static let barText = Color(red: 0.17, green: 0.16, blue: 0.15)
+    static let barMuted = Color(red: 0.42, green: 0.39, blue: 0.35)
     static let text = Color(red: 0.937, green: 0.902, blue: 0.847)
     static let muted = Color(red: 0.62, green: 0.58, blue: 0.52)
     static let waiting = Color(red: 1, green: 0.55, blue: 0.18)

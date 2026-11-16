@@ -45,6 +45,12 @@
   .bub.done:after{border-top-color:#3aa57a}
   @keyframes bob{50%{transform:translateY(-4px)}}
   #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8a7f70;z-index:9;background:#f3e9da;padding:40px;text-align:center}
+  .enter{display:block;width:100%;margin:4px 0 10px;padding:8px;font-weight:600;background:#2c2a26;color:#fff;border-color:#2c2a26}
+  .mach{font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
+  .mach:hover{color:#2c2a26}
+  .unpin{font-size:11px;color:#a09583;cursor:pointer;margin-top:10px;display:inline-block}
+  #addProject{margin-top:10px;font-size:12px;padding:4px 10px}
+  .tag.m{font-weight:500;color:#5c554b;font-size:10px}
   #empty{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;font-size:14px;color:#8a7f70;display:none}
 </style>
 <script type="importmap">
@@ -54,12 +60,12 @@
 <body>
 <div id="loading">robotlar uyanıyor…</div>
 <div id="stage"></div>
-<div id="empty">Atölye sessiz — açık bir Claude oturumu yok.</div>
-<div id="top" class="hud"><h1 id="hello">Günaydın 👋</h1><div class="sub" id="clock"></div><div class="row" id="counts"></div></div>
+<div id="empty">Atölye sessiz — açık bir oturum yok. Sol üstten “+ proje” ile bir proje ekleyebilirsin.</div>
+<div id="top" class="hud"><h1 id="hello">Günaydın 👋</h1><div class="sub" id="clock"></div><div class="row" id="counts"></div><button id="addProject">+ proje</button></div>
 <div id="panel" class="hud"></div>
 <button id="home">← atölyeye dön</button>
 <div id="feed" class="hud"><h2>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty">henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud">bir tezgâha tıkla · robota tıkla: cmux'ta aç · sürükle: döndür</div>
+<div id="hint" class="hud">bölgeye çift tıkla: odaya gir · robota tıkla: terminaline git · sürükle: döndür</div>
 
 <script>
   window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = 'Hata: ' + e.message; });
@@ -180,8 +186,9 @@ function buildZone(info) {
   const hit = new THREE.Mesh(new THREE.BoxGeometry(12, 4, 9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   hit.position.y = 2; g.add(hit);
   const slots = new THREE.Group(); bench.add(slots);
+  const machGroup = new THREE.Group(); g.add(machGroup);
   g.scale.setScalar(0.001);
-  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [] };
+  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [] };
   zones.set(info.id, Z);
   return Z;
 }
@@ -197,6 +204,33 @@ function setSlots(Z, n) {
     scr.position.set(x, 1.75, -0.39); Z.slots.add(scr);
     return scr;
   });
+}
+
+// ---------- machines (düz terminaller) ----------
+const MAX_MACH = 4;
+const machHits = [];
+function setMachines(Z, list) {
+  const shown = list.slice(0, MAX_MACH);
+  const key = shown.map((m) => m.id + ':' + m.title).join('|');
+  if (key !== Z.machKey) {
+    Z.machKey = key;
+    for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); }
+    while (Z.machGroup.children.length) dispose(Z.machGroup.children[0]);
+    Z.machs = shown.map((mi, i) => {
+      const g = new THREE.Group(); g.position.set(5.25, 0.16, -1.6 + i * 1.1); g.rotation.y = -Math.PI / 2; Z.machGroup.add(g);
+      const body = box(0.8, 0.95, 0.7, 0x8d8a86); body.position.y = 0.48; g.add(body);
+      const top = box(0.86, 0.08, 0.76, 0x6f6b66); top.position.y = 0.99; g.add(top);
+      const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.36), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x3aa57a, emissiveIntensity: 0 }));
+      scr.position.set(0, 0.62, 0.351); g.add(scr);
+      const led = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0x3aa57a, emissiveIntensity: 0 }));
+      led.position.set(0.28, 0.9, 0.36); g.add(led);
+      const tagEl = css('tag m', '⚙ ' + esc(mi.title)); const tag = new CSS2DObject(tagEl); tag.position.y = 1.35; g.add(tag);
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.2, 0.8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      hit.position.y = 0.6; hit.userData.machine = mi.id; g.add(hit); machHits.push(hit);
+      return { id: mi.id, scr, led, tagEl, hit, active: false };
+    });
+  }
+  Z.machs.forEach((m, i) => { m.active = !!shown[i]?.active; });
 }
 
 // ---------- robots ----------
@@ -310,16 +344,23 @@ function renderPanel() {
   const z = selected && snapshot.zones.find((z) => z.id === selected);
   if (!z) { if (selected) goHome(); panel.style.display = 'none'; return; }
   const hist = z.robots.flatMap((r) => r.history.slice(0, 2).map((h) => `<li>${esc(h)} <span style="color:#a09583">· ${esc(r.label)}</span></li>`)).slice(0, 5).join('');
+  const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ' <span style="color:#3aa57a">· çalışıyor</span>' : ''}</div>`).join('');
   const html = `<h3><span class="d" style="background:${z.color};width:12px;height:12px"></span>${esc(z.name)}</h3>` +
+    `<button class="enter" id="enterRoom">Odaya gir →</button>` +
     z.robots.map((r) => `<div class="sess" data-id="${esc(r.id)}"><div class="n"><span class="d" style="background:${ST[r.state].c}"></span>${esc(r.label)}${r.profile ? ` <span class="p">· ${esc(r.profile)}</span>` : ''}</div>` +
       `<div class="s">${ST[r.state].t}${r.tool ? ' · ' + esc(r.tool) : ''}</div>` +
       r.helpers.map((h) => `<div class="ag">↳ ${esc(h.task)}${h.tool ? ' · ' + esc(h.tool) : ''}</div>`).join('') +
       (r.state === 'waiting' ? `<div class="ask">${waitText(r)} — cmux'ta yanıtla</div>` : '') + `</div>`).join('') +
     (hist ? `<h4>SON İŞLER</h4><ul class="hist">${hist}</ul>` : '') +
-    (z.todos.length ? `<h4>YAPILACAKLAR</h4><ul class="todo">${z.todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
+    (machs ? `<h4>TERMİNALLER</h4>${machs}` : '') +
+    (z.todos.length ? `<h4>YAPILACAKLAR</h4><ul class="todo">${z.todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+    (z.pinned ? `<span class="unpin" id="unpin">sabitlemeyi kaldır</span>` : '');
   if (html === panel._last) return;
   panel._last = html; panel.innerHTML = html; panel.style.display = 'block';
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
+  panel.querySelectorAll('.mach').forEach((el) => el.onclick = () => post({ type: 'openTerminal', id: el.dataset.term }));
+  document.getElementById('enterRoom').onclick = () => post({ type: 'openZone', id: z.id });
+  const un = document.getElementById('unpin'); if (un) un.onclick = () => post({ type: 'unpin', id: z.id });
 }
 function select(Z) {
   selected = Z.id;
@@ -337,9 +378,18 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   down = null; ndc.set((e.clientX / W()) * 2 - 1, -(e.clientY / H()) * 2 + 1); ray.setFromCamera(ndc, camera);
   const rh = ray.intersectObjects(hitBoxes.filter((h) => h.parent?.visible !== false))[0];
   if (rh) { const r = rh.object.userData.robot; post({ type: 'focus', id: r.parent ? r.parent.id : r.id }); return; }
+  const mh = ray.intersectObjects(machHits)[0];
+  if (mh) { post({ type: 'openTerminal', id: mh.object.userData.machine }); return; }
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) select([...zones.values()].find((z) => z.hit === zh.object));
 });
+
+renderer.domElement.addEventListener('dblclick', (e) => {
+  ndc.set((e.clientX / W()) * 2 - 1, -(e.clientY / H()) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
+  if (zh) post({ type: 'openZone', id: [...zones.values()].find((z) => z.hit === zh.object).id });
+});
+document.getElementById('addProject').onclick = () => post({ type: 'addProject' });
 
 // ---------- reconcile snapshot ----------
 function layout() {
@@ -365,6 +415,7 @@ function apply(s) {
     Z.info = info; Z.leaving = false;
     const shown = info.robots.slice(0, MAX_SLOTS);
     setSlots(Z, shown.length);
+    setMachines(Z, info.machines || []);
     Z.more.visible = info.robots.length > MAX_SLOTS;
     Z.more.element.textContent = `+${info.robots.length - MAX_SLOTS}`;
     shown.forEach((ri, i) => {
@@ -456,7 +507,7 @@ function tick() {
   for (const Z of [...zones.values()]) {
     const target = Z.leaving ? 0.001 : 1;
     const s = THREE.MathUtils.damp(Z.g.scale.x, target, 4, dt); Z.g.scale.setScalar(s);
-    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); dispose(Z.g); if (selected === Z.id) goHome(); continue; }
+    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
     Z.g.position.lerp(Z.target, Math.min(1, dt * 3));
     const waiting = Z.info.robots.some((r) => r.state === 'waiting');
     Z.frame.visible = waiting && !Z.leaving;
@@ -466,11 +517,17 @@ function tick() {
       m.emissive.set(ST[r.state].c);
       m.emissiveIntensity = r.state === 'busy' ? 0.55 + 0.25 * Math.sin(t * 9 + i * 2) * Math.sin(t * 2.3) : r.state === 'idle' ? 0.08 : 0.6;
     });
+    for (const m of Z.machs) {
+      const k = m.active ? 0.7 + 0.3 * Math.sin(t * 8) : 0;
+      m.scr.material.emissiveIntensity = m.active ? 0.5 + 0.2 * Math.sin(t * 6) : 0.04;
+      m.led.material.emissiveIntensity = k * 2;
+    }
     // Uzaktan yalnız tabela ve bekleme balonu görünsün.
     const far = camDist.copy(Z.g.position).distanceTo(camera.position) > LABEL_FAR;
     if (Z._far !== far) {
       Z._far = far;
       for (const r of robots.values()) if (r.zone === Z) r.tagEl.style.opacity = far ? '0' : '1';
+      for (const m of Z.machs) m.tagEl.style.opacity = far ? '0' : '1';
     }
     if (far) for (const r of robots.values()) if (r.zone === Z && !r.bubSticky && r.bubT > 0) r.bubEl.style.opacity = '0';
   }

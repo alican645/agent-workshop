@@ -120,6 +120,8 @@ final class HostConnection {
     }
 
     fileprivate func resize(_ id: String, cols: Int, rows: Int) {
+        // Yerleşim sırasında görünüm bir an sıfır boyutlu olabilir; kabuğu 1 sütuna küçültme.
+        guard cols >= 10, rows >= 3 else { return }
         client?.send(.resize(id: id, cols: UInt16(clamping: cols), rows: UInt16(clamping: rows)))
     }
 

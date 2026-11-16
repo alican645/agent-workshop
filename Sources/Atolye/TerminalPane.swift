@@ -19,9 +19,15 @@ struct TerminalPane: NSViewRepresentable {
         if v.superview !== c {
             c.subviews.forEach { $0.removeFromSuperview() }
             v.removeFromSuperview()
-            v.frame = c.bounds
-            v.autoresizingMask = [.width, .height]
+            // Kaba kenarlardan sabitle: kap ilk anda sıfır boyutlu olsa da terminal onunla büyür.
+            v.translatesAutoresizingMaskIntoConstraints = false
             c.addSubview(v)
+            NSLayoutConstraint.activate([
+                v.leadingAnchor.constraint(equalTo: c.leadingAnchor),
+                v.trailingAnchor.constraint(equalTo: c.trailingAnchor),
+                v.topAnchor.constraint(equalTo: c.topAnchor),
+                v.bottomAnchor.constraint(equalTo: c.bottomAnchor),
+            ])
         }
         if focused, v.window?.firstResponder !== v {
             DispatchQueue.main.async { v.window?.makeFirstResponder(v) }
