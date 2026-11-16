@@ -63,8 +63,8 @@ final class HostConnection {
             terminals[info.id] = info
             if !pendingCreates.isEmpty { pendingCreates.removeFirst()(info) }
         case let .output(id, data):
+            // lastOutputAt'i burada güncelleme: her parçada arayüz yeniden çizilirdi; saniyelik liste getiriyor.
             views[id]?.feed(byteArray: ArraySlice([UInt8](data)))
-            terminals[id]?.lastOutputAt = Date()
         case let .exited(id, code):
             terminals[id]?.running = false
             terminals[id]?.exitCode = code
