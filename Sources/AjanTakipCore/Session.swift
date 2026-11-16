@@ -22,6 +22,10 @@ public struct Session: Identifiable, Equatable, Sendable {
     /// Son bildirilen çalışma klasörü.
     public var cwd: String?
     var lastTool: String?
+    /// Profil adı (varsayılan profil için boş).
+    public var profileName: String = ""
+    /// Durumu Claude'un kayıt dosyasından geliyor; hook olayları yalnız ayrıntı ekler.
+    public internal(set) var fromRegistry = false
 }
 
 public enum AlertKind: Equatable, Sendable {
