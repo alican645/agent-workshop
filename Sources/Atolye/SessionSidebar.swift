@@ -5,12 +5,16 @@ import SwiftUI
 struct SessionSidebar: View {
     let model: WorkshopModel
 
-    private var zones: [ZoneInfo] { (model.snapshot?.zones ?? []).filter { !$0.robots.isEmpty } }
+    /// Ajanı ya da penceresi olan projeler.
+    private var zones: [ZoneInfo] {
+        let roots = Set(model.desk.windows.map(\.root))
+        return (model.snapshot?.zones ?? []).filter { !$0.robots.isEmpty || roots.contains($0.id) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: 30) // pencere düğmeleri
-            Button { model.closeRoom() } label: {
+            Button { model.tuckAll() } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "square.grid.2x2")
                     Text("Atölye").font(.system(size: 13, weight: .semibold))
@@ -22,7 +26,7 @@ struct SessionSidebar: View {
                     }
                 }
                 .padding(.horizontal, 10).frame(height: 30)
-                .background(RoundedRectangle(cornerRadius: 7).fill(model.openRoom == nil ? SidebarTheme.selected : .clear))
+                .background(RoundedRectangle(cornerRadius: 7).fill(model.desk.front == nil ? SidebarTheme.selected : .clear))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -38,6 +42,7 @@ struct SessionSidebar: View {
                 }
                 .padding(.vertical, 12)
             }
+            .onPreferenceChange(SidebarTargets.self) { v in MainActor.assumeIsolated { model.sidebarTargets = v } }
         }
         .foregroundStyle(SidebarTheme.text)
         .background(SidebarTheme.background)
@@ -49,19 +54,39 @@ struct SessionSidebar: View {
 
     private func zoneSection(_ z: ZoneInfo) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Button { model.openZone(z.id) } label: {
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 2).fill(Color(hex: z.color)).frame(width: 8, height: 8)
-                    Text(z.name.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6)
-                        .foregroundStyle(SidebarTheme.muted).lineLimit(1)
-                    Spacer()
-                    if let g = z.git { gitBadge(g) }
+            HStack(spacing: 4) {
+                Button { model.openZone(z.id) } label: {
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: z.color)).frame(width: 8, height: 8)
+                        Text(z.name.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6)
+                            .foregroundStyle(SidebarTheme.muted).lineLimit(1)
+                        Spacer()
+                        if let g = z.git { gitBadge(g) }
+                        let parkedWindows = model.desk.windows.filter { $0.root == z.id && $0.minimized }
+                        let parked = parkedWindows.count
+                        let calling = parkedWindows.contains { model.isWaiting($0) }
+                        if parked > 0 {
+                            Text("▭ \(parked)").font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(calling ? .white : SidebarTheme.muted)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background {
+                                    if calling { Pulse(low: 0.5) { Capsule().fill(SidebarTheme.color("waiting")) } }
+                                    else { Capsule().fill(SidebarTheme.selected) }
+                                }
+                                .help(calling ? "Buradaki bir Claude seni bekliyor — açmak için tıkla"
+                                              : "\(parked) pencere burada bekliyor — açmak için tıkla")
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 18).padding(.bottom, 2)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .help("\(z.name) pencerelerini öne getir")
+                NewWindowMenu(model: model, root: z.id, tint: SidebarTheme.muted)
             }
-            .buttonStyle(.plain)
-            .help("\(z.name) terminallerini aç")
+            .padding(.leading, 18).padding(.trailing, 10).padding(.bottom, 2)
+            .background(GeometryReader { g in
+                Color.clear.preference(key: SidebarTargets.self, value: [z.id: g.frame(in: .global)])
+            })
             ForEach(z.robots, id: \.id) { r in robotRow(r, zone: z) }
         }
     }
@@ -80,8 +105,7 @@ struct SessionSidebar: View {
     }
 
     private func robotRow(_ r: RobotInfo, zone: ZoneInfo) -> some View {
-        let selected = model.openRoom == zone.id && r.terminal != nil
-            && model.room(zone.id).focusedPane?.current == .terminal(r.terminal!)
+        let selected = r.terminal != nil && model.desk.front?.tab == .terminal(r.terminal!)
         return Button { model.open(sessionID: r.id) } label: {
             HStack(alignment: .top, spacing: 8) {
                 Circle().fill(SidebarTheme.color(r.state)).frame(width: 8, height: 8).padding(.top, 4)
@@ -99,6 +123,11 @@ struct SessionSidebar: View {
                     Text(subtitle(r)).font(.system(size: 11)).foregroundStyle(SidebarTheme.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if let c = r.cost, c > 0 {
+                    Text(UsageFormat.usd(c)).font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(SidebarTheme.muted).padding(.top, 2)
+                        .help("Bu oturum: \(UsageFormat.tokens(r.tokens ?? 0)) token ≈ \(UsageFormat.usd(c))\n\(UsageFormat.note)")
+                }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: 7).fill(selected ? SidebarTheme.selected : .clear))
@@ -144,5 +173,13 @@ extension Color {
         } else {
             self.init(white: 0.6)
         }
+    }
+}
+
+/// Sol paneldeki proje başlıklarının yerleri (pencereler oraya çekilir).
+struct SidebarTargets: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }

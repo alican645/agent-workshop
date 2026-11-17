@@ -18,17 +18,14 @@ struct AtolyeApp: App {
                 SessionSidebar(model: model)
                     .frame(width: 250)
                 Divider()
-                ZStack {
-                    VStack(spacing: 0) {
-                        WorkshopToolbar(model: model)
+                VStack(spacing: 0) {
+                    WorkshopToolbar(model: model)
+                    // Terminaller sahnenin üstünde yüzen pencereler; sahne hep görünür.
+                    ZStack {
                         SceneView(model: model)
-                    }
-                    if let root = model.openRoom {
-                        RoomView(model: model, root: root)
-                            .transition(.opacity)
+                        DeskView(model: model)
                     }
                 }
-                .animation(.easeOut(duration: 0.15), value: model.openRoom)
             }
             .frame(minWidth: 900, minHeight: 520)
             .ignoresSafeArea()
@@ -59,12 +56,12 @@ enum KeyRouter {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
             handle(e, model) ? nil : e
         }
-        // Terminale tıklanınca o bölme odaklansın (tıklama AppKit görünümüne gider, SwiftUI görmez).
+        // Terminale tıklanınca penceresi öne gelsin (tıklama AppKit görünümüne gider, SwiftUI görmez).
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { e in
-            if let root = model.openRoom, let hit = e.window?.contentView?.hitTest(e.locationInWindow),
-               let id = model.host.terminalID(containing: hit), let pane = model.room(root).paneID(of: .terminal(id)),
-               model.room(root).focusedPaneID != pane {
-                model.update(root) { $0.focusPane(pane) }
+            if let hit = e.window?.contentView?.hitTest(e.locationInWindow),
+               let id = model.host.terminalID(containing: hit), let w = model.desk.window(of: .terminal(id)),
+               model.desk.front?.id != w.id {
+                model.changeDesk { $0.raise(w.id) }
             }
             return e
         }
@@ -74,34 +71,32 @@ enum KeyRouter {
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard mods.contains(.command), !mods.contains(.control) else { return false }
         let key = (e.charactersIgnoringModifiers ?? "").lowercased()
-        if key == "0" {
-            model.closeRoom()
-            return true
-        }
-        guard let root = model.openRoom else { return false }
-        let room = model.room(root)
-        let panes = room.panes
+        let desk = model.desk
+        let visible = desk.windows.filter { !$0.minimized }
         if let n = Int(key), (1...9).contains(n) {
-            if n <= panes.count { model.update(root) { $0.focusPane(panes[n - 1].id) } }
+            if n <= visible.count { model.changeDesk { $0.raise(visible[n - 1].id) } }
             return true
         }
         switch key {
         case "t":
-            model.add(mods.contains(.shift) ? .claude : .shell, in: root)
-            return true
-        case "d":
-            model.split(.shell, in: root, edge: mods.contains(.shift) ? .bottom : .right)
+            guard let root = model.frontRoot ?? model.snapshot?.zones.first?.id else { return false }
+            model.newWindow(mods.contains(.shift) ? .claude : .shell, in: root)
             return true
         case "w":
-            if let tab = room.focusedPane?.current { model.close(tab, in: root) }
+            guard let w = desk.front else { return false }
+            model.closeWindow(w.id)
+            return true
+        case "m":
+            guard let w = desk.front else { return false }
+            model.tuck([w.id])
             return true
         default:
             break
         }
-        // ⌘[ / ⌘] — Türkçe klavyede aynı fiziksel tuşlar ğ / ü.
-        let prev = key == "[" || e.keyCode == 33, next = key == "]" || e.keyCode == 30
-        if prev || next {
-            model.update(root) { $0.cycleTab(by: next ? 1 : -1) }
+        // ⌘` ya da ⌘[ / ⌘] (Türkçe klavyede ğ / ü): pencereler arasında geç.
+        let prev = key == "[" || e.keyCode == 33, next = key == "]" || e.keyCode == 30 || e.keyCode == 50
+        if (prev || next) && visible.count > 1 {
+            model.changeDesk { $0.cycle(by: next ? 1 : -1) }
             return true
         }
         return false

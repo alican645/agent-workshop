@@ -2,18 +2,23 @@ import AjanTakipCore
 import AppKit
 import AtolyeHostKit
 import Observation
+import SwiftUI
 
 /// Saniyede bir tüm profillerin oturumlarını tarar, atölye görüntüsünü üretir; odaları ve terminalleri yönetir.
 @MainActor @Observable
 final class WorkshopModel {
     /// Sahneye gönderilecek son anlık görüntü (JSON).
     private(set) var snapshotJSON = #"{"zones":[]}"#
-    /// Açık oda (proje kökü); nil ise atölye görünür.
-    var openRoom: String?
-    private(set) var rooms = RoomStore()
-    /// Sürüklenmekte olan sekme (sürükle-bırak verisi uygulama içinde kalır).
-    @ObservationIgnored var draggingTab: RoomTab?
+    /// Atölyenin üstünde yüzen pencereler.
+    private(set) var desk = Desk()
     let host = HostConnection()
+    /// Seni bekleyen Claude'ların terminalleri (pencere başlığı yanıp söner).
+    private(set) var waitingTerminals: Set<String> = []
+    @ObservationIgnored let notifier = Notifier()
+    /// Claude hesapları (profiller).
+    let profiles = Profiles()
+    @ObservationIgnored private var lastProfilesRefresh = Date.distantPast
+    static let profilesInterval: TimeInterval = 5
 
     @ObservationIgnored private var store = SessionStore()
     @ObservationIgnored private var scanner = RegistryScanner()
@@ -28,6 +33,15 @@ final class WorkshopModel {
     @ObservationIgnored private var gitRefreshing = false
     @ObservationIgnored private var lastGitRefresh = Date.distantPast
     static let gitInterval: TimeInterval = 3
+    /// Token kullanımı ve API karşılığı maliyet (arka planda tazelenir).
+    @ObservationIgnored private let usageWorker = UsageWorker()
+    @ObservationIgnored private var sessionUsage: [String: SessionUsage] = [:]
+    @ObservationIgnored private var usageRefreshing = false
+    @ObservationIgnored private var lastUsageRefresh = Date.distantPast
+    /// Bugünkü toplam (kapanmış oturumlar dahil).
+    private(set) var todayCost = 0.0
+    private(set) var todayTokens = 0
+    static let usageInterval: TimeInterval = 4
 
     private struct Transcript {
         var path: String?
@@ -40,11 +54,23 @@ final class WorkshopModel {
     static let historyKeep = 20
     static let lookupRetry: TimeInterval = 5
     static var roomsURL: URL { URL(fileURLWithPath: HostPaths.supportDir + "/rooms.json") }
+    static var deskURL: URL { URL(fileURLWithPath: HostPaths.supportDir + "/windows.json") }
 
     func start() {
         guard timer == nil else { return }
-        rooms = RoomStore.load(from: Self.roomsURL)
+        if let d = Desk.load(from: Self.deskURL) { desk = d } else {
+            desk = Desk(migrating: RoomStore.load(from: Self.roomsURL))
+            saveDesk()
+        }
         host.start()
+        notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
+        notifier.start()
+        let mainDir = profiles.main.configDir
+        DispatchQueue.global(qos: .utility).async { Profiles.installIntegration(mainDir: mainDir) }
+        profiles.onWarning = { [weak self] p, text in
+            self?.notifier.postLimit(id: p.id, title: "\(p.name) limitine yaklaştı",
+                                     body: text + ". Yeni oturumları başka bir profille açabilirsin.")
+        }
         tick(initial: true)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick(initial: false) }
@@ -54,76 +80,99 @@ final class WorkshopModel {
 
     // MARK: Gezinme
 
+    /// Projenin pencerelerini öne getirir; hiç yoksa yeni terminal açar.
     func openZone(_ root: String) {
-        openRoom = root
-        pruneRooms()
-        if room(root).panes.isEmpty { saveRooms() }
+        pruneDesk()
+        guard desk.windows.contains(where: { $0.root == root }) else { return newWindow(.shell, in: root) }
+        changeDesk { d in
+            d.raiseAll(root: root)
+            // Seni bekleyen bir Claude varsa en öne o gelsin.
+            if let w = d.windows.last(where: { $0.root == root && isWaiting($0) }) { d.raise(w.id) }
+        }
     }
 
-    /// Robota tıklanınca: Atölye terminalindeyse yan panelde o sekme; değilse projenin odası.
+    /// Penceredeki Claude izin ya da cevap bekliyor mu.
+    func isWaiting(_ w: DeskWindow) -> Bool {
+        if case let .terminal(id) = w.tab { return waitingTerminals.contains(id) }
+        return false
+    }
+
+    /// Robota tıklanınca: Atölye terminalindeyse penceresi öne gelir; değilse projenin pencereleri.
     func open(sessionID: String) {
         guard let s = store.sessions.first(where: { $0.id == sessionID }) else { return }
         let root = s.cwd.map { Workshop.projectRoot(cwd: $0, fileExists: FileManager.default.fileExists(atPath:)) }
-        if let pid = s.pid, let tid = terminalID(pid: pid) {
-            let owner = rooms.rooms.first { $0.value.contains(.terminal(tid)) }?.key
-            guard let target = owner ?? root else { return }
-            var r = room(target)
-            if !r.focus(.terminal(tid)) { r.add(.terminal(tid)) }
-            rooms.rooms[target] = r
-            saveRooms()
-            openRoom = target
-            return
+        if let pid = s.pid, let tid = terminalID(pid: pid), let target = desk.window(of: .terminal(tid))?.root ?? root {
+            changeDesk { $0.open(.terminal(tid), root: target) }
+        } else if let root {
+            changeDesk { $0.raiseAll(root: root) }
         }
-        if let root { openZone(root) }
     }
 
     func openTerminal(_ id: String) {
         guard let t = host.terminals[id] else { return }
-        let root = rooms.rooms.first { $0.value.contains(.terminal(id)) }?.key
+        let root = desk.window(of: .terminal(id))?.root
             ?? Workshop.projectRoot(cwd: t.cwd, fileExists: FileManager.default.fileExists(atPath:))
-        var r = room(root)
-        if !r.focus(.terminal(id)) { r.add(.terminal(id)) }
-        rooms.rooms[root] = r
-        saveRooms()
-        openRoom = root
+        changeDesk { $0.open(.terminal(id), root: root) }
     }
 
-    func closeRoom() { openRoom = nil }
+    // MARK: Pencereler
 
-    // MARK: Oda işlemleri
+    /// Öndeki pencerenin projesi (yeni pencere kısayolları için).
+    var frontRoot: String? { desk.front?.root }
 
-    func room(_ root: String) -> Room { rooms.rooms[root] ?? Room() }
+    /// Sol paneldeki yerine çekilmekte olan pencereler. Animasyonu her pencere kendi yürütür (DeskView).
+    var leaving: Set<String> = []
+    /// Küçültülmüşken yeniden açılan pencereler: ilk çizimde panelden çıkarak gelir.
+    @ObservationIgnored var arriving: Set<String> = []
+    /// Sol paneldeki proje başlıklarının pencere koordinatlarındaki yeri (çekilme hedefi).
+    @ObservationIgnored var sidebarTargets: [String: CGRect] = [:]
+    @ObservationIgnored private var tuckGeneration = 0
+    static let tuckDuration = 0.34
 
-    func update(_ root: String, _ change: (inout Room) -> Void) {
-        var r = room(root)
-        change(&r)
-        rooms.rooms[root] = r
-        saveRooms()
+    func changeDesk(_ change: (inout Desk) -> Void) {
+        // Süren bir çekilme varsa iptal: kullanıcı pencereleri geri istedi.
+        if !leaving.isEmpty {
+            tuckGeneration += 1
+            leaving = []
+        }
+        let hidden = Set(desk.windows.filter(\.minimized).map(\.id))
+        change(&desk)
+        saveDesk()
+        let shown = desk.windows.filter { !$0.minimized && hidden.contains($0.id) }.map(\.id)
+        guard !shown.isEmpty else { return }
+        arriving.formUnion(shown)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.arriving.subtract(shown) }
     }
 
-    func add(_ kind: TerminalKind, in root: String) {
-        host.create(kind, cwd: root) { [weak self] info in
-            self?.update(root) { $0.add(.terminal(info.id)) }
+    /// Pencereleri sol paneldeki projelerinin yerine çekerek küçültür.
+    func tuck(_ ids: [String]) {
+        let ids = ids.filter { desk.window($0)?.minimized == false && !leaving.contains($0) }
+        guard !ids.isEmpty else { return }
+        tuckGeneration += 1
+        let gen = tuckGeneration
+        leaving.formUnion(ids)
+        // Animasyon bittikten biraz sonra gerçekten küçült.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.tuckDuration + 0.06) { [weak self] in
+            guard let self, gen == self.tuckGeneration else { return }
+            let gone = self.leaving
+            for id in gone { self.desk.minimize(id) }
+            self.saveDesk()
+            self.leaving = []
         }
     }
 
-    /// Odaklı bölmenin kenarında yeni bölme açıp yeni terminali oraya koyar.
-    func split(_ kind: TerminalKind, in root: String, edge: DropEdge) {
-        host.create(kind, cwd: root) { [weak self] info in
-            self?.update(root) { r in
-                if let p = r.focusedPaneID ?? r.panes.last?.id { r.split(.terminal(info.id), beside: p, edge: edge) }
-                else { r.add(.terminal(info.id)) }
-            }
+    /// Atölyeye dönüş: görünen bütün pencereler panele çekilir.
+    func tuckAll() { tuck(desk.windows.filter { !$0.minimized }.map(\.id)) }
+
+    /// `profile` verilmezse etkin profil.
+    func newWindow(_ kind: TerminalKind, in root: String, profile: String? = nil) {
+        host.create(kind, cwd: root, env: profiles.environment(profile)) { [weak self] info in
+            self?.changeDesk { $0.open(.terminal(info.id), root: root) }
         }
     }
 
-    /// Sürüklenen sekme bir bölmeye bırakıldı.
-    @discardableResult
-    func dropTab(in root: String, to paneID: String, edge: DropEdge, index: Int?) -> Bool {
-        guard let tab = draggingTab, room(root).contains(tab) else { return false }
-        draggingTab = nil
-        update(root) { $0.move(tab, to: paneID, edge: edge, index: index) }
-        return true
+    func addGit(in root: String) {
+        changeDesk { $0.open(.git(root), root: root) }
     }
 
     func addMarkdown(in root: String) {
@@ -132,22 +181,34 @@ final class WorkshopModel {
         panel.allowedContentTypes = [.init(filenameExtension: "md")!]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        update(root) { r in if !r.focus(.markdown(url.path)) { r.add(.markdown(url.path)) } }
+        changeDesk { $0.open(.markdown(url.path), root: root) }
     }
 
-    /// Sekmeyi kapatır; çalışan terminalse önce sorar.
-    func close(_ tab: RoomTab, in root: String) {
-        if case let .terminal(id) = tab, host.terminals[id]?.running == true {
+    /// Pencereyi kapatır; çalışan terminalse önce sorar.
+    func closeWindow(_ id: String) {
+        guard let w = desk.window(id) else { return }
+        if case let .terminal(tid) = w.tab, host.terminals[tid]?.running == true {
             let a = NSAlert()
-            a.messageText = "\(host.title(id)) hâlâ çalışıyor"
-            a.informativeText = "Sekmeyi kapatmak içinde çalışan programı da durdurur."
+            a.messageText = "\(host.title(tid)) hâlâ çalışıyor"
+            a.informativeText = "Pencereyi kapatmak içinde çalışan programı da durdurur."
             a.addButton(withTitle: "Kapat")
             a.addButton(withTitle: "Vazgeç")
             guard a.runModal() == .alertFirstButtonReturn else { return }
         }
-        if case let .terminal(id) = tab { host.kill(id) }
-        update(root) { $0.remove(tab) }
+        if case let .terminal(tid) = w.tab { host.kill(tid) }
+        changeDesk { $0.close(id) }
     }
+
+    func title(_ tab: RoomTab) -> String {
+        switch tab {
+        case let .terminal(id): host.title(id)
+        case let .markdown(path): (path as NSString).lastPathComponent
+        case .git: "Git"
+        }
+    }
+
+    /// Projenin bölge rengi (anlık görüntüden), yoksa nil.
+    func zoneColor(_ root: String) -> String? { snapshot?.zones.first { $0.id == root }?.color }
 
     func killAllTerminals() {
         let a = NSAlert()
@@ -157,8 +218,7 @@ final class WorkshopModel {
         a.addButton(withTitle: "Vazgeç")
         guard a.runModal() == .alertFirstButtonReturn else { return }
         host.killAll()
-        for k in rooms.rooms.keys { rooms.rooms[k]?.prune(liveTerminals: []) }
-        saveRooms()
+        changeDesk { $0.prune(liveTerminals: []) }
     }
 
     func addProject() {
@@ -168,26 +228,22 @@ final class WorkshopModel {
         panel.prompt = "Atölyeye ekle"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let root = Workshop.projectRoot(cwd: url.path, fileExists: FileManager.default.fileExists(atPath:))
-        if !rooms.pinned.contains(root) { rooms.pinned.append(root) }
-        saveRooms()
+        if !desk.pinned.contains(root) { changeDesk { $0.pinned.append(root) } }
         tick(initial: false)
     }
 
     func unpin(_ root: String) {
-        rooms.pinned.removeAll { $0 == root }
-        saveRooms()
+        changeDesk { $0.pinned.removeAll { $0 == root } }
         tick(initial: false)
     }
 
-    private func saveRooms() { try? rooms.save(to: Self.roomsURL) }
+    private func saveDesk() { try? desk.save(to: Self.deskURL) }
 
-    /// Yardımcının listesi geldikten sonra bir kez: artık olmayan terminallerin sekmelerini sil.
-    private func pruneRooms() {
+    /// Yardımcının listesi geldikten sonra bir kez: artık olmayan terminallerin pencerelerini kaldır.
+    private func pruneDesk() {
         guard host.listed, !pruned else { return }
         pruned = true
-        let live = Set(host.terminals.keys)
-        for k in rooms.rooms.keys { rooms.rooms[k]?.prune(liveTerminals: live) }
-        saveRooms()
+        changeDesk { $0.prune(liveTerminals: Set(host.terminals.keys)) }
     }
 
     private func terminalID(pid: Int32) -> String? {
@@ -202,10 +258,15 @@ final class WorkshopModel {
     private func tick(initial: Bool) {
         let now = Date()
         host.refresh()
-        pruneRooms()
-        let profiles = Self.loadProfiles()
+        pruneDesk()
+        if now.timeIntervalSince(lastProfilesRefresh) >= Self.profilesInterval {
+            lastProfilesRefresh = now
+            self.profiles.refresh()
+        }
+        let profiles = self.profiles.profiles
         let entries = scanner.scan(dirs: profiles.map { ($0.id, $0.configDir) }, isAlive: Self.isProcessAlive)
-        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.id == AccountStore.defaultID ? "" : $0.name) })
+        // Birden çok profil varsa her robotun profili görünsün.
+        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, profiles.count > 1 ? $0.name : "") })
         let alerts = store.applyRegistry(entries, profileNames: names, now: now, initial: initial)
         for a in alerts { Self.play(a) }
 
@@ -239,7 +300,7 @@ final class WorkshopModel {
         let fm = FileManager.default
         var todos: [String: [TodoItem]] = [:]
         let roots = Set(store.sessions.compactMap(\.cwd).map { Workshop.projectRoot(cwd: $0, fileExists: fm.fileExists(atPath:)) })
-            .union(rooms.pinned)
+            .union(desk.pinned)
         for root in roots {
             if let text = try? String(contentsOfFile: root + "/" + TodoList.fileName, encoding: .utf8) {
                 todos[root] = TodoList.parse(text)
@@ -247,12 +308,47 @@ final class WorkshopModel {
         }
         let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
-                                  terminalOf: terminalOf, pinned: rooms.pinned, git: gitBadges, now: now,
-                                  fileExists: fm.fileExists(atPath:))
+                                  terminalOf: terminalOf, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
+                                  now: now, fileExists: fm.fileExists(atPath:))
         refreshGit(roots: snap.zones.map(\.id), now: now)
+        refreshUsage(configDirs: profiles.map(\.configDir), now: now)
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
+        notify(old: snapshot, new: snap)
         snapshot = snap
         snapshotJSON = String(decoding: data, as: UTF8.self)
+    }
+
+    /// Bekleyenler: pencere vurgusu, Dock rozeti ve (Atölye arka plandayken) bildirim.
+    private func notify(old: WorkshopSnapshot?, new: WorkshopSnapshot) {
+        let waiting = Workshop.waitingTerminals(new)
+        if waiting != waitingTerminals { waitingTerminals = waiting }
+        let count = Workshop.waitingCount(new)
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        let alerts = Workshop.alerts(from: old, to: new)
+        if !NSApp.isActive { for a in alerts { notifier.post(a) } }
+        // Artık beklemeyenlerin eski bildirimleri kalksın.
+        let stillWaiting = Set(new.zones.flatMap { $0.robots.filter { $0.state == "waiting" }.map(\.id) })
+        let doneIDs = Set(alerts.filter { $0.kind == .done }.map(\.robotID))
+        let before = old?.zones.flatMap { $0.robots.filter { $0.state == "waiting" }.map(\.id) } ?? []
+        notifier.clear(sessions: before.filter { !stillWaiting.contains($0) && !doneIDs.contains($0) })
+    }
+
+    private func refreshUsage(configDirs: [String], now: Date) {
+        guard !usageRefreshing, now.timeIntervalSince(lastUsageRefresh) >= Self.usageInterval else { return }
+        usageRefreshing = true
+        lastUsageRefresh = now
+        let paths = transcripts.compactMapValues(\.path)
+        usageWorker.refresh(sessions: paths, configDirs: configDirs) { [weak self] r in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.sessionUsage = r.sessions
+                    if self.todayCost != r.todayCost { self.todayCost = r.todayCost }
+                    if self.todayTokens != r.todayTokens { self.todayTokens = r.todayTokens }
+                    self.usageRefreshing = false
+                }
+            }
+        }
     }
 
     /// Bölgelerin git durumunu arka planda okur; sonuç bir sonraki taramada anlık görüntüye girer.
@@ -272,20 +368,10 @@ final class WorkshopModel {
         }
     }
 
-    func addGit(in root: String) {
-        update(root) { r in if !r.focus(.git(root)) { r.add(.git(root)) } }
-    }
 
-    private struct SavedAccounts: Decodable { var store: AccountStore }
-
-    /// AjanTakip'in hesap dosyasından profiller (salt okunur); dosya yoksa yalnız varsayılan profil.
-    static func loadProfiles() -> [AccountProfile] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let url = URL(fileURLWithPath: home + "/.config/ajantakip/accounts.json")
-        if let data = try? Data(contentsOf: url), let saved = try? JSONDecoder().decode(SavedAccounts.self, from: data) {
-            return saved.store.profiles
-        }
-        return AccountStore(home: home).profiles
+    /// Profilde Claude'u açar (giriş yapmak için içinde /login yazılır).
+    func login(profile id: String) {
+        newWindow(.claude, in: FileManager.default.homeDirectoryForCurrentUser.path, profile: id)
     }
 
     nonisolated static func isProcessAlive(_ pid: Int32) -> Bool {

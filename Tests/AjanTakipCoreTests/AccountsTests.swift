@@ -102,7 +102,7 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 @Suite struct ProfileLinkerTests {
     @Test func linksOnlySharedItemsThatExist() {
         let names = ProfileLinker.sharedItems(existingIn: ["settings.json", "CLAUDE.md", "plugins", "history.jsonl", ".credentials.json", "projects"])
-        #expect(names == ["CLAUDE.md", "plugins", "projects", "settings.json"])
+        #expect(names == ["CLAUDE.md", "history.jsonl", "plugins", "projects", "settings.json"])
     }
 }
 

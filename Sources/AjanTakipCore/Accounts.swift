@@ -50,6 +50,12 @@ public struct AccountProfile: Equatable, Codable, Sendable, Identifiable {
     public var id: String
     public var name: String
     public var configDir: String
+    /// Bu profilde girişli olması beklenen hesap (yalnız uyarı için).
+    public var email: String?
+
+    public init(id: String, name: String, configDir: String, email: String? = nil) {
+        self.id = id; self.name = name; self.configDir = configDir; self.email = email
+    }
 }
 
 /// Claude profilleri: varsayılan `~/.claude` + `~/.claude-profiles/<id>`.
@@ -90,6 +96,30 @@ public struct AccountStore: Equatable, Codable, Sendable {
         return p
     }
 
+    /// `profil-N` (boş ilk numara) olarak yeni profil.
+    @discardableResult
+    public mutating func addProfile(email: String?) -> AccountProfile {
+        var n = 2
+        while profiles.contains(where: { $0.id == "profil-\(n)" }) { n += 1 }
+        let p = AccountProfile(id: "profil-\(n)", name: "Profil \(n)", configDir: home + "/.claude-profiles/profil-\(n)",
+                               email: email.flatMap { $0.isEmpty ? nil : $0 })
+        profiles.append(p)
+        return p
+    }
+
+    /// Claude'un genel ayar dosyası: varsayılanda `~/.claude.json`, diğerlerinde `<klasör>/.claude.json`.
+    public func globalConfigPath(_ id: String) -> String? {
+        if id == Self.defaultID { return home + "/.claude.json" }
+        return profiles.first { $0.id == id }.map { $0.configDir + "/.claude.json" }
+    }
+
+    /// Bu profille açılan terminalin ortamı. Varsayılanda CLAUDE_CONFIG_DIR verilmez (verilirse Claude
+    /// `~/.claude/.claude.json`'u ve başka bir anahtar zinciri kaydını kullanır).
+    public func environment(_ id: String) -> [String: String] {
+        guard id != Self.defaultID, let p = profiles.first(where: { $0.id == id }) else { return [:] }
+        return ["CLAUDE_CONFIG_DIR": p.configDir]
+    }
+
     public mutating func removeProfile(id: String) {
         guard id != Self.defaultID else { return }
         profiles.removeAll { $0.id == id }
@@ -114,15 +144,6 @@ public struct AccountStore: Equatable, Codable, Sendable {
 
     public static func needsWarning(_ u: AccountUsage, now: Date) -> Bool {
         (u.effectiveFiveHour(now: now) ?? 0) >= warningThreshold || (u.effectiveSevenDay(now: now) ?? 0) >= warningThreshold
-    }
-}
-
-/// Yeni profilde varsayılan `~/.claude`'dan sembolik bağlanacak ortak öğeler.
-public enum ProfileLinker {
-    public static let shared: Set<String> = ["CLAUDE.md", "agents", "commands", "keybindings.json", "plugins",
-                                             "projects", "settings.json", "skills", "statusline-command.sh"]
-    public static func sharedItems(existingIn names: [String]) -> [String] {
-        names.filter(shared.contains).sorted()
     }
 }
 
