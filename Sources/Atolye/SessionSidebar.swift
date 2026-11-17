@@ -33,14 +33,14 @@ struct SessionSidebar: View {
             .padding(.horizontal, 8)
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(zones, id: \.id) { z in zoneSection(z) }
                     if zones.isEmpty {
                         Text("Açık Claude oturumu yok").font(.caption).foregroundStyle(SidebarTheme.muted)
                             .padding(.horizontal, 18)
                     }
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
             }
             .onPreferenceChange(SidebarTargets.self) { v in MainActor.assumeIsolated { model.sidebarTargets = v } }
         }
@@ -52,15 +52,16 @@ struct SessionSidebar: View {
         zones.reduce(0) { $0 + $1.robots.filter { $0.state == "waiting" }.count }
     }
 
+    /// Proje kartı: başlık (klasör simgesi + ad + git) ve altında, proje renginde bir çizgiyle bağlı ajanları.
     private func zoneSection(_ z: ZoneInfo) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        let tint = Color(hex: z.color)
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Button { model.openZone(z.id) } label: {
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: z.color)).frame(width: 8, height: 8)
-                        Text(z.name.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6)
-                            .foregroundStyle(SidebarTheme.muted).lineLimit(1)
-                        Spacer()
+                    HStack(spacing: 7) {
+                        Image(systemName: "folder.fill").font(.system(size: 12)).foregroundStyle(tint)
+                        Text(z.name).font(.system(size: 13, weight: .bold)).lineLimit(1)
+                        Spacer(minLength: 4)
                         if let g = z.git { gitBadge(g) }
                         let parkedWindows = model.desk.windows.filter { $0.root == z.id && $0.minimized }
                         let parked = parkedWindows.count
@@ -83,12 +84,25 @@ struct SessionSidebar: View {
                 .help("\(z.name) pencerelerini öne getir")
                 NewWindowMenu(model: model, root: z.id, tint: SidebarTheme.muted)
             }
-            .padding(.leading, 18).padding(.trailing, 10).padding(.bottom, 2)
+            .padding(.leading, 10).padding(.trailing, 6).frame(height: 28)
             .background(GeometryReader { g in
                 Color.clear.preference(key: SidebarTargets.self, value: [z.id: g.frame(in: .global)])
             })
-            ForEach(z.robots, id: \.id) { r in robotRow(r, zone: z) }
+            if !z.robots.isEmpty {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(z.robots, id: \.id) { r in robotRow(r, zone: z) }
+                }
+                .padding(.leading, 6)
+                .overlay(alignment: .leading) { // ajanları projeye bağlayan çizgi
+                    RoundedRectangle(cornerRadius: 1).fill(tint.opacity(0.45)).frame(width: 2).padding(.vertical, 4)
+                }
+                .padding(.leading, 15).padding(.bottom, 4)
+            }
         }
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 10).fill(SidebarTheme.card))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(SidebarTheme.text.opacity(0.06)))
+        .padding(.horizontal, 8)
     }
 
     private func gitBadge(_ g: GitBadge) -> some View {
@@ -108,10 +122,10 @@ struct SessionSidebar: View {
         let selected = r.terminal != nil && model.desk.front?.tab == .terminal(r.terminal!)
         return Button { model.open(sessionID: r.id) } label: {
             HStack(alignment: .top, spacing: 8) {
-                Circle().fill(SidebarTheme.color(r.state)).frame(width: 8, height: 8).padding(.top, 4)
-                VStack(alignment: .leading, spacing: 2) {
+                Circle().fill(SidebarTheme.color(r.state)).frame(width: 7, height: 7).padding(.top, 5)
+                VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
-                        Text(r.label).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+                        Text(r.label).font(.system(size: 12, weight: .regular)).lineLimit(1)
                         if !r.profile.isEmpty {
                             Text(r.profile).font(.system(size: 10)).foregroundStyle(SidebarTheme.muted).lineLimit(1)
                         }
@@ -129,12 +143,12 @@ struct SessionSidebar: View {
                         .help("Bu oturum: \(UsageFormat.tokens(r.tokens ?? 0)) token ≈ \(UsageFormat.usd(c))\n\(UsageFormat.note)")
                 }
             }
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 7).fill(selected ? SidebarTheme.selected : .clear))
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 6).fill(selected ? SidebarTheme.selected : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 8)
+        .padding(.leading, 4).padding(.trailing, 6)
     }
 
     private func subtitle(_ r: RobotInfo) -> String {
@@ -152,6 +166,7 @@ struct SessionSidebar: View {
 enum SidebarTheme {
     static let background = Color(red: 0.965, green: 0.945, blue: 0.91)
     static let selected = Color(red: 0.89, green: 0.855, blue: 0.80)
+    static let card = Color.white.opacity(0.55)
     static let text = Color(red: 0.17, green: 0.16, blue: 0.15)
     static let muted = Color(red: 0.50, green: 0.47, blue: 0.42)
 

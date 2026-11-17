@@ -5,27 +5,23 @@ struct WorkshopToolbar: View {
     let model: WorkshopModel
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 6) {
             Text("Atölye").font(.headline).foregroundStyle(Theme.barText)
             Spacer()
+            // Pencereler
             GitHubButton(github: model.github)
             RobotsButton()
+            BarSeparator()
+            // Hesap ve harcama
             ProfileMenu(model: model)
             if model.todayTokens > 0 {
-                HStack(spacing: 5) {
-                    Image(systemName: "chart.bar.xaxis").font(.system(size: 11))
-                    Text("Bugün ≈ \(UsageFormat.usd(model.todayCost))").font(.system(size: 12, weight: .semibold))
-                    Text("· \(UsageFormat.tokens(model.todayTokens)) token").font(.system(size: 12))
-                }
-                .foregroundStyle(Theme.barMuted)
-                .help("Bugün bütün Claude oturumlarında (kapananlar dahil) harcanan token ve API karşılığı.\n\(UsageFormat.note)")
+                BarChip(icon: "chart.bar.xaxis", title: "Bugün ≈ \(UsageFormat.usd(model.todayCost))",
+                        detail: "\(UsageFormat.tokens(model.todayTokens)) token", interactive: false)
+                    .help("Bugün bütün Claude oturumlarında (kapananlar dahil) harcanan token ve API karşılığı.\n\(UsageFormat.note)")
             }
+            BarSeparator()
             Button { model.addProject() } label: {
-                Label("Proje ekle", systemImage: "plus")
-                    .font(.system(size: 12, weight: .medium))
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.barText.opacity(0.08)))
-                    .foregroundStyle(Theme.barText)
+                BarChip(icon: "plus", title: "Proje ekle", tint: Theme.focus)
             }
             .buttonStyle(.plain)
             .help("Bir proje klasörünü atölyeye sabitle")
@@ -44,14 +40,8 @@ private struct GitHubButton: View {
 
     var body: some View {
         Button { openWindow(id: "github") } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "square.grid.3x3.fill").font(.system(size: 11))
-                Text("GitHub").font(.system(size: 12, weight: .semibold))
-                if let s = github.stats, s.currentStreak > 0 {
-                    Text("· \(s.currentStreak) gün 🔥").font(.system(size: 12))
-                }
-            }
-            .foregroundStyle(Theme.barMuted)
+            BarChip(icon: "square.grid.3x3.fill", title: "GitHub",
+                    detail: github.stats.flatMap { $0.currentStreak > 0 ? "\($0.currentStreak) gün 🔥" : nil })
         }
         .buttonStyle(.plain)
         .help("GitHub katkıların")
@@ -65,13 +55,50 @@ private struct RobotsButton: View {
 
     var body: some View {
         Button { openWindow(id: "robots") } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "figure.wave").font(.system(size: 11))
-                Text("Robotlar").font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundStyle(Theme.barMuted)
+            BarChip(icon: "figure.wave", title: "Robotlar")
         }
         .buttonStyle(.plain)
         .help("Atölyedeki robotları seç, kendi .glb robotunu ekle")
+    }
+}
+
+/// Üst çubuktaki bütün öğelerin ortak görünümü: aynı boyda, yuvarlak köşeli bir çip.
+/// `tint` verilirse dolgulu (öne çıkan eylem ya da uyarı), yoksa açık zeminli.
+struct BarChip: View {
+    let icon: String
+    let title: String
+    var detail: String? = nil
+    var tint: Color? = nil
+    var interactive = true
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
+            Text(title).font(.system(size: 12, weight: .semibold))
+            if let detail {
+                Text(detail).font(.system(size: 12)).opacity(tint == nil ? 1 : 0.85)
+                    .foregroundStyle(tint == nil ? Theme.barMuted : .white)
+            }
+        }
+        .lineLimit(1)
+        .foregroundStyle(tint == nil ? Theme.barText : .white)
+        .padding(.horizontal, 9).frame(height: 26)
+        .background(RoundedRectangle(cornerRadius: 7).fill(fill))
+        .contentShape(RoundedRectangle(cornerRadius: 7))
+        .onHover { hover = interactive && $0 }
+        .fixedSize()
+    }
+
+    private var fill: Color {
+        if let tint { return hover ? tint.opacity(0.85) : tint }
+        return Theme.barText.opacity(hover ? 0.12 : 0.06)
+    }
+}
+
+/// Üst çubukta grupları ayıran ince çizgi.
+private struct BarSeparator: View {
+    var body: some View {
+        Rectangle().fill(Theme.barText.opacity(0.12)).frame(width: 1, height: 16).padding(.horizontal, 4)
     }
 }
