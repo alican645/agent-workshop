@@ -75,18 +75,23 @@ final class Profiles {
         let store = self.store
         queue.async {
             let mainDir = store.profiles.first { $0.id == AccountStore.defaultID }?.configDir ?? ""
-            var limits: [String: AccountUsage] = [:]
+            var reports: [String: AccountUsage] = [:]   // klasör → rapor
+            var logins: [String: String] = [:]          // klasör → girişli hesap
             var emails: [String: String] = [:]
             var files: [String] = []
             for p in store.profiles {
                 if p.id != AccountStore.defaultID { try? ProfileLinker.link(profileDir: p.configDir, mainDir: mainDir) }
                 let lf = Self.limitsDir + "/" + AtolyeIntegration.limitFileName(configDir: p.configDir)
-                limits[p.id] = AtolyeIntegration.readLimits(path: lf)
+                reports[p.configDir] = AtolyeIntegration.readLimits(path: lf)
                 if let g = store.globalConfigPath(p.id), FileManager.default.fileExists(atPath: g) {
                     files.append(g)
                     emails[p.id] = AtolyeIntegration.loggedInEmail(globalConfig: g)
+                    logins[p.configDir] = emails[p.id]
                 }
             }
+            // Limitler hesaba bağlı: aynı hesaba girişli klasörlerin en taze raporu.
+            let limits = AccountLimits.byProfile(profiles: store.profiles.map { ($0.id, $0.configDir) },
+                                                 reports: reports, logins: logins)
             _ = ConfigSync.run(files: files, baseFile: Self.syncBase, backupDir: Self.backupDir)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {

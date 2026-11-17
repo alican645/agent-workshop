@@ -25,9 +25,11 @@ final class UsageWorker: @unchecked Sendable {
         queue.async { [self] in
             let now = Date()
             if now.timeIntervalSince(listedAt) > Self.listInterval {
-                todayFiles = Self.filesModified(since: Calendar.current.startOfDay(for: now), in: configDirs)
+                todayFiles = TranscriptFiles.modified(since: Calendar.current.startOfDay(for: now), in: configDirs)
                 listedAt = now
             }
+            // Aynı dosya profil klasöründen (symlink) de gelebilir: gerçek yola göre say.
+            let sessions = sessions.mapValues(TranscriptFiles.canonical)
             var usage: [String: SessionUsage] = [:]
             for path in Set(sessions.values).union(todayFiles) {
                 var m = meters[path] ?? UsageMeter()
@@ -41,24 +43,5 @@ final class UsageWorker: @unchecked Sendable {
             let tokens = usage.values.reduce(0) { $0 + $1.tokensByDay()[today, default: 0] }
             done(Result(sessions: sessions.compactMapValues { usage[$0] }, todayCost: cost, todayTokens: tokens))
         }
-    }
-
-    /// `<configDir>/projects/*/*.jsonl` içinden verilen andan sonra değişenler.
-    static func filesModified(since start: Date, in configDirs: [String]) -> [String] {
-        let fm = FileManager.default
-        var out: [String] = []
-        for dir in configDirs {
-            let projects = dir + "/projects"
-            for p in (try? fm.contentsOfDirectory(atPath: projects)) ?? [] {
-                let pdir = projects + "/" + p
-                for f in (try? fm.contentsOfDirectory(atPath: pdir)) ?? [] where f.hasSuffix(".jsonl") {
-                    let path = pdir + "/" + f
-                    if let m = (try? fm.attributesOfItem(atPath: path))?[.modificationDate] as? Date, m >= start {
-                        out.append(path)
-                    }
-                }
-            }
-        }
-        return out
     }
 }
