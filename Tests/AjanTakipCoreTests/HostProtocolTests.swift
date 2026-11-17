@@ -22,6 +22,14 @@ private func roundTrip<T: Codable & Equatable>(_ v: T) -> T? {
         for e in evs { #expect(roundTrip(e) == e) }
     }
 
+    @Test func createCarriesOptionalEnvironment() throws {
+        let r = HostRequest.create(kind: .claude, cwd: "/p", cols: 80, rows: 24, env: ["CLAUDE_CONFIG_DIR": "/c"])
+        #expect(roundTrip(r) == r)
+        // Eski istemcinin gönderdiği (env'siz) istek de çözülür.
+        let old = #"{"create":{"kind":"shell","cwd":"/p","cols":80,"rows":24}}"#
+        #expect(try JSONDecoder().decode(HostRequest.self, from: Data(old.utf8)) == .create(kind: .shell, cwd: "/p", cols: 80, rows: 24, env: nil))
+    }
+
     @Test func readerHandlesSplitAndJoinedFrames() {
         var r = Frame.Reader()
         let a = Frame.encode(HostRequest.list), b = Frame.encode(HostRequest.killAll)

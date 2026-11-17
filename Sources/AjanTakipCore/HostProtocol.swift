@@ -30,7 +30,8 @@ public struct TerminalInfo: Codable, Equatable, Sendable {
 
 public enum HostRequest: Codable, Equatable, Sendable {
     case list
-    case create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16)
+    /// `env`: terminale eklenecek ortam (ör. Claude profili için CLAUDE_CONFIG_DIR).
+    case create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, env: [String: String]? = nil)
     case attach(id: String)
     case detach(id: String)
     case input(id: String, data: Data)

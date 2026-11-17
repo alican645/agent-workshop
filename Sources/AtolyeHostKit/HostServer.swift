@@ -118,8 +118,8 @@ public final class HostServer: @unchecked Sendable {
         switch req {
         case .list:
             send(.terminals(order.compactMap { terminals[$0]?.info }), to: key)
-        case let .create(kind, cwd, cols, rows):
-            create(kind: kind, cwd: cwd, cols: cols, rows: rows, for: key)
+        case let .create(kind, cwd, cols, rows, extra):
+            create(kind: kind, cwd: cwd, cols: cols, rows: rows, extra: extra ?? [:], for: key)
         case let .attach(id):
             guard let t = terminals[id] else { return send(.error("terminal yok: \(id)"), to: key) }
             t.attached.insert(key)
@@ -153,13 +153,15 @@ public final class HostServer: @unchecked Sendable {
         }
     }
 
-    private func create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, for key: ObjectIdentifier) {
+    private func create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, extra: [String: String],
+                        for key: ObjectIdentifier) {
         let id = UUID().uuidString
         var env = TerminalEnvironment.clean(ProcessInfo.processInfo.environment)
         env["ATOLYE_TERMINAL_ID"] = id
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["PWD"] = cwd
+        env.merge(extra) { $1 }
         let info = TerminalInfo(id: id, cwd: cwd, title: kind == .claude ? "Claude" : "zsh", kind: kind, pid: 0,
                                 running: true, exitCode: nil, lastOutputAt: nil)
         let t = TerminalSession(info: info, cols: cols, rows: rows, queue: queue,
