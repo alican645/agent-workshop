@@ -43,9 +43,19 @@ final class TerminalSession: LocalProcessDelegate {
 
     func terminate() {
         let pid = process.shellPid
+        // Kabuk ölmeden önce torunlarını topla: zsh iş denetimiyle claude'u ayrı süreç grubuna koyar ve
+        // claude SIGHUP'ı yok sayar; yalnız gruba sinyal gönderilirse terminalsiz asılı kalıyordu.
+        let kids = ProcessTree.descendants(of: pid)
         process.terminate()
-        // Kabuğun çocukları (claude) da gitsin: süreç grubuna da sinyal.
         if pid > 0 { Darwin.kill(-pid, SIGHUP) }
+        for k in kids {
+            Darwin.kill(k, SIGHUP)
+            Darwin.kill(k, SIGTERM)
+        }
+        guard !kids.isEmpty else { return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
+            for k in kids where Darwin.kill(k, 0) == 0 { Darwin.kill(k, SIGKILL) }
+        }
     }
 
     // MARK: LocalProcessDelegate

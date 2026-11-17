@@ -176,6 +176,23 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(e == .terminals([]))
     }
 
+    /// Kabuk iş denetimiyle çocuğu ayrı süreç grubuna koyar ve çocuk SIGHUP'ı yok sayar (Claude Code gibi);
+    /// terminal kapanınca yine de ölmeli, yoksa terminalsiz "bekliyor" durumunda asılı kalır.
+    @Test func killEndsChildrenInOtherProcessGroups() throws {
+        let (s, path) = try makeServer(["/bin/zsh", "-f", "-i", "-c", "trap '' HUP; sleep 300; :"])
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
+        let t = try #require(c.created())
+        Thread.sleep(forTimeInterval: 0.5)
+        let kids = ProcessTree.descendants(of: t.pid)
+        #expect(!kids.isEmpty)
+        #expect(kids.allSatisfy { getpgid($0) != t.pid }) // gerçekten başka grupta
+        c.send(.kill(id: t.id))
+        Thread.sleep(forTimeInterval: 1.5)
+        #expect(kids.allSatisfy { Darwin.kill($0, 0) != 0 })
+    }
+
     @Test func envHasTerminalID() throws {
         let (s, path) = try makeServer(["/bin/sh", "-c", "echo id=$ATOLYE_TERMINAL_ID; sleep 5"])
         defer { s.stop() }
