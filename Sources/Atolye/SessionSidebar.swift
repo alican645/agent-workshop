@@ -49,19 +49,22 @@ struct SessionSidebar: View {
 
     private func zoneSection(_ z: ZoneInfo) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Button { model.openZone(z.id) } label: {
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 2).fill(Color(hex: z.color)).frame(width: 8, height: 8)
-                    Text(z.name.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6)
-                        .foregroundStyle(SidebarTheme.muted).lineLimit(1)
-                    Spacer()
-                    if let g = z.git { gitBadge(g) }
+            HStack(spacing: 4) {
+                Button { model.openZone(z.id) } label: {
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: z.color)).frame(width: 8, height: 8)
+                        Text(z.name.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6)
+                            .foregroundStyle(SidebarTheme.muted).lineLimit(1)
+                        Spacer()
+                        if let g = z.git { gitBadge(g) }
+                    }
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 18).padding(.bottom, 2)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .help("\(z.name) pencerelerini öne getir")
+                NewWindowMenu(model: model, root: z.id, tint: SidebarTheme.muted)
             }
-            .buttonStyle(.plain)
-            .help("\(z.name) terminallerini aç")
+            .padding(.leading, 18).padding(.trailing, 10).padding(.bottom, 2)
             ForEach(z.robots, id: \.id) { r in robotRow(r, zone: z) }
         }
     }

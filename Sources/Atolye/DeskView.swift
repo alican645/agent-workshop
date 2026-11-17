@@ -96,6 +96,7 @@ private struct FloatingWindow: View {
                 .foregroundStyle(Theme.text).lineLimit(1)
             Text(model.title(window.tab)).font(.system(size: 12)).foregroundStyle(Theme.muted).lineLimit(1)
             Spacer(minLength: 8)
+            NewWindowMenu(model: model, root: window.root, tint: Theme.muted)
             chromeButton("minus", help: "Küçült (⌘M)") { model.changeDesk { $0.minimize(window.id) } }
             chromeButton(window.maximized ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                          help: "Tam boyut") { model.changeDesk { $0.toggleMaximize(window.id) } }
@@ -212,6 +213,30 @@ private struct FloatingWindow: View {
         case (-1, -1), (1, 1): .frameResize(position: dx < 0 ? .topLeft : .bottomRight, directions: .all)
         default: .frameResize(position: dx < 0 ? .bottomLeft : .topRight, directions: .all)
         }
+    }
+}
+
+/// Projede yeni pencere: Claude, terminal, Git, markdown.
+struct NewWindowMenu: View {
+    let model: WorkshopModel
+    let root: String
+    let tint: Color
+
+    var body: some View {
+        Menu {
+            Button("Yeni Claude oturumu  ⌘⇧T") { model.newWindow(.claude, in: root) }
+            Button("Yeni terminal  ⌘T") { model.newWindow(.shell, in: root) }
+            Divider()
+            Button("Git") { model.addGit(in: root) }
+            Button("Markdown dosyası…") { model.addMarkdown(in: root) }
+        } label: {
+            Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundStyle(tint)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 20, height: 20)
+        .help("\((root as NSString).lastPathComponent) projesinde yeni pencere")
     }
 }
 
