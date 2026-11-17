@@ -1,4 +1,4 @@
-# Atölye
+# Atölye — Agent Workshop
 
 **Claude Code oturumlarını bir robot atölyesi olarak gösteren, terminalleri de içinde barındıran macOS uygulaması.**
 
@@ -57,8 +57,8 @@ MCP'ler ve hafızayla kullanırsın.
 (limit göstergesi için, `brew install jq`).
 
 ```sh
-git clone <bu-repo>
-cd AjanTakip
+git clone https://github.com/alican645/agent-workshop.git
+cd agent-workshop
 ./scripts/build-atolye.sh --install   # build/Atölye.app oluşturur ve ~/Applications'a kopyalar
 open ~/Applications/Atölye.app
 ```
@@ -107,7 +107,8 @@ Atölye'nin bilgisayarında değiştirdikleri (değişen her dosyanın aslı ön
 | `atolye-host` | Terminalleri barındıran arka plan yardımcısı (Unix soketi üzerinden) |
 | `AtolyeHostKit` | Yardımcının sunucu/istemci kodu, [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) ile |
 | `AjanTakipCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
-| `AjanTakip` | Projenin ilk hâli olan menü çubuğu uygulaması (artık kullanılmıyor) |
+| `AjanTakip` | Projenin ilk hâli olan menü çubuğu uygulaması (artık kullanılmıyor; Swift paketi ve
+çekirdek modül adını oradan alıyor) |
 
 Tasarım notları ve uygulama planları `docs/superpowers/` altında.
 
