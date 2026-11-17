@@ -12,6 +12,12 @@ struct AtolyeApp: App {
     }
 
     var body: some Scene {
+        // Üst çubuktaki düğmeyle açılan kişisel GitHub panosu (açılışta gösterilmez).
+        Window("GitHub", id: "github") {
+            GitHubWindow(github: model.github)
+        }
+        .defaultSize(width: 900, height: 680)
+        .defaultLaunchBehavior(.suppressed)
         Window("Atölye", id: "atolye") {
             // cmux gibi: solda hep oturum listesi; sağda atölye ya da açık projenin terminalleri.
             HStack(spacing: 0) {

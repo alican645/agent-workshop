@@ -17,6 +17,8 @@ final class WorkshopModel {
     @ObservationIgnored let notifier = Notifier()
     /// Claude hesapları (profiller).
     let profiles = Profiles()
+    /// GitHub girişi ve kişisel pano.
+    let github = GitHubModel()
     @ObservationIgnored private var lastProfilesRefresh = Date.distantPast
     static let profilesInterval: TimeInterval = 5
 
