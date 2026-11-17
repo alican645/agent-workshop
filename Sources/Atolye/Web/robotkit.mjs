@@ -4,10 +4,10 @@ import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { matchClips } from './robots.mjs';
 
-/** Modeli ilk klibin (tercihen Idle) ilk karesinde ölçer: animasyon iskeleti başka bir duruşa sokabiliyor. */
+/** Modeli Idle'ın ilk karesinde ölçer (animasyon iskeleti başka bir duruşa sokabiliyor); Idle yoksa duruş olduğu gibi. */
 function measure(root, clips, idleName) {
   const mixer = new THREE.AnimationMixer(root);
-  const clip = clips.find((c) => c.name === idleName) || clips[0];
+  const clip = idleName ? clips.find((c) => c.name === idleName) : null;
   if (clip) { mixer.clipAction(clip).play(); mixer.update(0); }
   root.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(root);
@@ -20,11 +20,12 @@ function std(color, def, extra = {}) {
 }
 
 // Takılar RobotExpressive'in Head kemiğinin yerel uzayında kurulur (y yukarı, +z ön yüz).
-// O uzayda kafa: x ±0.0132, y −0.0021…0.0208, z −0.0129…0.0143 (önizleme ile ölçüldü).
-const HEAD = { top: 0.0208, bottom: -0.0021, half: 0.0132, front: 0.0143, back: -0.0129, mid: 0.0094 };
+// O uzayda kafa: x ±0.0132, y −0.0020…0.0148, z −0.0126…0.0135 — köşe noktalarından ölçüldü; sınır kutusu
+// yüz ifadesi biçim hedeflerini de saydığı için tepeyi 0.0208 gösteriyor, ona güvenme.
+const HEAD = { top: 0.0148, bottom: -0.0020, half: 0.0132, front: 0.0135, back: -0.0126, mid: 0.0075 };
 
 function accessory(name, def) {
-  const g = new THREE.Group();
+  const g = new THREE.Group(); g.userData.acc = true;
   const second = std(def.colors.second, def);
   const dark = new THREE.MeshStandardMaterial({ color: '#2b2926', roughness: 0.6 });
   const glow = (op = 1) => new THREE.MeshStandardMaterial({ color: def.colors.second, emissive: def.colors.second, emissiveIntensity: 0.9, roughness: 0.2, transparent: op < 1, opacity: op });
@@ -50,8 +51,8 @@ function accessory(name, def) {
       }
       add(new THREE.SphereGeometry(0.0013, 10, 8), dark, 0, HEAD.top + 0.0128, 0);
       break;
-    case 'visor': // göz hizasında yarı saydam ışıklı bant
-      add(new THREE.BoxGeometry(0.03, 0.0075, 0.0015), glow(0.55), 0, HEAD.mid, HEAD.front + 0.004);
+    case 'visor': // alında, gözlerin üstünde ışıklı bant
+      add(new THREE.BoxGeometry(0.024, 0.0032, 0.003), glow(0.9), 0, HEAD.top - 0.0028, HEAD.front - 0.0012);
       break;
     case 'twinAntenna':
       for (const x of [-1, 1]) {
@@ -64,12 +65,11 @@ function accessory(name, def) {
       add(new THREE.SphereGeometry(0.0032, 14, 10), glow(), 0, HEAD.top + 0.019, 0);
       break;
     case 'headphones': // kafanın üstünden geçen bant + kulaklar
-      add(new THREE.TorusGeometry(0.0158, 0.0016, 8, 28, Math.PI), dark, 0, HEAD.mid, 0);
-      for (const x of [-1, 1]) add(new THREE.CylinderGeometry(0.0062, 0.0062, 0.005, 20), second, x * (HEAD.half + 0.002), HEAD.mid, 0, 0, 0, Math.PI / 2);
+      add(new THREE.TorusGeometry(0.0148, 0.0016, 8, 28, Math.PI), dark, 0, HEAD.mid - 0.0015, 0);
+      for (const x of [-1, 1]) add(new THREE.CylinderGeometry(0.0062, 0.0062, 0.005, 20), second, x * (HEAD.half + 0.002), HEAD.mid - 0.0015, 0, 0, 0, Math.PI / 2);
       break;
     case 'monoVisor': // iki gözün önünde tek, iri, kırmızı göz
-      add(new THREE.CylinderGeometry(0.0068, 0.0068, 0.002, 24), glow(), 0, HEAD.mid, HEAD.front + 0.0045, Math.PI / 2, 0, 0);
-      add(new THREE.BoxGeometry(0.03, 0.0035, 0.0015), dark, 0, HEAD.mid, HEAD.front + 0.0035);
+      add(new THREE.CylinderGeometry(0.0062, 0.0062, 0.002, 24), glow(), 0, HEAD.mid, HEAD.front + 0.0022, Math.PI / 2, 0, 0);
       break;
   }
   return g;
@@ -97,9 +97,18 @@ export function builtinKind(def, base) {
     });
     o.material = Array.isArray(o.material) ? mats : mats[0];
   });
+  // Takılar kemik uzayında konumlanır, sonra dünya konumu korunarak kafa parçasına taşınır:
+  // animasyonlar kafa parçasını kemiğe göre oynatıyor, takı kafayla birlikte gitsin.
   let head = null;
   tpl.traverse((o) => { if (!head && o.isBone && baseName(o.name) === 'Head') head = o; });
-  if (head) for (const a of def.accessories) head.add(accessory(a, def));
+  if (head) {
+    const mesh = head.children.find((c) => !c.isBone);
+    tpl.updateMatrixWorld(true);
+    for (const a of def.accessories) {
+      const acc = accessory(a, def); head.add(acc);
+      if (mesh) { acc.updateMatrixWorld(true); mesh.attach(acc); }
+    }
+  }
   const bb = measure(tpl, base.clips, 'Idle');
   return { id: def.id, builtin: true, def, template: tpl, clips: base.clips, H: bb.max.y - bb.min.y, offset: new THREE.Vector3(), flipped: false };
 }
@@ -111,7 +120,8 @@ export function customKind(id, gltf, flipped) {
   const clips = gltf.animations || [];
   const names = matchClips(clips.map((c) => c.name));
   const bb = measure(tpl, clips, names.idle);
-  const H = Math.max(bb.max.y - bb.min.y, 1e-6);
+  const H = bb.max.y - bb.min.y;
+  if (bb.isEmpty() || !Number.isFinite(H) || H < 1e-6) throw new Error('modelde görünür parça yok');
   const c = bb.getCenter(new THREE.Vector3());
   return { id, builtin: false, template: tpl, clips, H, offset: new THREE.Vector3(-c.x, -bb.min.y, -c.z), flipped };
 }
@@ -149,7 +159,7 @@ export function fallbackPose(inner, motion, t, h) {
     case 'idle': inner.scale.y = 1 + 0.02 * Math.sin(t * 2.2); break;
     case 'walk': inner.position.y = Math.abs(Math.sin(t * 9)) * 0.06 * h; inner.rotation.z = 0.08 * Math.sin(t * 9); break;
     case 'wave': inner.rotation.z = 0.15 * Math.sin(t * 6); break;
-    case 'sit': inner.position.y = -0.35 * h * Math.min(1, t * 3); break;
+    case 'sit': { const k = Math.min(1, t * 3); inner.scale.y = 1 - 0.18 * k; inner.scale.x = inner.scale.z = 1 + 0.06 * k; break; } // çömel, zemine gömülme
     case 'yes': case 'thumbs': inner.rotation.x = 0.25 * Math.max(0, Math.sin(t * 7)); break;
     case 'work': inner.position.y = Math.max(0, Math.sin(t * 12)) * 0.05 * h; break;
   }

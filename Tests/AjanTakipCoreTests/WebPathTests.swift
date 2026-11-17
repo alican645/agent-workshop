@@ -21,4 +21,8 @@ import Testing
     @Test func webEscapeRejected() {
         #expect(WebPath.resolve("../secret", webRoot: web, robotsRoot: robots) == nil)
     }
+    @Test func onlyGLBFromRobots() {
+        #expect(WebPath.resolve("robots/robots.json", webRoot: web, robotsRoot: robots) == nil)
+        #expect(WebPath.resolve("robots/abc.png", webRoot: web, robotsRoot: robots) == nil)
+    }
 }

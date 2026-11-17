@@ -290,18 +290,30 @@ function syncPool(list) {
   pool = list || BUILTINS.map((b) => ({ id: b.id, role: b.role, builtin: true }));
   for (const p of pool) {
     if (p.builtin || kindState.has(p.id)) {
-      const k = kinds.get(p.id); if (k && !p.builtin) k.flipped = !!p.flipped;
+      const k = kinds.get(p.id);
+      if (k && !p.builtin && k.flipped !== !!p.flipped) { // "Çevir": atölyedekiler de hemen dönsün
+        k.flipped = !!p.flipped;
+        for (const r of robots.values()) if (r.kindId === p.id) r.inner.rotation.y = k.flipped ? Math.PI : 0;
+      }
       continue;
     }
     kindState.set(p.id, 'loading');
-    const fail = (e) => { kindState.set(p.id, 'failed'); post({ type: 'robotFailed', id: p.id, error: String(e?.message || e) }); settle(); };
+    const timer = setTimeout(() => { if (kindState.get(p.id) === 'loading') fail(new Error('yükleme 30 sn içinde bitmedi')); }, 30000);
+    function fail(e) { clearTimeout(timer); if (kindState.get(p.id) === 'failed') return; markFailed(p.id, e); settle(); }
     loader.load(p.url, (g) => {
+      if (kindState.get(p.id) !== 'loading') return;
+      clearTimeout(timer);
       try { kinds.set(p.id, customKind(p.id, g, !!p.flipped)); kindState.set(p.id, 'ok'); settle(); }
       catch (e) { fail(e); }
     }, undefined, fail);
   }
 }
-const loadingPool = () => pool.some((p) => !p.builtin && kindState.get(p.id) === 'loading');
+function markFailed(id, e) {
+  kindState.set(id, 'failed'); kinds.delete(id);
+  post({ type: 'robotFailed', id, error: String(e?.message || e) });
+}
+/** O rol için hâlâ yüklenen kendi robotu var mı (yoksa robot geçici sayılmaz). */
+const loadingPool = (role) => pool.some((p) => !p.builtin && kindState.get(p.id) === 'loading' && (!role || p.role === role || p.role === 'both'));
 // Kendi robotları yüklenirken oluşan robotlar geçicidir; yüklemeler bitince havuzdan yeniden seçilir.
 function settle() {
   if (loadingPool()) return;
@@ -317,20 +329,28 @@ function settle() {
 function reskin(r, kindId) {
   const kind = kinds.get(kindId); if (!kind) return;
   const h = ROBOT_H[r.agent ? 'sub' : 'main'] * (kind.def?.scale || 1);
-  r.g.remove(r.root); r.mixer.stopAllAction();
-  const inst = instantiate(kind, h);
+  let inst;
+  try { inst = instantiate(kind, h); } catch (e) { markFailed(kindId, e); return; }
+  r.g.remove(r.root); r.mixer.stopAllAction(); r.mixer.uncacheRoot(r.root);
+  r.root.traverse((o) => { if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); });
   r.g.add(inst.root);
+  r.hit.scale.setScalar(h / r.h); r.hit.position.y = h / 2;
   Object.assign(r, { root: inst.root, mixer: inst.mixer, actions: inst.actions, inner: inst.inner, kindH: kind.H, kindId, cur: null, fb: null });
   r.tag.position.y = h * 1.12; r.bub.position.y = h * 1.42;
+  if (kind.flipped) inst.inner.rotation.y = Math.PI;
   const m = r.mode; if (m === 'walk') play(r, 'walk'); else if (m) enter(r, m);
 }
 
 function makeRobot(zone, opts) {
   const role = opts.agent ? 'sub' : 'main';
-  const kindId = kinds.has(opts.kindId) ? opts.kindId : DEFAULTS[role];
-  const kind = kinds.get(kindId);
-  const h = ROBOT_H[role] * (kind.def?.scale || 1);
-  const inst = instantiate(kind, h);
+  let kindId = kinds.has(opts.kindId) ? opts.kindId : DEFAULTS[role];
+  let kind = kinds.get(kindId), inst, h;
+  try { h = ROBOT_H[role] * (kind.def?.scale || 1); inst = instantiate(kind, h); }
+  catch (e) { // bozuk model atölyeyi durdurmasın: varsayılan robotla devam
+    markFailed(kindId, e);
+    kindId = DEFAULTS[role]; kind = kinds.get(kindId);
+    h = ROBOT_H[role] * (kind.def?.scale || 1); inst = instantiate(kind, h);
+  }
   const g = new THREE.Group(); g.add(inst.root);
   zone.g.add(g);
   if (!opts.agent) { // proje rengi ayağın altındaki halkada
@@ -343,7 +363,7 @@ function makeRobot(zone, opts) {
   const bub = new CSS2DObject(bubEl); bub.position.y = h * 1.42; g.add(bub);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(h * 0.6, h, h * 0.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   hit.position.y = h / 2; g.add(hit);
-  const r = { id: opts.id, zone, g, root: inst.root, tag, bub, provisional: loadingPool(),
+  const r = { id: opts.id, zone, g, root: inst.root, tag, bub, h, provisional: loadingPool(role),
               mixer: inst.mixer, actions: inst.actions, inner: inst.inner, kindH: kind.H, kindId, fb: null, fbT: 0,
               cur: null, home: opts.home.clone(), dest: null, after: null, mode: null, face: 0,
               timer: 3 + Math.random() * 6, agent: !!opts.agent, tagEl, bubEl, bubT: 0, bubSticky: false, scale: 1,
@@ -363,7 +383,10 @@ function play(r, motion, loop = true) {
   const a = r.actions[motion];
   if (!a) {
     if (r.fb === motion) return;
-    if (r.cur) { r.cur.fadeOut(0.3); r.cur = null; }
+    // Klibi olmayan hareket: Idle varsa onun üstüne yedek hareket (yoksa iskelet T duruşuna döner).
+    const base = motion !== 'idle' ? r.actions.idle : null;
+    if (base && r.cur !== base) { base.reset().setLoop(THREE.LoopRepeat, Infinity).play(); if (r.cur) base.crossFadeFrom(r.cur, 0.3, false); r.cur = base; }
+    else if (!base && r.cur) { r.cur.fadeOut(0.3); r.cur = null; }
     r.fb = motion; r.fbT = 0; return;
   }
   if (r.fb) { r.fb = null; fallbackPose(r.inner, null, 0, r.kindH); }

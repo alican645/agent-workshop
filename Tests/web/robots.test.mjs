@@ -52,3 +52,8 @@ test('matchClips farklı adlar ve eksikler', () => {
 test('matchClips boş', () => {
   assert.ok(Object.values(matchClips([])).every((v) => v === null));
 });
+
+test('matchClips iki harfli anahtarı yalnız tam ad olarak eşler', () => {
+  assert.equal(matchClips(['HitReact']).wave, null);
+  assert.equal(matchClips(['Hi']).wave, 'Hi');
+});

@@ -23,6 +23,8 @@ final class WorkshopModel {
     nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
     /// Robot havuzu: hazır robotların aç-kapası ve kendi `.glb` robotları.
     let robotPool: RobotPoolStore = { let s = RobotPoolStore(dir: WorkshopModel.robotsDir); s.load(); return s }()
+    /// Robotlar penceresindeki robot resimleri.
+    let robotPreviews = RobotPreviews(dir: WorkshopModel.robotsDir)
     /// Sahnenin yükleyemediği kendi robotları (id → hata).
     var robotFailures: [String: String] = [:]
     /// Robotlar penceresi her değişiklikte artırır; görünümler yeniden çizilsin.

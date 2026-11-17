@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>robot önizleme</title>
+<script type="importmap">
+{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}
+</script>
+</head>
+<body style="margin:0;background:transparent">
+<script type="module">
+// Robotlar penceresi için robot resimleri: atölyedeki aynı kodla (robotkit) çizip PNG olarak geri gönderir.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { BUILTINS } from './robots.mjs';
+import { builtinKind, customKind, instantiate } from './robotkit.mjs';
+
+const post = (m) => { try { webkit.messageHandlers.atolye.postMessage(m); } catch { console.log('post', m); } };
+const W = 300, H = 340;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(2); renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.setClearColor(0x000000, 0);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight('#fff8ee', '#b9a98f', 2.4));
+const sun = new THREE.DirectionalLight('#ffffff', 2.6); sun.position.set(3, 6, 5); scene.add(sun);
+const camera = new THREE.PerspectiveCamera(28, W / H, 0.1, 50);
+camera.position.set(2.0, 1.55, 4.6); camera.lookAt(0, 1.0, 0);
+
+const loader = new GLTFLoader();
+const load = (url) => new Promise((ok, no) => loader.load(url, ok, undefined, no));
+let base = null;
+
+async function shot(kind) {
+  const inst = instantiate(kind, 2);
+  scene.add(inst.root);
+  const idle = inst.actions.idle; if (idle) { idle.play(); inst.mixer.update(0.5); }
+  inst.root.updateMatrixWorld(true);
+  renderer.render(scene, camera);
+  const url = renderer.domElement.toDataURL('image/png');
+  scene.remove(inst.root); inst.mixer.stopAllAction();
+  return url;
+}
+
+/** list: [{ id, builtin, url?, flipped? }] → post({ type: 'previews', images: { id: dataURL }, errors: { id: mesaj } }) */
+window.renderRobots = async (list) => {
+  const images = {}, errors = {};
+  try { if (!base) { const g = await load('./models/RobotExpressive.glb'); base = { scene: g.scene, clips: g.animations }; } }
+  catch (e) { post({ type: 'previews', images, errors: { _base: String(e?.message || e) } }); return; }
+  for (const r of list) {
+    try {
+      let kind;
+      if (r.builtin) kind = builtinKind(BUILTINS.find((b) => b.id === r.id), base);
+      else kind = customKind(r.id, await load(r.url), !!r.flipped);
+      images[r.id] = await shot(kind);
+    } catch (e) { errors[r.id] = String(e?.message || e); }
+  }
+  post({ type: 'previews', images, errors });
+};
+post({ type: 'ready' });
+</script>
+</body>
+</html>

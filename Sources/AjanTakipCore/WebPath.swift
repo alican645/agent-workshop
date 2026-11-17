@@ -9,6 +9,9 @@ public enum WebPath {
             ? (robotsRoot.standardizedFileURL, String(rel.dropFirst(prefix.count)))
             : (webRoot.standardizedFileURL, rel.isEmpty ? "index.html" : rel)
         let file = root.appendingPathComponent(sub).standardizedFileURL
-        return file.path.hasPrefix(root.path + "/") ? file : nil
+        guard file.path.hasPrefix(root.path + "/") else { return nil }
+        // Robot klasöründen yalnız model dosyaları (robots.json ve resimler sayfaya açılmaz).
+        if root == robotsRoot.standardizedFileURL, file.pathExtension != "glb" { return nil }
+        return file
     }
 }

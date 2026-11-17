@@ -71,6 +71,7 @@ export function matchClips(names) {
     let hit = null;
     for (const k of keys) { const f = list.find(([, n]) => n === k); if (f) { hit = f[0]; break; } }
     if (!hit) for (const k of keys) {
+      if (k.length <= 2) continue; // "hi" yalnız tam ad: "HitReact" el sallama değil
       const f = list.find(([, n]) => (k.length <= 3 ? n.startsWith(k) : n.includes(k)));
       if (f) { hit = f[0]; break; }
     }
