@@ -73,7 +73,7 @@ public struct SessionUsage: Sendable {
     public var tokens = TokenUsage()
     /// Dolar, API liste fiyatıyla.
     public var cost = 0.0
-    var dated: [(at: Date, cost: Double)] = []
+    var dated: [(at: Date, cost: Double, tokens: Int)] = []
 
     public init() {}
 
@@ -81,6 +81,13 @@ public struct SessionUsage: Sendable {
     public func costByDay(calendar: Calendar = .current) -> [String: Double] {
         var out: [String: Double] = [:]
         for d in dated { out[UsageMeter.dayKey(d.at, calendar: calendar), default: 0] += d.cost }
+        return out
+    }
+
+    /// Yerel güne göre token (fiyatı bilinmeyen modeller dahil).
+    public func tokensByDay(calendar: Calendar = .current) -> [String: Int] {
+        var out: [String: Int] = [:]
+        for d in dated { out[UsageMeter.dayKey(d.at, calendar: calendar), default: 0] += d.tokens }
         return out
     }
 }
@@ -147,10 +154,9 @@ public struct UsageMeter: Sendable {
         var s = SessionUsage()
         for m in messages.values {
             s.tokens = s.tokens + m.usage
-            guard let p = ModelPricing.price(model: m.model) else { continue }
-            let c = m.usage.cost(p)
+            let c = ModelPricing.price(model: m.model).map { m.usage.cost($0) } ?? 0
             s.cost += c
-            if let at = m.at { s.dated.append((at, c)) }
+            if let at = m.at { s.dated.append((at, c, m.usage.total)) }
         }
         return s
     }

@@ -45,6 +45,7 @@
   .bub.done:after{border-top-color:#3aa57a}
   @keyframes bob{50%{transform:translateY(-4px)}}
   #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8a7f70;z-index:9;background:#f3e9da;padding:40px;text-align:center}
+  .cost{font-size:11px;color:#8a7f6e;margin-top:1px;font-variant-numeric:tabular-nums}
   .newrow{display:flex;gap:6px}.newrow .enter{flex:1;padding:7px 4px;font-size:12px}
   .enter{display:block;width:100%;margin:4px 0 10px;padding:8px;font-weight:600;background:#2c2a26;color:#fff;border-color:#2c2a26}
   .mach{font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
@@ -382,6 +383,7 @@ function renderPanel() {
     `<div class="newrow"><button class="enter" data-kind="claude">＋ Claude</button><button class="enter" data-kind="shell">＋ Terminal</button><button class="enter" data-kind="git">Git</button></div>` +
     z.robots.map((r) => `<div class="sess" data-id="${esc(r.id)}"><div class="n"><span class="d" style="background:${ST[r.state].c}"></span>${esc(r.label)}${r.profile ? ` <span class="p">· ${esc(r.profile)}</span>` : ''}</div>` +
       `<div class="s">${ST[r.state].t}${r.tool ? ' · ' + esc(r.tool) : ''}</div>` +
+      (r.cost > 0 ? `<div class="cost">≈ ${usd(r.cost)} · ${tok(r.tokens || 0)} token</div>` : '') +
       r.helpers.map((h) => `<div class="ag">↳ ${esc(h.task)}${h.tool ? ' · ' + esc(h.tool) : ''}</div>`).join('') +
       (r.state === 'waiting' ? `<div class="ask">${waitText(r)} — cmux'ta yanıtla</div>` : '') + `</div>`).join('') +
     (hist ? `<h4>SON İŞLER</h4><ul class="hist">${hist}</ul>` : '') +
@@ -438,6 +440,8 @@ function layout() {
   homeCam = new V(0, span * 0.36, span * 0.5);
   if (!selected) fly = { tgt: homeTgt.clone(), cam: homeCam.clone() };
 }
+function usd(v) { return v < 0.01 ? '<$0.01' : '$' + (v < 100 ? v.toFixed(2) : v.toFixed(0)); }
+function tok(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n); }
 function gitText(g) {
   return `⎇ ${esc(g.branch)}` + (g.changed ? ` <span class="gc">● ${g.changed}</span>` : '')
     + (g.ahead ? ` <span class="ga">↑${g.ahead}</span>` : '') + (g.behind ? ` <span class="gb">↓${g.behind}</span>` : '');

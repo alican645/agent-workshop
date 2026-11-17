@@ -123,6 +123,11 @@ struct SessionSidebar: View {
                     Text(subtitle(r)).font(.system(size: 11)).foregroundStyle(SidebarTheme.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if let c = r.cost, c > 0 {
+                    Text(UsageFormat.usd(c)).font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(SidebarTheme.muted).padding(.top, 2)
+                        .help("Bu oturum: \(UsageFormat.tokens(r.tokens ?? 0)) token ≈ \(UsageFormat.usd(c))\n\(UsageFormat.note)")
+                }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: 7).fill(selected ? SidebarTheme.selected : .clear))

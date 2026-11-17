@@ -29,6 +29,15 @@ final class WorkshopModel {
     @ObservationIgnored private var gitRefreshing = false
     @ObservationIgnored private var lastGitRefresh = Date.distantPast
     static let gitInterval: TimeInterval = 3
+    /// Token kullanımı ve API karşılığı maliyet (arka planda tazelenir).
+    @ObservationIgnored private let usageWorker = UsageWorker()
+    @ObservationIgnored private var sessionUsage: [String: SessionUsage] = [:]
+    @ObservationIgnored private var usageRefreshing = false
+    @ObservationIgnored private var lastUsageRefresh = Date.distantPast
+    /// Bugünkü toplam (kapanmış oturumlar dahil).
+    private(set) var todayCost = 0.0
+    private(set) var todayTokens = 0
+    static let usageInterval: TimeInterval = 4
 
     private struct Transcript {
         var path: String?
@@ -283,9 +292,10 @@ final class WorkshopModel {
         }
         let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
-                                  terminalOf: terminalOf, pinned: desk.pinned, git: gitBadges, now: now,
-                                  fileExists: fm.fileExists(atPath:))
+                                  terminalOf: terminalOf, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
+                                  now: now, fileExists: fm.fileExists(atPath:))
         refreshGit(roots: snap.zones.map(\.id), now: now)
+        refreshUsage(configDirs: profiles.map(\.configDir), now: now)
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
         notify(old: snapshot, new: snap)
         snapshot = snap
@@ -305,6 +315,24 @@ final class WorkshopModel {
         let doneIDs = Set(alerts.filter { $0.kind == .done }.map(\.robotID))
         let before = old?.zones.flatMap { $0.robots.filter { $0.state == "waiting" }.map(\.id) } ?? []
         notifier.clear(sessions: before.filter { !stillWaiting.contains($0) && !doneIDs.contains($0) })
+    }
+
+    private func refreshUsage(configDirs: [String], now: Date) {
+        guard !usageRefreshing, now.timeIntervalSince(lastUsageRefresh) >= Self.usageInterval else { return }
+        usageRefreshing = true
+        lastUsageRefresh = now
+        let paths = transcripts.compactMapValues(\.path)
+        usageWorker.refresh(sessions: paths, configDirs: configDirs) { [weak self] r in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.sessionUsage = r.sessions
+                    if self.todayCost != r.todayCost { self.todayCost = r.todayCost }
+                    if self.todayTokens != r.todayTokens { self.todayTokens = r.todayTokens }
+                    self.usageRefreshing = false
+                }
+            }
+        }
     }
 
     /// Bölgelerin git durumunu arka planda okur; sonuç bir sonraki taramada anlık görüntüye girer.
