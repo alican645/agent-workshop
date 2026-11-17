@@ -22,6 +22,11 @@ MCP'ler ve hafızayla kullanırsın.
   **bitti**, **boşta**. Yardımcı ajanlar (subagent) robotun yanında küçük yardımcılar olarak çıkar.
 - Bölge panelinde son araç çağrıları, açık `TODO.local.md` maddeleri ve git durumu.
 - Akış: commit, push, pull ve dal değişikliği olayları sahnede ve olay akışında görünür.
+- **6 farklı robot:** ana ajanlar için Usta, Mühendis, Kâşif; alt ajanlar için Kıvılcım, Pıt, Vida.
+  Her yeni oturum rolündeki robotlardan rastgele birini alır, o an atölyede olmayanlar önce gelir.
+- **Kendi robotun:** üst çubuktaki **Robotlar** penceresinden bir `.glb` dosyası (en fazla 30 MB) ekle.
+  Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot
+  kendisi sallanır, zıplar ya da eğilir. Hazır robotları aynı pencereden kapatabilirsin.
 
 ### 🪟 Yüzen terminal pencereleri
 - Terminaller uygulamanın içinde, atölyenin üstünde: sürükle, kenarlardan/köşelerden boyutlandır,
@@ -78,6 +83,7 @@ Testler:
 
 ```sh
 swift test
+node --test Tests/web/*.test.mjs   # sahne mantığı (robot seçimi, animasyon eşleme)
 ```
 
 ## Kısayollar
