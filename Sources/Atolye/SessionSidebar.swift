@@ -5,12 +5,16 @@ import SwiftUI
 struct SessionSidebar: View {
     let model: WorkshopModel
 
-    private var zones: [ZoneInfo] { (model.snapshot?.zones ?? []).filter { !$0.robots.isEmpty } }
+    /// Ajanı ya da penceresi olan projeler.
+    private var zones: [ZoneInfo] {
+        let roots = Set(model.desk.windows.map(\.root))
+        return (model.snapshot?.zones ?? []).filter { !$0.robots.isEmpty || roots.contains($0.id) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: 30) // pencere düğmeleri
-            Button { model.changeDesk { d in for w in d.windows where !w.minimized { d.minimize(w.id) } } } label: {
+            Button { model.tuckAll() } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "square.grid.2x2")
                     Text("Atölye").font(.system(size: 13, weight: .semibold))
@@ -38,6 +42,7 @@ struct SessionSidebar: View {
                 }
                 .padding(.vertical, 12)
             }
+            .onPreferenceChange(SidebarTargets.self) { v in MainActor.assumeIsolated { model.sidebarTargets = v } }
         }
         .foregroundStyle(SidebarTheme.text)
         .background(SidebarTheme.background)
@@ -57,6 +62,13 @@ struct SessionSidebar: View {
                             .foregroundStyle(SidebarTheme.muted).lineLimit(1)
                         Spacer()
                         if let g = z.git { gitBadge(g) }
+                        let parked = model.desk.windows.filter { $0.root == z.id && $0.minimized }.count
+                        if parked > 0 {
+                            Text("▭ \(parked)").font(.system(size: 10, weight: .semibold))
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background(Capsule().fill(SidebarTheme.selected))
+                                .help("\(parked) pencere burada bekliyor — açmak için tıkla")
+                        }
                     }
                     .contentShape(Rectangle())
                 }
@@ -65,6 +77,9 @@ struct SessionSidebar: View {
                 NewWindowMenu(model: model, root: z.id, tint: SidebarTheme.muted)
             }
             .padding(.leading, 18).padding(.trailing, 10).padding(.bottom, 2)
+            .background(GeometryReader { g in
+                Color.clear.preference(key: SidebarTargets.self, value: [z.id: g.frame(in: .global)])
+            })
             ForEach(z.robots, id: \.id) { r in robotRow(r, zone: z) }
         }
     }
@@ -146,5 +161,13 @@ extension Color {
         } else {
             self.init(white: 0.6)
         }
+    }
+}
+
+/// Sol paneldeki proje başlıklarının yerleri (pencereler oraya çekilir).
+struct SidebarTargets: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }

@@ -69,6 +69,8 @@ struct SceneView: NSViewRepresentable {
                 lastSent = nil
                 flush()
                 updateActive()
+            case "sceneTap":
+                model.tuckAll()
             case "focus":
                 if let id = body["id"] as? String { model.open(sessionID: id) }
             case "openZone":

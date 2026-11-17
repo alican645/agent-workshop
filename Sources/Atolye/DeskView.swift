@@ -23,16 +23,28 @@ struct DeskView: View {
                 }
                 ForEach(model.desk.windows.filter { !$0.minimized }) { w in
                     let r = rect(w)
+                    let tuck = model.tucked.contains(w.id) ? tuckMove(r, root: w.root, canvas: size, origin: g.frame(in: .global).origin) : nil
                     FloatingWindow(model: model, window: w, front: model.desk.front?.id == w.id, canvas: size,
                                    rect: r, onLive: { live = ($0 == nil ? nil : (w.id, $0!)) },
                                    onSnapPreview: { snapPreview = $0 })
                         .frame(width: r.w * size.width, height: r.h * size.height)
-                        .offset(x: r.x * size.width, y: r.y * size.height)
+                        .scaleEffect(tuck == nil ? 1 : 0.04)
+                        .opacity(tuck == nil ? 1 : 0.15)
+                        .offset(x: r.x * size.width + (tuck?.width ?? 0), y: r.y * size.height + (tuck?.height ?? 0))
+                        .allowsHitTesting(tuck == nil)
                 }
                 shelf.frame(maxWidth: .infinity, alignment: .trailing).padding(10)
             }
             .coordinateSpace(name: "desk")
         }
+    }
+
+    /// Pencerenin merkezini sol paneldeki projesinin başlığına taşıyan kayma (yoksa panelin ortasına).
+    private func tuckMove(_ r: FloatRect, root: String, canvas: CGSize, origin: CGPoint) -> CGSize {
+        let target = model.sidebarTargets[root].map { CGPoint(x: $0.midX - origin.x, y: $0.midY - origin.y) }
+            ?? CGPoint(x: -125, y: canvas.height / 2)
+        let cx = (r.x + r.w / 2) * canvas.width, cy = (r.y + r.h / 2) * canvas.height
+        return CGSize(width: target.x - cx, height: target.y - cy)
     }
 
     private func rect(_ w: DeskWindow) -> FloatRect {
@@ -43,7 +55,8 @@ struct DeskView: View {
     /// Küçültülmüş pencerelerin rafı (sağ üst).
     private var shelf: some View {
         HStack(spacing: 6) {
-            ForEach(model.desk.windows.filter(\.minimized)) { w in
+            // Yalnız sol panelde yeri olmayan projelerin küçültülmüş pencereleri burada kalır.
+            ForEach(model.desk.windows.filter { $0.minimized && model.sidebarTargets[$0.root] == nil }) { w in
                 Button { model.changeDesk { $0.raise(w.id) } } label: {
                     HStack(spacing: 6) {
                         Circle().fill(model.zoneColor(w.root).map(Color.init(hex:)) ?? Theme.muted).frame(width: 8, height: 8)
@@ -79,7 +92,11 @@ private struct FloatingWindow: View {
     var body: some View {
         VStack(spacing: 0) {
             titleBar
-            TabContent(model: model, window: window, focused: front)
+            if model.flying.contains(window.id) {
+                Theme.room
+            } else {
+                TabContent(model: model, window: window, focused: front)
+            }
         }
         .background(Theme.room)
         .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -97,7 +114,7 @@ private struct FloatingWindow: View {
             Text(model.title(window.tab)).font(.system(size: 12)).foregroundStyle(Theme.muted).lineLimit(1)
             Spacer(minLength: 8)
             NewWindowMenu(model: model, root: window.root, tint: Theme.muted)
-            chromeButton("minus", help: "Küçült (⌘M)") { model.changeDesk { $0.minimize(window.id) } }
+            chromeButton("minus", help: "Sol paneldeki yerine çek (⌘M)") { model.tuck([window.id]) }
             chromeButton(window.maximized ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                          help: "Tam boyut") { model.changeDesk { $0.toggleMaximize(window.id) } }
             chromeButton("xmark", help: "Kapat (⌘W)") { model.closeWindow(window.id) }

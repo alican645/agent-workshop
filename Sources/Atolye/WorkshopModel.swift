@@ -2,6 +2,7 @@ import AjanTakipCore
 import AppKit
 import AtolyeHostKit
 import Observation
+import SwiftUI
 
 /// Saniyede bir tüm profillerin oturumlarını tarar, atölye görüntüsünü üretir; odaları ve terminalleri yönetir.
 @MainActor @Observable
@@ -84,10 +85,73 @@ final class WorkshopModel {
     /// Öndeki pencerenin projesi (yeni pencere kısayolları için).
     var frontRoot: String? { desk.front?.root }
 
+    /// Sol paneldeki yerine çekilmekte olan (ya da oradan çıkmakta olan) pencereler: küçük ve panelde çizilir.
+    var tucked: Set<String> = []
+    /// Uçuş sürerken içeriği gizlenen pencereler (terminal AppKit görünümü ölçeklenmez).
+    var flying: Set<String> = []
+    /// Sol paneldeki proje başlıklarının pencere koordinatlarındaki yeri (çekilme hedefi).
+    @ObservationIgnored var sidebarTargets: [String: CGRect] = [:]
+    @ObservationIgnored private var tuckGeneration = 0
+    static let tuckDuration = 0.34
+
     func changeDesk(_ change: (inout Desk) -> Void) {
+        // Süren bir çekilme varsa iptal: kullanıcı bir pencereyi geri istedi.
+        if !tucked.isEmpty {
+            tuckGeneration += 1
+            let back = tucked
+            withAnimation(.spring(duration: 0.3)) { tucked = [] }
+            land(back, after: 0.3)
+        }
+        let hidden = Set(desk.windows.filter(\.minimized).map(\.id))
         change(&desk)
         saveDesk()
+        // Küçültülmüşken açılanlar sol paneldeki yerlerinden çıkarak gelsin.
+        let shown = desk.windows.filter { !$0.minimized && hidden.contains($0.id) }.map(\.id)
+        guard !shown.isEmpty else { return }
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) {
+            tucked.formUnion(shown)
+            flying.formUnion(shown)
+        }
+        DispatchQueue.main.async { [weak self] in
+            withAnimation(.spring(duration: 0.38, bounce: 0.15)) { self?.tucked.subtract(shown) }
+        }
+        land(shown, after: 0.4)
     }
+
+    /// Uçuş bitince içerik geri gelir.
+    private func land(_ ids: some Sequence<String>, after delay: Double) {
+        let ids = Set(ids)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.flying.subtract(ids.subtracting(self.tucked))
+        }
+    }
+
+    /// Pencereleri sol paneldeki projelerinin yerine çekerek küçültür.
+    func tuck(_ ids: [String]) {
+        let ids = ids.filter { desk.window($0)?.minimized == false }
+        guard !ids.isEmpty else { return }
+        tuckGeneration += 1
+        let gen = tuckGeneration
+        flying.formUnion(ids)
+        withAnimation(.easeIn(duration: Self.tuckDuration)) { tucked.formUnion(ids) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.tuckDuration) { [weak self] in
+            guard let self, gen == self.tuckGeneration else { return }
+            for id in ids { self.desk.minimize(id) }
+            self.saveDesk()
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) {
+                self.tucked.subtract(ids)
+                self.flying.subtract(ids)
+            }
+        }
+    }
+
+    /// Atölyeye dönüş: görünen bütün pencereler panele çekilir.
+    func tuckAll() { tuck(desk.windows.filter { !$0.minimized }.map(\.id)) }
 
     func newWindow(_ kind: TerminalKind, in root: String) {
         host.create(kind, cwd: root) { [weak self] info in

@@ -88,7 +88,7 @@ enum KeyRouter {
             return true
         case "m":
             guard let w = desk.front else { return false }
-            model.changeDesk { $0.minimize(w.id) }
+            model.tuck([w.id])
             return true
         default:
             break

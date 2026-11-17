@@ -413,6 +413,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (rh) { const r = rh.object.userData.robot; post({ type: 'focus', id: r.parent ? r.parent.id : r.id }); return; }
   const mh = ray.intersectObjects(machHits)[0];
   if (mh) { post({ type: 'openTerminal', id: mh.object.userData.machine }); return; }
+  post({ type: 'sceneTap' }); // boşluğa ya da bölgeye dokunuş: pencereler sol panele çekilir
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) select([...zones.values()].find((z) => z.hit === zh.object));
 });
