@@ -113,6 +113,12 @@ private func tmp() throws -> String {
         #expect(AtolyeIntegration.installStatusline(into: once) == once)
     }
 
+    @Test func loginCommandPrefillsEmail() {
+        #expect(AtolyeIntegration.loginCommand(email: "b@x.com") == "claude auth login --email 'b@x.com'")
+        #expect(AtolyeIntegration.loginCommand(email: "a'b@x.com") == "claude auth login --email 'a'\\''b@x.com'")
+        #expect(AtolyeIntegration.loginCommand(email: nil) == "claude auth login")
+    }
+
     @Test func limitFileNameMatchesShellMapping() {
         #expect(AtolyeIntegration.limitFileName(configDir: "/Users/a/.claude-profiles/p 2/") == "_Users_a_.claude-profiles_p_2.json")
     }
