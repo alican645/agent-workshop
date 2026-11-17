@@ -8,6 +8,7 @@ struct WorkshopToolbar: View {
         HStack(spacing: 12) {
             Text("Atölye").font(.headline).foregroundStyle(Theme.barText)
             Spacer()
+            GitHubButton(github: model.github)
             ProfileMenu(model: model)
             if model.todayTokens > 0 {
                 HStack(spacing: 5) {
@@ -32,5 +33,27 @@ struct WorkshopToolbar: View {
         .frame(height: 38)
         .background(Theme.bar)
         .overlay(alignment: .bottom) { Divider() }
+    }
+}
+
+/// Üst çubukta GitHub panosunu açan düğme; girişliyse serini gösterir.
+private struct GitHubButton: View {
+    let github: GitHubModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button { openWindow(id: "github") } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "square.grid.3x3.fill").font(.system(size: 11))
+                Text("GitHub").font(.system(size: 12, weight: .semibold))
+                if let s = github.stats, s.currentStreak > 0 {
+                    Text("· \(s.currentStreak) gün 🔥").font(.system(size: 12))
+                }
+            }
+            .foregroundStyle(Theme.barMuted)
+        }
+        .buttonStyle(.plain)
+        .help("GitHub katkıların")
+        .task { github.refreshIfStale() }
     }
 }
