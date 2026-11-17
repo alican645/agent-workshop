@@ -137,3 +137,20 @@ import Testing
         #expect(Desk.load(from: url) == d)
     }
 }
+
+struct DeskRetargetTests {
+    /// Taşınan oturumun yeni terminali eski pencerenin yerine geçer (konum, boyut, sıra korunur).
+    @Test func retargetKeepsWindow() {
+        var d = Desk()
+        let w = d.open(.terminal("eski"), root: "/r")
+        d.setFrame(w, FloatRect(x: 0.2, y: 0.2, w: 0.5, h: 0.5))
+        _ = d.open(.terminal("baska"), root: "/r")
+        let moved = d.retarget(.terminal("eski"), to: .terminal("yeni"))
+        #expect(moved)
+        #expect(d.windows.first?.id == w)
+        #expect(d.windows.first?.tab == .terminal("yeni"))
+        #expect(d.windows.first?.frame == FloatRect(x: 0.2, y: 0.2, w: 0.5, h: 0.5))
+        let missing = d.retarget(.terminal("yok"), to: .terminal("x"))
+        #expect(!missing)
+    }
+}

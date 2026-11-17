@@ -36,6 +36,13 @@ final class WorkshopModel {
     @ObservationIgnored private var scanner = RegistryScanner()
     @ObservationIgnored private var transcripts: [String: Transcript] = [:]
     @ObservationIgnored private var terminalOfPid: [Int32: String?] = [:]
+    /// Son taramada oturum → profil ve oturum → Atölye terminali (profil değişince taşımak için).
+    @ObservationIgnored private var sessionProfile: [String: String] = [:]
+    @ObservationIgnored private var sessionTerminal: [String: String] = [:]
+    /// Profil değişince taşınmayı bekleyen (o an çalışan) oturumlar ve hedef profil.
+    @ObservationIgnored private var pendingMoves: Set<String> = []
+    @ObservationIgnored private var moveTarget: String?
+    @ObservationIgnored private var moving: Set<String> = []
     /// Son anlık görüntü (sol paneldeki oturum listesi için).
     private(set) var snapshot: WorkshopSnapshot?
     @ObservationIgnored private var timer: Timer?
@@ -275,6 +282,66 @@ final class WorkshopModel {
         return id
     }
 
+    // MARK: Profil değişimi
+
+    /// Etkin profili değiştirir; Atölye'de açılmış Claude oturumları yeni profille kaldıkları yerden sürer.
+    /// Çalışan oturumlar işleri bitince taşınır. cmux gibi dışarıda açılanlara dokunulmaz.
+    func switchProfile(to id: String) {
+        profiles.setActive(id)
+        moveTarget = id
+        pendingMoves = []
+        moveSessions(onlyPending: false)
+    }
+
+    private func moveSessions(onlyPending: Bool) {
+        guard let target = moveTarget else { return }
+        let candidates = store.sessions.compactMap { s -> ProfileMove.Candidate? in
+            guard !moving.contains(s.id), !onlyPending || pendingMoves.contains(s.id),
+                  let profile = sessionProfile[s.id] else { return nil }
+            let t = sessionTerminal[s.id]
+            return ProfileMove.Candidate(sessionID: s.id, profileID: profile, terminal: t,
+                                         terminalKind: t.flatMap { host.terminals[$0]?.kind },
+                                         working: s.state == .working, cwd: s.cwd)
+        }
+        let plan = ProfileMove.plan(candidates, to: target)
+        pendingMoves = onlyPending ? pendingMoves.intersection(plan.later) : Set(plan.later)
+        // Eski yardımcı `--resume` bilmez: oturumu kapatıp boş bir Claude açmak yerine uyar, dokunma.
+        if plan.now.contains(where: { host.terminals[$0.terminal]?.args == nil }) {
+            pendingMoves = []
+            moveTarget = nil
+            Self.alertOutdatedHost()
+            return
+        }
+        for m in plan.now { move(m, to: target) }
+    }
+
+    /// Eski terminali kapatır, aynı pencerede yeni profille `claude --resume <oturum>` açar.
+    private func move(_ m: ProfileMove.Move, to profile: String) {
+        moving.insert(m.sessionID)
+        host.kill(m.terminal)
+        // Eski Claude'un kapanıp kaydını bitirmesi için kısa bir an.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self else { return }
+            self.host.create(.claude, cwd: m.cwd, env: self.profiles.environment(profile),
+                             args: ProfileMove.resumeArgs(m.sessionID)) { [weak self] info in
+                guard let self else { return }
+                self.moving.remove(m.sessionID)
+                self.changeDesk { d in
+                    if !d.retarget(.terminal(m.terminal), to: .terminal(info.id)) { d.open(.terminal(info.id), root: m.cwd) }
+                }
+            }
+        }
+    }
+
+    private static func alertOutdatedHost() {
+        let a = NSAlert()
+        a.messageText = "Açık Claude oturumları yeni profile taşınamadı"
+        a.informativeText = "Terminalleri çalıştıran yardımcı eski sürüm. Menüden Terminaller › Tüm terminalleri kapat'ı seçip "
+            + "Atölye'yi yeniden aç; bundan sonra profil değiştirince oturumlar kaldıkları yerden sürer. "
+            + "Yeni profil yine de seçildi: yeni oturumlar onunla açılır."
+        a.runModal()
+    }
+
     // MARK: Tarama
 
     private func tick(initial: Bool) {
@@ -316,6 +383,9 @@ final class WorkshopModel {
         }
         let live = Set(store.sessions.map(\.id))
         transcripts = transcripts.filter { live.contains($0.key) }
+        sessionProfile = byID.mapValues(\.profileID)
+        sessionTerminal = terminalOf
+        if !pendingMoves.isEmpty { pendingMoves.formIntersection(live); moveSessions(onlyPending: true) }
         let livePids = Set(store.sessions.compactMap(\.pid))
         terminalOfPid = terminalOfPid.filter { livePids.contains($0.key) }
 

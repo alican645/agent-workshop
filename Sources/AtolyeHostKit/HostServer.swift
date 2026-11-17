@@ -118,8 +118,8 @@ public final class HostServer: @unchecked Sendable {
         switch req {
         case .list:
             send(.terminals(order.compactMap { terminals[$0]?.info }), to: key)
-        case let .create(kind, cwd, cols, rows, extra):
-            create(kind: kind, cwd: cwd, cols: cols, rows: rows, extra: extra ?? [:], for: key)
+        case let .create(kind, cwd, cols, rows, extra, args):
+            create(kind: kind, cwd: cwd, cols: cols, rows: rows, extra: extra ?? [:], args: args ?? [], for: key)
         case let .attach(id):
             guard let t = terminals[id] else { return send(.error("terminal yok: \(id)"), to: key) }
             t.attached.insert(key)
@@ -146,15 +146,17 @@ public final class HostServer: @unchecked Sendable {
         }
     }
 
-    static func command(for kind: TerminalKind) -> [String] {
+    static func command(for kind: TerminalKind, args: [String] = []) -> [String] {
         switch kind {
-        case .claude: ["/bin/zsh", "-il", "-c", "claude; exec zsh -il"]
-        case .shell: ["/bin/zsh", "-il"]
+        case .claude:
+            let quoted = args.map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+            return ["/bin/zsh", "-il", "-c", (["claude"] + quoted).joined(separator: " ") + "; exec zsh -il"]
+        case .shell: return ["/bin/zsh", "-il"]
         }
     }
 
     private func create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, extra: [String: String],
-                        for key: ObjectIdentifier) {
+                        args: [String], for key: ObjectIdentifier) {
         let id = UUID().uuidString
         var env = TerminalEnvironment.clean(ProcessInfo.processInfo.environment)
         env["ATOLYE_TERMINAL_ID"] = id
@@ -163,7 +165,7 @@ public final class HostServer: @unchecked Sendable {
         env["PWD"] = cwd
         env.merge(extra) { $1 }
         let info = TerminalInfo(id: id, cwd: cwd, title: kind == .claude ? "Claude" : "zsh", kind: kind, pid: 0,
-                                running: true, exitCode: nil, lastOutputAt: nil)
+                                running: true, exitCode: nil, lastOutputAt: nil, args: kind == .claude ? args : nil)
         let t = TerminalSession(info: info, cols: cols, rows: rows, queue: queue,
                                 onOutput: { [weak self] t, d in
                                     guard let self else { return }
@@ -177,7 +179,7 @@ public final class HostServer: @unchecked Sendable {
                                 })
         terminals[id] = t
         order.append(id)
-        t.start(command: commandOverride?(kind) ?? Self.command(for: kind), environment: env)
+        t.start(command: commandOverride?(kind) ?? Self.command(for: kind, args: args), environment: env)
         send(.created(t.info), to: key)
         scheduleIdleCheck()
     }

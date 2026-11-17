@@ -100,6 +100,23 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(cmd.contains("-il") && cmd.last?.contains("exec zsh -il") == true)
     }
 
+    /// Profil değişince oturum `claude --resume <id>` ile sürer; argümanlar kabuğa tırnaklı gider.
+    @Test func claudeArgsAreQuoted() {
+        let cmd = HostServer.command(for: .claude, args: ["--resume", "abc-1", "it's"])
+        #expect(cmd.last == "claude '--resume' 'abc-1' 'it'\\''s'; exec zsh -il")
+        #expect(HostServer.command(for: .claude, args: []) == HostServer.command(for: .claude))
+    }
+
+    /// Yeni yardımcı argümanları geri bildirir: eski yardımcı (bildirmeyen) uygulamada tanınır.
+    @Test func createEchoesArgs() throws {
+        let (s, path) = try makeServer(["/bin/sh", "-c", "sleep 5"])
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .claude, cwd: "/tmp", cols: 80, rows: 24, args: ["--resume", "x"]))
+        let t = try #require(c.created())
+        #expect(t.args == ["--resume", "x"])
+    }
+
     @Test func createPassesEnvironment() throws {
         let (s, path) = try makeServer(["/bin/sh", "-c", "echo profil=$CLAUDE_CONFIG_DIR; sleep 5"])
         defer { s.stop() }

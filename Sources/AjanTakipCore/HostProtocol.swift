@@ -14,9 +14,11 @@ public struct TerminalInfo: Codable, Equatable, Sendable {
     public var running: Bool
     public var exitCode: Int32?
     public var lastOutputAt: Date?
+    /// Claude'a verilen argümanlar (ör. `--resume <id>`). Eski yardımcı bu alanı bilmez, hep nil döner.
+    public var args: [String]? = nil
 
     public init(id: String, cwd: String, title: String, kind: TerminalKind, pid: Int32, running: Bool,
-                exitCode: Int32?, lastOutputAt: Date?) {
+                exitCode: Int32?, lastOutputAt: Date?, args: [String]? = nil) {
         self.id = id
         self.cwd = cwd
         self.title = title
@@ -25,13 +27,16 @@ public struct TerminalInfo: Codable, Equatable, Sendable {
         self.running = running
         self.exitCode = exitCode
         self.lastOutputAt = lastOutputAt
+        self.args = args
     }
 }
 
 public enum HostRequest: Codable, Equatable, Sendable {
     case list
     /// `env`: terminale eklenecek ortam (ör. Claude profili için CLAUDE_CONFIG_DIR).
-    case create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, env: [String: String]? = nil)
+    /// `args`: Claude terminalinde `claude`'a eklenecek argümanlar.
+    case create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, env: [String: String]? = nil,
+                args: [String]? = nil)
     case attach(id: String)
     case detach(id: String)
     case input(id: String, data: Data)

@@ -111,6 +111,14 @@ public struct Desk: Codable, Equatable, Sendable {
         windows.removeAll { $0.id == id }
     }
 
+    /// Pencerenin içeriğini yerinde değiştirir (konum, boyut, sıra korunur). Pencere yoksa false.
+    @discardableResult
+    public mutating func retarget(_ old: RoomTab, to new: RoomTab) -> Bool {
+        guard let i = windows.firstIndex(where: { $0.tab == old }) else { return false }
+        windows[i].tab = new
+        return true
+    }
+
     public mutating func remove(_ tab: RoomTab) {
         windows.removeAll { $0.tab == tab }
     }

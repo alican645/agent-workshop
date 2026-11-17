@@ -11,9 +11,9 @@ struct ProfileMenu: View {
         let active = profiles.active
         let alert = profiles.profiles.contains { profiles.needsWarning($0) || profiles.mismatch($0) != nil }
         Menu {
-            Section("Yeni Claude oturumları bu profille açılır") {
+            Section("Claude oturumları bu profille açılır; açık olanlar kaldıkları yerden sürer") {
                 ForEach(profiles.profiles) { p in
-                    Button { profiles.setActive(p.id) } label: {
+                    Button { model.switchProfile(to: p.id) } label: {
                         Text((p.id == active.id ? "✓ " : "    ") + line(p))
                     }
                 }
@@ -39,16 +39,13 @@ struct ProfileMenu: View {
                 model.login(profile: p.id)
             }
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: alert ? "exclamationmark.triangle.fill" : "person.crop.circle")
-                Text(active.name).font(.system(size: 12, weight: .semibold))
-                if let u = profiles.limits[active.id], let f = u.effectiveFiveHour(now: Date()) {
-                    Text("· 5s %\(Int((f * 100).rounded()))").font(.system(size: 12))
-                }
-            }
-            .foregroundStyle(alert ? Color.orange : Theme.barMuted)
+            BarChip(icon: alert ? "exclamationmark.triangle.fill" : "person.crop.circle", title: active.name,
+                    detail: profiles.limits[active.id]?.effectiveFiveHour(now: Date()).map { "5 saat %\(Int(($0 * 100).rounded()))" },
+                    tint: alert ? .orange : nil)
         }
-        .menuStyle(.borderlessButton)
+        // Düz stil: macOS'un menü stili etiketin rengini soldurmasın.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
         .help(help)
