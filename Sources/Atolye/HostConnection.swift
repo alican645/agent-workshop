@@ -125,6 +125,9 @@ final class HostConnection {
         return nil
     }
 
+    /// Terminale metin yazar (kullanıcı yazmış gibi).
+    func type(_ id: String, _ text: String) { client?.send(.input(id: id, data: Data(text.utf8))) }
+
     fileprivate func input(_ id: String, _ data: ArraySlice<UInt8>) {
         client?.send(.input(id: id, data: Data(data)))
     }

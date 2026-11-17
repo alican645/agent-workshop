@@ -148,7 +148,7 @@ public final class HostServer: @unchecked Sendable {
 
     static func command(for kind: TerminalKind) -> [String] {
         switch kind {
-        case .claude: ["/bin/zsh", "-i", "-c", "claude; exec zsh -i"]
+        case .claude: ["/bin/zsh", "-il", "-c", "claude; exec zsh -il"]
         case .shell: ["/bin/zsh", "-il"]
         }
     }

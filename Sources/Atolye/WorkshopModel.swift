@@ -370,8 +370,17 @@ final class WorkshopModel {
 
 
     /// Profilde Claude'u açar (giriş yapmak için içinde /login yazılır).
+    /// Profilde `claude auth login`'i çalıştıran bir terminal açar; giriş sayfası tarayıcıda beklenen
+    /// e-posta dolu açılır. (Claude'u açıp /login yazmak, zaten girişli profilde giriş ekranı göstermiyor.)
     func login(profile id: String) {
-        newWindow(.claude, in: FileManager.default.homeDirectoryForCurrentUser.path, profile: id)
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let email = profiles.profiles.first { $0.id == id }?.email
+        host.create(.shell, cwd: home, env: profiles.environment(id)) { [weak self] info in
+            guard let self else { return }
+            self.host.type(info.id, AtolyeIntegration.loginCommand(email: email) + "\r")
+            self.changeDesk { $0.open(.terminal(info.id), root: home) }
+            self.lastProfilesRefresh = .distantPast
+        }
     }
 
     nonisolated static func isProcessAlive(_ pid: Int32) -> Bool {

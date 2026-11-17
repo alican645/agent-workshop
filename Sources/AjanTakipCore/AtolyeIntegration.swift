@@ -76,6 +76,12 @@ public enum AtolyeIntegration {
         ShellSnippet.contains(in: text) ? ShellSnippet.remove(from: text) : nil
     }
 
+    /// Profilde hesaba giriş: tarayıcıda giriş sayfası beklenen e-posta dolu açılır.
+    public static func loginCommand(email: String?) -> String {
+        guard let email, !email.isEmpty else { return "claude auth login" }
+        return "claude auth login --email '" + email.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     /// Profilin girişli hesabı (`.claude.json` → oauthAccount.emailAddress).
     public static func loggedInEmail(globalConfig path: String) -> String? {
         guard let d = FileManager.default.contents(atPath: path),
