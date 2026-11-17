@@ -10,7 +10,7 @@ struct SessionSidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: 30) // pencere düğmeleri
-            Button { model.closeRoom() } label: {
+            Button { model.changeDesk { d in for w in d.windows where !w.minimized { d.minimize(w.id) } } } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "square.grid.2x2")
                     Text("Atölye").font(.system(size: 13, weight: .semibold))
@@ -22,7 +22,7 @@ struct SessionSidebar: View {
                     }
                 }
                 .padding(.horizontal, 10).frame(height: 30)
-                .background(RoundedRectangle(cornerRadius: 7).fill(model.openRoom == nil ? SidebarTheme.selected : .clear))
+                .background(RoundedRectangle(cornerRadius: 7).fill(model.desk.front == nil ? SidebarTheme.selected : .clear))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -80,8 +80,7 @@ struct SessionSidebar: View {
     }
 
     private func robotRow(_ r: RobotInfo, zone: ZoneInfo) -> some View {
-        let selected = model.openRoom == zone.id && r.terminal != nil
-            && model.room(zone.id).focusedPane?.current == .terminal(r.terminal!)
+        let selected = r.terminal != nil && model.desk.front?.tab == .terminal(r.terminal!)
         return Button { model.open(sessionID: r.id) } label: {
             HStack(alignment: .top, spacing: 8) {
                 Circle().fill(SidebarTheme.color(r.state)).frame(width: 8, height: 8).padding(.top, 4)

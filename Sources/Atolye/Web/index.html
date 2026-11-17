@@ -45,6 +45,7 @@
   .bub.done:after{border-top-color:#3aa57a}
   @keyframes bob{50%{transform:translateY(-4px)}}
   #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8a7f70;z-index:9;background:#f3e9da;padding:40px;text-align:center}
+  .newrow{display:flex;gap:6px}.newrow .enter{flex:1;padding:7px 4px;font-size:12px}
   .enter{display:block;width:100%;margin:4px 0 10px;padding:8px;font-weight:600;background:#2c2a26;color:#fff;border-color:#2c2a26}
   .mach{font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
   .mach:hover{color:#2c2a26}
@@ -67,7 +68,7 @@
 <div id="panel" class="hud"></div>
 <button id="home">← atölyeye dön</button>
 <div id="feed" class="hud"><h2>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty">henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud">bölgeye çift tıkla: terminalleri yan panelde aç · robota tıkla: terminaline git · sürükle: döndür</div>
+<div id="hint" class="hud">bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · sürükle: döndür</div>
 
 <script>
   window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = 'Hata: ' + e.message; });
@@ -378,7 +379,7 @@ function renderPanel() {
   const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ' <span style="color:#3aa57a">· çalışıyor</span>' : ''}</div>`).join('');
   const html = `<h3><span class="d" style="background:${z.color};width:12px;height:12px"></span>${esc(z.name)}</h3>` +
     (z.git ? `<div class="gitline">${gitText(z.git)}${z.git.headSubject ? ' · son commit: ' + esc(z.git.headSubject) : ''}</div>` : '') +
-    `<button class="enter" id="enterRoom">Terminalleri aç →</button>` +
+    `<div class="newrow"><button class="enter" data-kind="claude">＋ Claude</button><button class="enter" data-kind="shell">＋ Terminal</button><button class="enter" data-kind="git">Git</button></div>` +
     z.robots.map((r) => `<div class="sess" data-id="${esc(r.id)}"><div class="n"><span class="d" style="background:${ST[r.state].c}"></span>${esc(r.label)}${r.profile ? ` <span class="p">· ${esc(r.profile)}</span>` : ''}</div>` +
       `<div class="s">${ST[r.state].t}${r.tool ? ' · ' + esc(r.tool) : ''}</div>` +
       r.helpers.map((h) => `<div class="ag">↳ ${esc(h.task)}${h.tool ? ' · ' + esc(h.tool) : ''}</div>`).join('') +
@@ -391,7 +392,7 @@ function renderPanel() {
   panel._last = html; panel.innerHTML = html; panel.style.display = 'block';
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
   panel.querySelectorAll('.mach').forEach((el) => el.onclick = () => post({ type: 'openTerminal', id: el.dataset.term }));
-  document.getElementById('enterRoom').onclick = () => post({ type: 'openZone', id: z.id });
+  panel.querySelectorAll('.newrow .enter').forEach((el) => el.onclick = () => post({ type: 'newWindow', root: z.id, kind: el.dataset.kind }));
   const un = document.getElementById('unpin'); if (un) un.onclick = () => post({ type: 'unpin', id: z.id });
 }
 function select(Z) {
