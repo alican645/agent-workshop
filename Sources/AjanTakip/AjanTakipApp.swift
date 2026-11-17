@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
     private var panel: PillPanel?
     private var detailPanel: DetailPanel?
+    private var todoPanel: DetailPanel?
     private var server: EventServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -46,18 +47,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         detailPanel = detail
         observeDetail()
 
+        var todoRef: DetailPanel?
+        let todo = DetailPanel(rootView: TodoView(
+            todos: model.todos,
+            moveWindow: { todoRef?.move(topLeft: $0) },
+            windowTopLeft: { todoRef?.topLeft ?? .zero },
+            contentSizeChanged: { todoRef?.fit(contentSize: $0) }))
+        todo.allowsKey = true
+        todoRef = todo
+        todoPanel = todo
+        observeTodo()
+        let model = model
+        model.todos.start { model.store.sessions }
+
         startServer()
+        model.accounts.refreshAuth()
         model.startPruneTimer()
+        model.startRegistryTimer()
         model.startStatsTimer()
         installCollapseMonitors()
     }
 
-    /// Liste açıkken: başka bir yere tıklamak veya Esc listeyi kapatır.
+    /// Başka bir yere tıklamak listeyi, CPU/RAM ve TODO pencerelerini kapatır; Esc listeyi kapatır.
     private func installCollapseMonitors() {
         let model = model
         NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in
+            // Global izleyici yalnızca başka uygulamalara/masaüstüne yapılan tıklamaları görür;
+            // AjanTakip pencerelerinin içindeki tıklamalar buraya gelmez.
             MainActor.assumeIsolated {
                 if model.isExpanded { model.isExpanded = false }
+                model.closeDetail()
+                model.todos.close()
             }
         }
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -95,6 +115,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// TODO penceresini openRoot'a göre açar/kapatır; CPU/RAM penceresi açıksa onun yanına yerleşir.
+    private func observeTodo() {
+        withObservationTracking {
+            _ = model.todos.openRoot
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, let todo = self.todoPanel else { return }
+                if self.model.todos.openRoot != nil {
+                    if !todo.isVisible, let pill = self.panel {
+                        let anchor = self.detailPanel?.isVisible == true ? self.detailPanel!.frame : pill.frame
+                        todo.place(nextTo: anchor, pillEdge: pill.edge)
+                    }
+                    todo.orderFrontRegardless()
+                } else {
+                    todo.orderOut(nil)
+                }
+                self.observeTodo()
+            }
+        }
+    }
+
     /// Detay penceresini detailMetric'e göre açar/kapatır; açılırken hapın yanına yerleştirir.
     private func observeDetail() {
         withObservationTracking {
@@ -117,9 +158,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startServer() {
         let model = model
-        let server = EventServer(port: AppModel.configuredPort()) { event in
+        let server = EventServer(port: AppModel.configuredPort(), onEvent: { event in
             Task { @MainActor in model.handle(event) }
-        }
+        }, onUsage: { report in
+            Task { @MainActor in model.handleUsage(report) }
+        })
         do {
             try server.start { message in
                 Task { @MainActor in model.serverError = message }

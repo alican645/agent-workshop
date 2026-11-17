@@ -31,6 +31,38 @@ enum CmuxNavigator {
         }
     }
 
+    /// Metni oturumun sekmesine yapıştırıp Enter'a basar. Hata olursa açıklamasını döndürür.
+    /// cmux, istemde yarım yazılmış metin ya da açık bir diyalog varsa göndermeyi reddeder; zorlamayız.
+    static func send(_ text: String, to s: Session) async -> String? {
+        guard let ws = s.workspace, let surface = s.surface else { return "Oturum cmux içinde değil" }
+        guard let cli = cliPath() else { return "cmux bulunamadı" }
+        return await Task.detached(priority: .userInitiated) {
+            let target = ["--workspace", ws, "--surface", surface]
+            if let err = capture(cli, ["send", "--paste"] + target + ["--", text]) { return err }
+            return capture(cli, ["send-key"] + target + ["enter"])
+        }.value
+    }
+
+    private static func capture(_ cli: String, _ args: [String]) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: cli)
+        p.arguments = args
+        let errPipe = Pipe()
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = errPipe
+        do {
+            try p.run()
+            p.waitUntilExit()
+        } catch {
+            return "cmux çalıştırılamadı: \(error.localizedDescription)"
+        }
+        guard p.terminationStatus != 0 else { return nil }
+        let msg = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        log.error("cmux \(args.first ?? "") → \(p.terminationStatus): \(msg)")
+        return msg.isEmpty ? "cmux hata kodu \(p.terminationStatus)" : msg
+    }
+
     @MainActor
     private static func activateCmux() {
         // Erişimsiz (accessory) bir uygulamadan NSRunningApplication.activate() reddedilebilir;

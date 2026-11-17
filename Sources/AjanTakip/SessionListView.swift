@@ -8,6 +8,8 @@ struct SessionListView: View {
     let stats: (cpu: Double?, ram: Double?)?
     /// Detay penceresinde açık olan metrik.
     let openMetric: ProcessUsage.Metric?
+    let accounts: AccountManager
+    let todos: TodoManager
     let onToggleMetric: (ProcessUsage.Metric) -> Void
     let onSelect: (Session) -> Void
 
@@ -23,6 +25,12 @@ struct SessionListView: View {
                     .padding(.vertical, 6)
                     Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 8)
                 }
+                if accounts.hasMultiple || !accounts.usage.isEmpty {
+                    AccountsSection(accounts: accounts, now: context.date)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                    Rectangle().fill(.white.opacity(0.12)).frame(height: 1).padding(.horizontal, 8)
+                }
                 if sessions.isEmpty {
                     Text("Aktif oturum yok")
                         .foregroundStyle(.secondary)
@@ -30,9 +38,26 @@ struct SessionListView: View {
                         .padding(.vertical, 6)
                 }
                 ForEach(sessions) { s in
-                    SessionRow(session: s, now: context.date)
+                    SessionRow(session: s, now: context.date, todo: todos.progress(for: s),
+                               todoOpen: todos.openRoot != nil && todos.openRoot == todos.root(for: s),
+                               hasCwd: s.cwd != nil,
+                               showProfile: accounts.hasMultiple,
+                               onTodo: { todos.toggleWindow(for: s) })
                         .contentShape(Rectangle())
                         .onTapGesture { onSelect(s) }
+                }
+                let idle = todos.rootsWithoutSession
+                if !idle.isEmpty {
+                    Text("TODO · ajan yok")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.horizontal, 10)
+                        .padding(.top, sessions.isEmpty ? 0 : 4)
+                    ForEach(idle, id: \.self) { root in
+                        TodoProjectRow(root: root, todo: todos.progress(root: root),
+                                       todoOpen: todos.openRoot == root,
+                                       onTodo: { todos.toggleWindow(root: root) })
+                    }
                 }
             }
             .padding(6)
@@ -91,9 +116,103 @@ private struct UsageBar: View {
     }
 }
 
+/// Hesap başına 5 saatlik / 7 günlük kullanım; satıra tıklamak hesabı aktif yapar.
+private struct AccountsSection: View {
+    let accounts: AccountManager
+    let now: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(accounts.store.profiles) { p in
+                AccountRow(name: p.name, email: accounts.auth[p.id]?.email,
+                           isActive: accounts.store.activeID == p.id,
+                           usage: accounts.usage[p.id], now: now)
+                    .contentShape(Rectangle())
+                    .onTapGesture { accounts.setActive(p.id) }
+            }
+            if let dup = accounts.duplicateWarning {
+                Text("⚠︎ \(dup)").font(.system(size: 10)).foregroundStyle(.yellow)
+            }
+        }
+    }
+}
+
+private struct AccountRow: View {
+    let name: String
+    let email: String?
+    let isActive: Bool
+    let usage: AccountUsage?
+    let now: Date
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                .font(.system(size: 10))
+                .foregroundStyle(isActive ? .green : .white.opacity(0.45))
+            Text(name)
+                .fontWeight(isActive ? .semibold : .regular)
+                .foregroundStyle(.white.opacity(isActive ? 1 : 0.7))
+                .lineLimit(1)
+                .frame(width: 78, alignment: .leading)
+            MiniBar(label: "5s", fraction: usage?.effectiveFiveHour(now: now), stale: isStale)
+            MiniBar(label: "7g", fraction: usage?.effectiveSevenDay(now: now), stale: isStale)
+        }
+        .help(tooltip)
+    }
+
+    private var isStale: Bool { usage.map { now.timeIntervalSince($0.reportedAt) > 15 * 60 } ?? true }
+
+    private var tooltip: String {
+        var lines = [email ?? "giriş bilgisi yok"]
+        guard let usage else { return (lines + ["henüz kullanım bildirilmedi"]).joined(separator: "\n") }
+        lines.append("son bildirim: \(DurationFormat.short(now.timeIntervalSince(usage.reportedAt))) önce")
+        if let r = usage.fiveHourResetsAt, r > now { lines.append("5s sıfırlanma: \(DurationFormat.short(r.timeIntervalSince(now))) sonra") }
+        if let r = usage.sevenDayResetsAt, r > now { lines.append("7g sıfırlanma: \(DurationFormat.short(r.timeIntervalSince(now))) sonra") }
+        return lines.joined(separator: "\n")
+    }
+}
+
+private struct MiniBar: View {
+    let label: String
+    let fraction: Double?
+    let stale: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.5))
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.12))
+                    Capsule().fill(color).frame(width: geo.size.width * min(1, max(0, fraction ?? 0)))
+                }
+            }
+            .frame(width: 44, height: 5)
+            Text(fraction.map(SystemStats.percentText) ?? "–")
+                .foregroundStyle(fraction == nil ? .white.opacity(0.5) : color)
+                .monospacedDigit()
+                .frame(width: 32, alignment: .trailing)
+        }
+        .opacity(stale ? 0.6 : 1)
+    }
+
+    private var color: Color {
+        let f = fraction ?? 0
+        if f >= AccountStore.warningThreshold { return .red }
+        if f >= 0.7 { return .yellow }
+        return .white.opacity(0.85)
+    }
+}
+
 private struct SessionRow: View {
     let session: Session
     let now: Date
+    let todo: (done: Int, total: Int)?
+    let todoOpen: Bool
+    let hasCwd: Bool
+    let showProfile: Bool
+    let onTodo: () -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -106,11 +225,19 @@ private struct SessionRow: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .frame(width: 100, alignment: .leading)
+            if showProfile && !session.profileName.isEmpty {
+                Text(session.profileName)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .help("Profil: \(session.profileName)")
+            }
             Text(detail)
                 .foregroundStyle(.white.opacity(0.7))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 4)
+            todoBadge
             if session.workspace == nil {
                 Image(systemName: "exclamationmark.circle")
                     .foregroundStyle(.white.opacity(0.4))
@@ -123,10 +250,77 @@ private struct SessionRow: View {
         .onHover { hovering = $0 }
     }
 
+    /// Dosya varsa "☑ 3/7"; yoksa yalnızca üzerine gelince soluk bir simge (yeni liste başlatmak için).
+    @ViewBuilder private var todoBadge: some View {
+        if let todo {
+            TodoBadge(todo: todo, open: todoOpen, onTap: onTodo)
+        } else if hasCwd && (hovering || todoOpen) {
+            Image(systemName: "checklist")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(todoOpen ? 0.9 : 0.35))
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onTodo)
+                .help("TODO.local.md oluştur")
+        }
+    }
+
     private var detail: String {
         let elapsed = DurationFormat.short(now.timeIntervalSince(session.stateSince))
         if session.state == .done { return "bitti · \(elapsed) önce" }
         return "\(session.activity) · \(elapsed)"
+    }
+}
+
+/// "☑ 3/7" rozeti; tıklayınca TODO penceresini açar/kapatır.
+private struct TodoBadge: View {
+    let todo: (done: Int, total: Int)
+    let open: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: open ? "checklist.checked" : "checklist")
+            Text("\(todo.done)/\(todo.total)").monospacedDigit()
+        }
+        .font(.system(size: 10, weight: .semibold, design: .rounded))
+        .foregroundStyle(.white.opacity(open ? 0.95 : 0.6))
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(.white.opacity(open ? 0.2 : 0.08)))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .help("TODO.local.md")
+    }
+}
+
+/// Açık oturumu olmayan ama TODO listesi olan proje satırı; tıklayınca listeyi açar.
+private struct TodoProjectRow: View {
+    let root: String
+    let todo: (done: Int, total: Int)?
+    let todoOpen: Bool
+    let onTodo: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(SessionState.idle.symbol)
+                .foregroundStyle(.white.opacity(0.3))
+                .frame(width: 14)
+            Text((root as NSString).lastPathComponent)
+                .fontWeight(.semibold)
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            if let todo { TodoBadge(todo: todo, open: todoOpen, onTap: onTodo) }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.12 : 0)))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTodo)
+        .onHover { hovering = $0 }
+        .help(root)
     }
 }
 

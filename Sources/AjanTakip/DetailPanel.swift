@@ -23,7 +23,9 @@ final class DetailPanel: NSPanel {
         contentView = host
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Metin girişi olan pencerelerde (TODO) true.
+    var allowsKey = false
+    override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 
     private var visibleFrame: NSRect {
