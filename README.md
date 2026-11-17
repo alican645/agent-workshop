@@ -9,7 +9,8 @@ projelerine çekilir. Birden çok Claude hesabını, hangisini kullandığını 
 MCP'ler ve hafızayla kullanırsın.
 
 > *A macOS app that turns your Claude Code sessions into a 3D robot workshop — with built-in floating
-> terminals, git status, token/cost tracking and seamless multi-account support. UI is in Turkish.*
+> terminals, git status, token/cost tracking, seamless multi-account support and a personal GitHub
+> contribution dashboard. UI is in Turkish. MIT licensed.*
 
 ---
 
@@ -49,6 +50,13 @@ MCP'ler ve hafızayla kullanırsın.
 - Her profilin 5 saatlik ve haftalık limiti görünür; %90'ı geçince Atölye uyarır.
 - Profile beklenen hesabı yazarsan, yanlış hesapla girişliyse uyarır; "Giriş yap" giriş sayfasını o e-postayla açar.
 
+### 🟩 GitHub panosu
+- Üst çubuktaki **GitHub** düğmesiyle açılan kişisel pano: son bir yılın katkı ısı haritası, bugün,
+  son 7 gün, kesintisiz seri ve en uzun seri; commit / PR / inceleme toplamları.
+- Son 30 günde çalıştığın depolar, gizli depolar dahil.
+- Giriş GitHub'ın cihaz akışıyla: Atölye bir kod gösterir, tarayıcıda onaylarsın. Şifre girilmez;
+  anahtar Mac'in Anahtar Zinciri'nde durur ve Atölye GitHub'a yalnız okuma isteği gönderir.
+
 ---
 
 ## Kurulum
@@ -62,6 +70,9 @@ cd agent-workshop
 ./scripts/build-atolye.sh --install   # build/Atölye.app oluşturur ve ~/Applications'a kopyalar
 open ~/Applications/Atölye.app
 ```
+
+Uygulama Apple geliştirici imzası taşımaz (yerelde ad-hoc imzalanır). Kaynaktan derleyince sorun
+olmaz; derlenmiş bir `.app` indirip açarsan macOS uyarı verir — sağ tık → **Aç** ile açabilirsin.
 
 Testler:
 
@@ -82,11 +93,13 @@ swift test
 
 ## Nasıl çalışıyor?
 
-Atölye hiçbir yere veri göndermez; her şeyi Claude Code'un kendi yerel dosyalarından okur.
+Atölye hiçbir yere veri göndermez; her şeyi Claude Code'un kendi yerel dosyalarından okur. Tek istisna,
+giriş yaparsan GitHub panosunun GitHub'dan kendi katkılarını okumasıdır.
 
 - **Oturum durumu:** Claude Code'un oturum kayıtları (`<profil>/sessions/<pid>.json`) saniyede bir taranır.
 - **Ne yapıyor:** sohbet kayıtlarının (`projects/**/*.jsonl`) sonu artımlı okunur; araç çağrıları, yardımcı
   ajanlar ve token kullanımı buradan çıkar.
+- **GitHub panosu:** yalnız sen giriş yaparsan; GitHub GraphQL (katkı takvimi) ve commit araması, salt okunur.
 - **Git:** `git` komut satırı, kilit almadan (`--no-optional-locks`) ve salt okunur.
 - **Limitler:** Claude Code'un durum satırı betiğine eklenen küçük bir blok, `rate_limits` bilgisini profil
   başına bir dosyaya yazar.
@@ -118,3 +131,7 @@ Tasarım notları ve uygulama planları `docs/superpowers/` altında.
   Don McCurdy (CC0).
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT), [marked](https://marked.js.org) (MIT).
 - Bazı fikirler (token/maliyet takibi gibi) Orbiterm'den esinlendi; kod paylaşılmadı.
+
+## Lisans
+
+[MIT](LICENSE) © 2026 Ali Can Aydın
