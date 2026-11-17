@@ -124,4 +124,11 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
                                   terminalOf: ["s1": "t1"], pinned: [], now: Date(), fileExists: exists)
         #expect(snap.zones[0].robots[0].terminal == "t1")
     }
+
+    @Test func zonesCarryGitBadge() {
+        let badge = GitBadge(branch: "feat/todo", changed: 4, ahead: 3, behind: 1, head: "5dba3c5", headSubject: "docs: tasarım")
+        let snap = Workshop.build(sessions: [], details: [:], todos: [:], pinned: ["/p/x", "/p/y"],
+                                  git: ["/p/x": badge], fileExists: exists)
+        #expect(snap.zones.map(\.git) == [badge, nil])
+    }
 }

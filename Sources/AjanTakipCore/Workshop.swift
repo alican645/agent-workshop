@@ -55,6 +55,28 @@ public struct ZoneInfo: Codable, Equatable, Sendable {
     public var todos: [String]
     public var machines: [MachineInfo]
     public var pinned: Bool
+    /// Proje bir git deposuysa durumu.
+    public var git: GitBadge?
+}
+
+/// Bölgenin git özeti (sol panel, tabela ve akış olayları için).
+public struct GitBadge: Codable, Equatable, Sendable {
+    public var branch: String
+    public var changed: Int
+    public var ahead: Int
+    public var behind: Int
+    /// Son commit'in kısa kimliği ve başlığı; değişince akışa "commit" düşer.
+    public var head: String?
+    public var headSubject: String?
+
+    public init(branch: String, changed: Int, ahead: Int, behind: Int, head: String?, headSubject: String?) {
+        self.branch = branch
+        self.changed = changed
+        self.ahead = ahead
+        self.behind = behind
+        self.head = head
+        self.headSubject = headSubject
+    }
 }
 
 public struct WorkshopSnapshot: Codable, Equatable, Sendable {
@@ -118,7 +140,7 @@ public enum Workshop {
 
     public static func build(sessions: [Session], details: [String: RobotDetails], todos: [String: [TodoItem]],
                              terminals: [TerminalInfo] = [], terminalOf: [String: String] = [:], pinned: [String] = [],
-                             now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
+                             git: [String: GitBadge] = [:], now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
         var groups: [String: [(Session, String)]] = [:]
         for s in sessions {
             guard let cwd = s.cwd, !cwd.isEmpty else { continue }
@@ -154,7 +176,7 @@ public enum Workshop {
             }
             let open = (todos[root] ?? []).filter { !$0.done }.prefix(todoLimit).map(\.text)
             return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(open),
-                            machines: machines[root] ?? [], pinned: pinnedSet.contains(root))
+                            machines: machines[root] ?? [], pinned: pinnedSet.contains(root), git: git[root])
         }
         return WorkshopSnapshot(zones: zones.sorted { ($0.name, $0.id) < ($1.name, $1.id) })
     }
