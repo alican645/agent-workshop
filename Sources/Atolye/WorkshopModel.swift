@@ -23,6 +23,11 @@ final class WorkshopModel {
     private(set) var snapshot: WorkshopSnapshot?
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var pruned = false
+    /// Proje kökü → git özeti; arka planda tazelenir.
+    @ObservationIgnored private var gitBadges: [String: GitBadge] = [:]
+    @ObservationIgnored private var gitRefreshing = false
+    @ObservationIgnored private var lastGitRefresh = Date.distantPast
+    static let gitInterval: TimeInterval = 3
 
     private struct Transcript {
         var path: String?
@@ -242,10 +247,33 @@ final class WorkshopModel {
         }
         let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
-                                  terminalOf: terminalOf, pinned: rooms.pinned, now: now, fileExists: fm.fileExists(atPath:))
+                                  terminalOf: terminalOf, pinned: rooms.pinned, git: gitBadges, now: now,
+                                  fileExists: fm.fileExists(atPath:))
+        refreshGit(roots: snap.zones.map(\.id), now: now)
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
         snapshot = snap
         snapshotJSON = String(decoding: data, as: UTF8.self)
+    }
+
+    /// Bölgelerin git durumunu arka planda okur; sonuç bir sonraki taramada anlık görüntüye girer.
+    private func refreshGit(roots: [String], now: Date) {
+        guard !gitRefreshing, now.timeIntervalSince(lastGitRefresh) >= Self.gitInterval else { return }
+        gitRefreshing = true
+        lastGitRefresh = now
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            var result: [String: GitBadge] = [:]
+            for r in roots { if let b = GitRunner.badge(r) { result[r] = b } }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.gitBadges = result
+                    self?.gitRefreshing = false
+                }
+            }
+        }
+    }
+
+    func addGit(in root: String) {
+        update(root) { r in if !r.focus(.git(root)) { r.add(.git(root)) } }
     }
 
     private struct SavedAccounts: Decodable { var store: AccountStore }

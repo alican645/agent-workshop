@@ -38,6 +38,7 @@ struct RoomView: View {
                 Button("Aşağı böl  ⌘⇧D") { model.split(.shell, in: root, edge: .bottom) }
                 Divider()
                 Button("Markdown dosyası…") { model.addMarkdown(in: root) }
+                Button("Git") { model.addGit(in: root) }
             } label: { Image(systemName: "plus").foregroundStyle(Theme.barText) }
                 .menuStyle(.borderlessButton)
                 .tint(Theme.barText)
@@ -185,6 +186,8 @@ private struct PaneView: View {
                 }
         case let .markdown(path):
             MarkdownPane(path: path)
+        case let .git(r):
+            GitPane(root: r)
         }
     }
 
@@ -192,6 +195,7 @@ private struct PaneView: View {
         switch tab {
         case let .terminal(id): model.host.title(id)
         case let .markdown(path): (path as NSString).lastPathComponent
+        case .git: "Git"
         }
     }
 

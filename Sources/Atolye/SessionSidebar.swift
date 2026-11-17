@@ -55,6 +55,7 @@ struct SessionSidebar: View {
                     Text(z.name.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.6)
                         .foregroundStyle(SidebarTheme.muted).lineLimit(1)
                     Spacer()
+                    if let g = z.git { gitBadge(g) }
                 }
                 .padding(.horizontal, 18).padding(.bottom, 2)
                 .contentShape(Rectangle())
@@ -63,6 +64,19 @@ struct SessionSidebar: View {
             .help("\(z.name) terminallerini aç")
             ForEach(z.robots, id: \.id) { r in robotRow(r, zone: z) }
         }
+    }
+
+    private func gitBadge(_ g: GitBadge) -> some View {
+        HStack(spacing: 5) {
+            Text("⎇ " + g.branch).lineLimit(1).truncationMode(.middle).frame(maxWidth: 90, alignment: .trailing)
+            if g.changed > 0 { Text("● \(g.changed)").foregroundStyle(SidebarTheme.color("waiting")) }
+            if g.ahead > 0 { Text("↑\(g.ahead)").foregroundStyle(SidebarTheme.color("done")) }
+            if g.behind > 0 { Text("↓\(g.behind)").foregroundStyle(SidebarTheme.color("busy")) }
+        }
+        .font(.system(size: 10, weight: .medium, design: .monospaced))
+        .foregroundStyle(SidebarTheme.muted)
+        .help("dal \(g.branch) · \(g.changed) değişen dosya · \(g.ahead) itilmemiş · \(g.behind) gelen commit"
+              + (g.headSubject.map { "\nson commit: \($0)" } ?? ""))
     }
 
     private func robotRow(_ r: RobotInfo, zone: ZoneInfo) -> some View {

@@ -11,7 +11,7 @@ import Testing
             switch n {
             case let .pane(p):
                 let names = p.tabs.enumerated().map { i, tab -> String in
-                    let s: String = switch tab { case let .terminal(id): id; case let .markdown(p): p }
+                    let s: String = switch tab { case let .terminal(id): id; case let .markdown(p): p; case let .git(r): "git:" + r }
                     return i == p.selected && p.tabs.count > 1 ? s + "*" : s
                 }
                 return "[" + names.joined(separator: ",") + "]"
@@ -176,5 +176,15 @@ import Testing
         s.pinned = ["/p/x"]
         try s.save(to: url)
         #expect(RoomStore.load(from: url) == s)
+    }
+
+    @Test func gitTabSurvivesPruneAndRoundTrips() throws {
+        var r = Room()
+        r.add(.git("/p/x"))
+        r.add(t("a"))
+        r.prune(liveTerminals: [])
+        #expect(shape(r) == "[git:/p/x]")
+        let back = try JSONDecoder().decode(Room.self, from: JSONEncoder().encode(r))
+        #expect(back == r)
     }
 }

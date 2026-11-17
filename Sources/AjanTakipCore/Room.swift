@@ -4,6 +4,8 @@ import Foundation
 public enum RoomTab: Codable, Equatable, Hashable, Sendable {
     case terminal(String)
     case markdown(String)
+    /// Proje kökünün salt okunur git görünümü.
+    case git(String)
 }
 
 public struct Pane: Codable, Equatable, Sendable {
