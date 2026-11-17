@@ -121,6 +121,34 @@ controls.target.copy(homeTgt);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.44;
 controls.minDistance = 6; controls.maxDistance = 120;
+// Yakınlaştırmayı kendimiz yapıyoruz: OrbitControls her tekerlek olayında sabit adım atar; trackpad bir
+// harekette onlarca küçük olay gönderdiği için sıçrar. Burada adım, hareketin büyüklüğüyle orantılı.
+controls.enableZoom = false;
+function zoomBy(f) {
+  if (!isFinite(f) || f <= 0) return;
+  fly = null;
+  const off = camera.position.clone().sub(controls.target);
+  off.setLength(THREE.MathUtils.clamp(off.length() * f, controls.minDistance, controls.maxDistance));
+  camera.position.copy(controls.target).add(off);
+}
+let pinching = false, pinchScale = 1;
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (pinching) return; // WebKit pinch'i gesture olaylarıyla da bildirir; iki kez sayma
+  let dy = e.deltaY;
+  if (e.deltaMode === 1) dy *= 16; else if (e.deltaMode === 2) dy *= 400;
+  // ctrl+tekerlek: başka tarayıcılarda pinch böyle gelir; daha hassas.
+  zoomBy(Math.exp(THREE.MathUtils.clamp(dy, -200, 200) * (e.ctrlKey ? 0.01 : 0.0025)));
+}, { passive: false });
+// Safari/WebKit trackpad pinch'i: scale hareket başından beri toplam oran.
+renderer.domElement.addEventListener('gesturestart', (e) => { e.preventDefault(); pinching = true; pinchScale = e.scale || 1; });
+renderer.domElement.addEventListener('gesturechange', (e) => {
+  e.preventDefault();
+  const sc = e.scale || 1;
+  zoomBy(pinchScale / sc);
+  pinchScale = sc;
+});
+renderer.domElement.addEventListener('gestureend', (e) => { e.preventDefault(); pinching = false; });
 
 scene.add(new THREE.HemisphereLight(0xfff6e8, 0xc9b79a, 1.5));
 const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
