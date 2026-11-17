@@ -138,6 +138,8 @@ private struct FloatingWindow: View {
     static let titleHeight: CGFloat = 28
     static let grip: CGFloat = 6
 
+    private var waiting: Bool { model.isWaiting(window) }
+
     var body: some View {
         VStack(spacing: 0) {
             titleBar
@@ -150,6 +152,7 @@ private struct FloatingWindow: View {
         .background(Theme.room)
         .clipShape(RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(front ? Theme.focus.opacity(0.8) : Color.black.opacity(0.5), lineWidth: 1))
+        .overlay { if waiting { Pulse { RoundedRectangle(cornerRadius: 9).stroke(Theme.focus, lineWidth: 2.5) } } }
         .shadow(color: .black.opacity(front ? 0.4 : 0.22), radius: front ? 16 : 8, y: 6)
         .overlay { if !window.maximized { resizeGrips } }
         .simultaneousGesture(TapGesture().onEnded { if !front { model.changeDesk { $0.raise(window.id) } } })
@@ -161,6 +164,11 @@ private struct FloatingWindow: View {
             Text((window.root as NSString).lastPathComponent).font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.text).lineLimit(1)
             Text(model.title(window.tab)).font(.system(size: 12)).foregroundStyle(Theme.muted).lineLimit(1)
+            if waiting {
+                Text("seni bekliyor").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.focus))
+            }
             Spacer(minLength: 8)
             NewWindowMenu(model: model, root: window.root, tint: Theme.muted)
             chromeButton("minus", help: "Sol paneldeki yerine çek (⌘M)") { model.tuck([window.id]) }
@@ -171,6 +179,7 @@ private struct FloatingWindow: View {
         .padding(.horizontal, 10)
         .frame(height: Self.titleHeight)
         .background(front ? Theme.tabBarFocused : Theme.tabBar)
+        .background { if waiting { Pulse { Theme.focus } } }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { model.changeDesk { $0.toggleMaximize(window.id) } }
         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("desk"))
@@ -303,6 +312,18 @@ struct NewWindowMenu: View {
         .fixedSize()
         .frame(width: 20, height: 20)
         .help("\((root as NSString).lastPathComponent) projesinde yeni pencere")
+    }
+}
+
+/// İçeriği yavaşça yanıp söndürür (dikkat çekmek için).
+struct Pulse<Content: View>: View {
+    var low = 0.15
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .phaseAnimator([low, 0.9]) { c, p in c.opacity(p) } animation: { _ in .easeInOut(duration: 0.75) }
+            .allowsHitTesting(false)
     }
 }
 

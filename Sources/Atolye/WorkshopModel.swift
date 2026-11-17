@@ -12,6 +12,9 @@ final class WorkshopModel {
     /// Atölyenin üstünde yüzen pencereler.
     private(set) var desk = Desk()
     let host = HostConnection()
+    /// Seni bekleyen Claude'ların terminalleri (pencere başlığı yanıp söner).
+    private(set) var waitingTerminals: Set<String> = []
+    @ObservationIgnored let notifier = Notifier()
 
     @ObservationIgnored private var store = SessionStore()
     @ObservationIgnored private var scanner = RegistryScanner()
@@ -47,6 +50,8 @@ final class WorkshopModel {
             saveDesk()
         }
         host.start()
+        notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
+        notifier.start()
         tick(initial: true)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick(initial: false) }
@@ -59,7 +64,18 @@ final class WorkshopModel {
     /// Projenin pencerelerini öne getirir; hiç yoksa yeni terminal açar.
     func openZone(_ root: String) {
         pruneDesk()
-        if desk.raiseAll(root: root) { saveDesk() } else { newWindow(.shell, in: root) }
+        guard desk.windows.contains(where: { $0.root == root }) else { return newWindow(.shell, in: root) }
+        changeDesk { d in
+            d.raiseAll(root: root)
+            // Seni bekleyen bir Claude varsa en öne o gelsin.
+            if let w = d.windows.last(where: { $0.root == root && isWaiting($0) }) { d.raise(w.id) }
+        }
+    }
+
+    /// Penceredeki Claude izin ya da cevap bekliyor mu.
+    func isWaiting(_ w: DeskWindow) -> Bool {
+        if case let .terminal(id) = w.tab { return waitingTerminals.contains(id) }
+        return false
     }
 
     /// Robota tıklanınca: Atölye terminalindeyse penceresi öne gelir; değilse projenin pencereleri.
@@ -271,8 +287,24 @@ final class WorkshopModel {
                                   fileExists: fm.fileExists(atPath:))
         refreshGit(roots: snap.zones.map(\.id), now: now)
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
+        notify(old: snapshot, new: snap)
         snapshot = snap
         snapshotJSON = String(decoding: data, as: UTF8.self)
+    }
+
+    /// Bekleyenler: pencere vurgusu, Dock rozeti ve (Atölye arka plandayken) bildirim.
+    private func notify(old: WorkshopSnapshot?, new: WorkshopSnapshot) {
+        let waiting = Workshop.waitingTerminals(new)
+        if waiting != waitingTerminals { waitingTerminals = waiting }
+        let count = Workshop.waitingCount(new)
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        let alerts = Workshop.alerts(from: old, to: new)
+        if !NSApp.isActive { for a in alerts { notifier.post(a) } }
+        // Artık beklemeyenlerin eski bildirimleri kalksın.
+        let stillWaiting = Set(new.zones.flatMap { $0.robots.filter { $0.state == "waiting" }.map(\.id) })
+        let doneIDs = Set(alerts.filter { $0.kind == .done }.map(\.robotID))
+        let before = old?.zones.flatMap { $0.robots.filter { $0.state == "waiting" }.map(\.id) } ?? []
+        notifier.clear(sessions: before.filter { !stillWaiting.contains($0) && !doneIDs.contains($0) })
     }
 
     /// Bölgelerin git durumunu arka planda okur; sonuç bir sonraki taramada anlık görüntüye girer.

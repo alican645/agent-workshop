@@ -62,12 +62,19 @@ struct SessionSidebar: View {
                             .foregroundStyle(SidebarTheme.muted).lineLimit(1)
                         Spacer()
                         if let g = z.git { gitBadge(g) }
-                        let parked = model.desk.windows.filter { $0.root == z.id && $0.minimized }.count
+                        let parkedWindows = model.desk.windows.filter { $0.root == z.id && $0.minimized }
+                        let parked = parkedWindows.count
+                        let calling = parkedWindows.contains { model.isWaiting($0) }
                         if parked > 0 {
                             Text("▭ \(parked)").font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(calling ? .white : SidebarTheme.muted)
                                 .padding(.horizontal, 5).padding(.vertical, 1)
-                                .background(Capsule().fill(SidebarTheme.selected))
-                                .help("\(parked) pencere burada bekliyor — açmak için tıkla")
+                                .background {
+                                    if calling { Pulse(low: 0.5) { Capsule().fill(SidebarTheme.color("waiting")) } }
+                                    else { Capsule().fill(SidebarTheme.selected) }
+                                }
+                                .help(calling ? "Buradaki bir Claude seni bekliyor — açmak için tıkla"
+                                              : "\(parked) pencere burada bekliyor — açmak için tıkla")
                         }
                     }
                     .contentShape(Rectangle())
