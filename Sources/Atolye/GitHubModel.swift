@@ -5,7 +5,7 @@ import Security
 
 /// GitHub OAuth uygulamasının kimliği (gizli değil). Boşsa giriş düğmesi kapalı kalır.
 enum GitHubConfig {
-    static let clientID = ""
+    static let clientID = "Ov23lidctnCuPi1EKRA8"
 }
 
 /// GitHub girişi ve kişisel katkı panosunun verisi. Anahtar Anahtar Zinciri'nde durur.
