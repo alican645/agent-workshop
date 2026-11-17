@@ -94,6 +94,12 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(c.waitOutput(t.id, contains: "merhaba"))
     }
 
+    /// Dock'tan açılan uygulamada PATH kısadır; `claude` yolu ~/.zprofile'dan gelir, bu yüzden giriş kabuğu şart.
+    @Test func claudeRunsInLoginShell() {
+        let cmd = HostServer.command(for: .claude)
+        #expect(cmd.contains("-il") && cmd.last?.contains("exec zsh -il") == true)
+    }
+
     @Test func createPassesEnvironment() throws {
         let (s, path) = try makeServer(["/bin/sh", "-c", "echo profil=$CLAUDE_CONFIG_DIR; sleep 5"])
         defer { s.stop() }
