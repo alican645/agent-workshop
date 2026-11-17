@@ -92,7 +92,7 @@ public enum GitDiff {
         var inHunk = false
         for (i, l) in raw.enumerated() {
             if lines.count == limit {
-                lines.append(DiffLine(kind: .meta, text: "… \(raw.count - i) satır daha (kesildi)"))
+                lines.append(DiffLine(kind: .meta, text: L("… {0} satır daha (kesildi)", "\(raw.count - i)")))
                 break
             }
             let s = String(l)

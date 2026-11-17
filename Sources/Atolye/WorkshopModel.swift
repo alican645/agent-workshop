@@ -87,8 +87,8 @@ final class WorkshopModel {
         let mainDir = profiles.main.configDir
         DispatchQueue.global(qos: .utility).async { Profiles.installIntegration(mainDir: mainDir) }
         profiles.onWarning = { [weak self] p, text in
-            self?.notifier.postLimit(id: p.id, title: "\(p.name) limitine yaklaştı",
-                                     body: text + ". Yeni oturumları başka bir profille açabilirsin.")
+            self?.notifier.postLimit(id: p.id, title: L("{0} limitine yaklaştı", p.displayName),
+                                     body: L("{0}. Yeni oturumları başka bir profille açabilirsin.", text))
         }
         tick(initial: true)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -208,10 +208,10 @@ final class WorkshopModel {
         guard let w = desk.window(id) else { return }
         if case let .terminal(tid) = w.tab, host.terminals[tid]?.running == true {
             let a = NSAlert()
-            a.messageText = "\(host.title(tid)) hâlâ çalışıyor"
-            a.informativeText = "Pencereyi kapatmak içinde çalışan programı da durdurur."
-            a.addButton(withTitle: "Kapat")
-            a.addButton(withTitle: "Vazgeç")
+            a.messageText = L("{0} hâlâ çalışıyor", host.title(tid))
+            a.informativeText = L("Pencereyi kapatmak içinde çalışan programı da durdurur.")
+            a.addButton(withTitle: L("Kapat"))
+            a.addButton(withTitle: L("Vazgeç"))
             guard a.runModal() == .alertFirstButtonReturn else { return }
         }
         if case let .terminal(tid) = w.tab { host.kill(tid) }
@@ -231,10 +231,10 @@ final class WorkshopModel {
 
     func killAllTerminals() {
         let a = NSAlert()
-        a.messageText = "Tüm terminaller kapatılsın mı?"
-        a.informativeText = "Atölye'de açılmış bütün terminaller ve içlerinde çalışan Claude oturumları durdurulur."
-        a.addButton(withTitle: "Hepsini kapat")
-        a.addButton(withTitle: "Vazgeç")
+        a.messageText = L("Tüm terminaller kapatılsın mı?")
+        a.informativeText = L("Agent Workshop'ta açılmış bütün terminaller ve içlerinde çalışan Claude oturumları durdurulur.")
+        a.addButton(withTitle: L("Hepsini kapat"))
+        a.addButton(withTitle: L("Vazgeç"))
         guard a.runModal() == .alertFirstButtonReturn else { return }
         host.killAll()
         changeDesk { $0.prune(liveTerminals: []) }
@@ -244,7 +244,7 @@ final class WorkshopModel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Atölyeye ekle"
+        panel.prompt = L("Atölyeye ekle")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let root = Workshop.projectRoot(cwd: url.path, fileExists: FileManager.default.fileExists(atPath:))
         if !desk.pinned.contains(root) { changeDesk { $0.pinned.append(root) } }
@@ -335,10 +335,8 @@ final class WorkshopModel {
 
     private static func alertOutdatedHost() {
         let a = NSAlert()
-        a.messageText = "Açık Claude oturumları yeni profile taşınamadı"
-        a.informativeText = "Terminalleri çalıştıran yardımcı eski sürüm. Menüden Terminaller › Tüm terminalleri kapat'ı seçip "
-            + "Atölye'yi yeniden aç; bundan sonra profil değiştirince oturumlar kaldıkları yerden sürer. "
-            + "Yeni profil yine de seçildi: yeni oturumlar onunla açılır."
+        a.messageText = L("Açık Claude oturumları yeni profile taşınamadı")
+        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç; bundan sonra profil değiştirince oturumlar kaldıkları yerden sürer. Yeni profil yine de seçildi: yeni oturumlar onunla açılır.")
         a.runModal()
     }
 
@@ -355,7 +353,7 @@ final class WorkshopModel {
         let profiles = self.profiles.profiles
         let entries = scanner.scan(dirs: profiles.map { ($0.id, $0.configDir) }, isAlive: Self.isProcessAlive)
         // Birden çok profil varsa her robotun profili görünsün.
-        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, profiles.count > 1 ? $0.name : "") })
+        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, profiles.count > 1 ? $0.displayName : "") })
         let alerts = store.applyRegistry(entries, profileNames: names, now: now, initial: initial)
         for a in alerts { Self.play(a) }
 

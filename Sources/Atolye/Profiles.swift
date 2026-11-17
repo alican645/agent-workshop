@@ -60,7 +60,7 @@ final class Profiles {
     /// Profilin beklenen hesabı dışında bir hesaba girişliyse açıklaması.
     func mismatch(_ p: AccountProfile) -> String? {
         guard let want = p.email, let have = loggedIn[p.id], want.lowercased() != have.lowercased() else { return nil }
-        return "\(have) ile girişli, \(want) bekleniyor"
+        return L("{0} ile girişli, {1} bekleniyor", have, want)
     }
 
     func needsWarning(_ p: AccountProfile, now: Date = Date()) -> Bool {
@@ -108,13 +108,13 @@ final class Profiles {
         let now = Date()
         for p in profiles {
             guard let u = limits[p.id] else { continue }
-            for (name, v, reset) in [("5 saatlik", u.effectiveFiveHour(now: now), u.fiveHourResetsAt),
-                                     ("haftalık", u.effectiveSevenDay(now: now), u.sevenDayResetsAt)] {
+            for (name, v, reset) in [(L("5 saatlik"), u.effectiveFiveHour(now: now), u.fiveHourResetsAt),
+                                     (L("haftalık"), u.effectiveSevenDay(now: now), u.sevenDayResetsAt)] {
                 guard let v, v >= AccountStore.warningThreshold else { continue }
                 let key = "\(p.id)|\(name)|\(reset?.timeIntervalSince1970 ?? 0)"
                 guard !warned.contains(key) else { continue }
                 warned.insert(key)
-                onWarning?(p, "\(name) limit %\(Int((v * 100).rounded())) dolu")
+                onWarning?(p, L("{0} limit %{1} dolu", name, "\(Int((v * 100).rounded()))"))
             }
         }
     }

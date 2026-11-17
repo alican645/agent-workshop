@@ -54,6 +54,7 @@ final class RobotPreviews: NSObject, WKScriptMessageHandler {
         guard web == nil else { return }
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(WebFiles(root: SceneView.webRoot(), robotsRoot: WorkshopModel.robotsDir), forURLScheme: "atolye")
+        config.userContentController.addUserScript(AppLanguage.webScript)
         config.userContentController.add(self, name: "atolye")
         let w = WKWebView(frame: NSRect(x: 0, y: 0, width: 300, height: 340), configuration: config)
         // WebGL'in çizmesi için görünmez ama pencereye bağlı olmalı.

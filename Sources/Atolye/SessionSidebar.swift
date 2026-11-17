@@ -17,7 +17,7 @@ struct SessionSidebar: View {
             Button { model.tuckAll() } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "square.grid.2x2")
-                    Text("Atölye").font(.system(size: 13, weight: .semibold))
+                    Text(L("Atölye")).font(.system(size: 13, weight: .semibold))
                     Spacer()
                     if waitingCount > 0 {
                         Text("\(waitingCount)").font(.caption2.bold()).foregroundStyle(.white)
@@ -36,7 +36,7 @@ struct SessionSidebar: View {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(zones, id: \.id) { z in zoneSection(z) }
                     if zones.isEmpty {
-                        Text("Açık Claude oturumu yok").font(.caption).foregroundStyle(SidebarTheme.muted)
+                        Text(L("Açık Claude oturumu yok")).font(.caption).foregroundStyle(SidebarTheme.muted)
                             .padding(.horizontal, 18)
                     }
                 }
@@ -74,14 +74,14 @@ struct SessionSidebar: View {
                                     if calling { Pulse(low: 0.5) { Capsule().fill(SidebarTheme.color("waiting")) } }
                                     else { Capsule().fill(SidebarTheme.selected) }
                                 }
-                                .help(calling ? "Buradaki bir Claude seni bekliyor — açmak için tıkla"
-                                              : "\(parked) pencere burada bekliyor — açmak için tıkla")
+                                .help(calling ? L("Buradaki bir Claude seni bekliyor — açmak için tıkla")
+                                              : L("{0} pencere burada bekliyor — açmak için tıkla", "\(parked)"))
                         }
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("\(z.name) pencerelerini öne getir")
+                .help(L("{0} pencerelerini öne getir", z.name))
                 NewWindowMenu(model: model, root: z.id, tint: SidebarTheme.muted)
             }
             .padding(.leading, 10).padding(.trailing, 6).frame(height: 28)
@@ -114,8 +114,8 @@ struct SessionSidebar: View {
         }
         .font(.system(size: 10, weight: .medium, design: .monospaced))
         .foregroundStyle(SidebarTheme.muted)
-        .help("dal \(g.branch) · \(g.changed) değişen dosya · \(g.ahead) itilmemiş · \(g.behind) gelen commit"
-              + (g.headSubject.map { "\nson commit: \($0)" } ?? ""))
+        .help(L("dal {0} · {1} değişen dosya · {2} itilmemiş · {3} gelen commit", g.branch, "\(g.changed)", "\(g.ahead)", "\(g.behind)")
+              + (g.headSubject.map { "\n" + L("son commit: {0}", $0) } ?? ""))
     }
 
     private func robotRow(_ r: RobotInfo, zone: ZoneInfo) -> some View {
@@ -131,7 +131,7 @@ struct SessionSidebar: View {
                         }
                         if r.terminal == nil {
                             Image(systemName: "arrow.up.right.square").font(.system(size: 9))
-                                .foregroundStyle(SidebarTheme.muted).help("Atölye dışında açılmış oturum")
+                                .foregroundStyle(SidebarTheme.muted).help(L("Agent Workshop dışında açılmış oturum"))
                         }
                     }
                     Text(subtitle(r)).font(.system(size: 11)).foregroundStyle(SidebarTheme.muted).lineLimit(1)
@@ -140,7 +140,7 @@ struct SessionSidebar: View {
                 if let c = r.cost, c > 0 {
                     Text(UsageFormat.usd(c)).font(.system(size: 10.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(SidebarTheme.muted).padding(.top, 2)
-                        .help("Bu oturum: \(UsageFormat.tokens(r.tokens ?? 0)) token ≈ \(UsageFormat.usd(c))\n\(UsageFormat.note)")
+                        .help(L("Bu oturum: {0} token ≈ {1}", UsageFormat.tokens(r.tokens ?? 0), UsageFormat.usd(c)) + "\n" + UsageFormat.note)
                 }
             }
             .padding(.horizontal, 8).padding(.vertical, 4)
@@ -153,12 +153,12 @@ struct SessionSidebar: View {
 
     private func subtitle(_ r: RobotInfo) -> String {
         switch r.state {
-        case "waiting": return "seni bekliyor" + (r.waitingFor.map { " · \($0)" } ?? "")
-        case "done": return "bitti"
+        case "waiting": return L("seni bekliyor") + (r.waitingFor.map { " · \($0)" } ?? "")
+        case "done": return L("bitti")
         case "busy":
-            let h = r.helpers.isEmpty ? "" : " · \(r.helpers.count) yardımcı"
-            return (r.tool ?? "çalışıyor") + h
-        default: return r.history.first.map { "boşta · \($0)" } ?? "boşta"
+            let h = r.helpers.isEmpty ? "" : " · " + L("{0} yardımcı", "\(r.helpers.count)")
+            return (r.tool ?? L("çalışıyor")) + h
+        default: return r.history.first.map { L("boşta") + " · " + $0 } ?? L("boşta")
         }
     }
 }

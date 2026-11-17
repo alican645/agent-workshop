@@ -14,6 +14,7 @@ struct SceneView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(WebFiles(root: Self.webRoot(), robotsRoot: WorkshopModel.robotsDir), forURLScheme: "atolye")
+        config.userContentController.addUserScript(AppLanguage.webScript)
         config.userContentController.add(context.coordinator, name: "atolye")
         let web = WKWebView(frame: .zero, configuration: config)
         web.setValue(false, forKey: "drawsBackground")
@@ -88,7 +89,7 @@ struct SceneView: NSViewRepresentable {
             case "addProject":
                 model.addProject()
             case "robotFailed":
-                if let id = body["id"] as? String { model.robotFailed(id, body["error"] as? String ?? "bilinmeyen hata") }
+                if let id = body["id"] as? String { model.robotFailed(id, body["error"] as? String ?? L("bilinmeyen hata")) }
             case "unpin":
                 if let id = body["id"] as? String { model.unpin(id) }
             default:

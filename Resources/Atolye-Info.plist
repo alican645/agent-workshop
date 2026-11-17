@@ -3,15 +3,22 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Atölye</string>
+	<string>Agent Workshop</string>
 	<key>CFBundleExecutable</key>
 	<string>Atolye</string>
 	<key>CFBundleIconFile</key>
 	<string>Atolye</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>tr</string>
+	</array>
 	<key>CFBundleIdentifier</key>
 	<string>com.ajantakip.atolye</string>
 	<key>CFBundleName</key>
-	<string>Atölye</string>
+	<string>Agent Workshop</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

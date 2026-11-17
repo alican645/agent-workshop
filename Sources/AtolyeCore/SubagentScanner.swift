@@ -17,7 +17,7 @@ public struct Helper: Equatable, Sendable {
 /// Meta `finished: true` ise ya da dosya `staleAfter` süresince yazılmadıysa yardımcı işini bitirmiş sayılır.
 public struct SubagentScanner: Sendable {
     public static let staleAfter: TimeInterval = 120
-    static let fallbackTask = "yardımcı"
+    static var fallbackTask: String { L("yardımcı") }
 
     private struct Known: Sendable {
         var tail = TranscriptTail()

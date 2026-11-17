@@ -68,7 +68,7 @@ struct DeskView: View {
                     .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                 }
                 .buttonStyle(.plain)
-                .help("Geri aç")
+                .help(L("Geri aç"))
             }
         }
     }
@@ -165,16 +165,16 @@ private struct FloatingWindow: View {
                 .foregroundStyle(Theme.text).lineLimit(1)
             Text(model.title(window.tab)).font(.system(size: 12)).foregroundStyle(Theme.muted).lineLimit(1)
             if waiting {
-                Text("seni bekliyor").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                Text(L("seni bekliyor")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Capsule().fill(Theme.focus))
             }
             Spacer(minLength: 8)
             NewWindowMenu(model: model, root: window.root, tint: Theme.muted)
-            chromeButton("minus", help: "Sol paneldeki yerine çek (⌘M)") { model.tuck([window.id]) }
+            chromeButton("minus", help: L("Sol paneldeki yerine çek (⌘M)")) { model.tuck([window.id]) }
             chromeButton(window.maximized ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                         help: "Tam boyut") { model.changeDesk { $0.toggleMaximize(window.id) } }
-            chromeButton("xmark", help: "Kapat (⌘W)") { model.closeWindow(window.id) }
+                         help: L("Tam boyut")) { model.changeDesk { $0.toggleMaximize(window.id) } }
+            chromeButton("xmark", help: L("Kapat (⌘W)")) { model.closeWindow(window.id) }
         }
         .padding(.horizontal, 10)
         .frame(height: Self.titleHeight)
@@ -299,18 +299,18 @@ struct NewWindowMenu: View {
 
     var body: some View {
         Menu {
-            Button("Yeni Claude oturumu  ⌘⇧T") { model.newWindow(.claude, in: root) }
+            Button(L("Yeni Claude oturumu  ⌘⇧T")) { model.newWindow(.claude, in: root) }
             if model.profiles.profiles.count > 1 {
-                Menu("Başka profille Claude") {
+                Menu(L("Başka profille Claude")) {
                     ForEach(model.profiles.profiles.filter { $0.id != model.profiles.active.id }) { p in
-                        Button(p.name + (p.email.map { " · \($0)" } ?? "")) { model.newWindow(.claude, in: root, profile: p.id) }
+                        Button(p.displayName + (p.email.map { " · \($0)" } ?? "")) { model.newWindow(.claude, in: root, profile: p.id) }
                     }
                 }
             }
-            Button("Yeni terminal  ⌘T") { model.newWindow(.shell, in: root) }
+            Button(L("Yeni terminal  ⌘T")) { model.newWindow(.shell, in: root) }
             Divider()
             Button("Git") { model.addGit(in: root) }
-            Button("Markdown dosyası…") { model.addMarkdown(in: root) }
+            Button(L("Markdown dosyası…")) { model.addMarkdown(in: root) }
         } label: {
             Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundStyle(tint)
         }
@@ -318,7 +318,7 @@ struct NewWindowMenu: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .frame(width: 20, height: 20)
-        .help("\((root as NSString).lastPathComponent) projesinde yeni pencere")
+        .help(L("{0} projesinde yeni pencere", (root as NSString).lastPathComponent))
     }
 }
 
@@ -347,8 +347,8 @@ private struct TabContent: View {
                 .overlay(alignment: .bottom) {
                     if let t = model.host.terminals[id], !t.running {
                         HStack {
-                            Text("işlem bitti" + (t.exitCode.map { " (kod \($0))" } ?? ""))
-                            Button("Kapat") { model.closeWindow(window.id) }
+                            Text(L("işlem bitti") + (t.exitCode.map { L(" (kod {0})", "\($0)") } ?? ""))
+                            Button(L("Kapat")) { model.closeWindow(window.id) }
                         }
                         .padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding()
                     }

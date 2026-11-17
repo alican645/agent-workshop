@@ -57,7 +57,7 @@ public enum GitRunner {
         case let .untracked(p): run(["diff", "--no-color", "--no-index", "--", "/dev/null", p], in: root, okCodes: [0, 1])
         case let .commit(h):
             run(["show", "--no-color", "--date=format:%d.%m.%Y %H:%M",
-                 "--format=commit %H%nYazan: %an%nTarih: %ad%n%n%B", h], in: root)
+                 "--format=commit %H%n\(L("Yazan")): %an%n\(L("Tarih")): %ad%n%n%B", h], in: root)
         }
         return GitDiff.parse(out ?? "", limit: limit)
     }

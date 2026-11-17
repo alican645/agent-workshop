@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { matchClips } from './robots.mjs';
+import { t } from './i18n.mjs';
 
 /** Modeli Idle'ın ilk karesinde ölçer (animasyon iskeleti başka bir duruşa sokabiliyor); Idle yoksa duruş olduğu gibi. */
 function measure(root, clips, idleName) {
@@ -28,7 +29,7 @@ export function modelKind(id, gltf, { flipped = false, hide = [], clips: overrid
   const names = matchClips(clips.map((c) => c.name), overrides);
   const bb = measure(tpl, clips, names.idle);
   const H = bb.max.y - bb.min.y;
-  if (bb.isEmpty() || !Number.isFinite(H) || H < 1e-6) throw new Error('modelde görünür parça yok');
+  if (bb.isEmpty() || !Number.isFinite(H) || H < 1e-6) throw new Error(t('modelde görünür parça yok'));
   const c = bb.getCenter(new THREE.Vector3());
   return { id, builtin, template: tpl, clips, names, H, offset: new THREE.Vector3(-c.x, -bb.min.y, -c.z), flipped };
 }

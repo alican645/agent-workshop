@@ -24,25 +24,25 @@ struct GitHubWindow: View {
     private var signIn: some View {
         VStack(spacing: 14) {
             Image(systemName: "chart.bar.doc.horizontal").font(.system(size: 40)).foregroundStyle(GHTheme.green(3))
-            Text("GitHub ile giriş yap").font(.title2.bold())
-            Text("Katkı grafiğini, serini ve son dönemde çalıştığın depoları burada görürsün.\n"
-                 + "Atölye yalnızca okur; hiçbir şey yazmaz. Anahtar bu Mac'in Anahtar Zinciri'nde durur.")
+            Text(L("GitHub ile giriş yap")).font(.title2.bold())
+            Text(L("Katkı grafiğini, serini ve son dönemde çalıştığın depoları burada görürsün.") + "\n"
+                 + L("Agent Workshop yalnızca okur; hiçbir şey yazmaz. Anahtar bu Mac'in Anahtar Zinciri'nde durur."))
                 .multilineTextAlignment(.center).foregroundStyle(GHTheme.muted).frame(maxWidth: 440)
             if github.configured {
                 Button { github.signIn() } label: {
-                    Text("GitHub ile giriş yap").padding(.horizontal, 14).padding(.vertical, 6)
+                    Text(L("GitHub ile giriş yap")).padding(.horizontal, 14).padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent).tint(GHTheme.green(4))
             }
             if !github.configured, github.ghPath != nil {
                 Button { github.useGHLogin() } label: {
-                    Text("Bu Mac'teki GitHub girişini kullan").padding(.horizontal, 14).padding(.vertical, 6)
+                    Text(L("Bu Mac'teki GitHub girişini kullan")).padding(.horizontal, 14).padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent).tint(GHTheme.green(4))
-                Text("Terminaldeki GitHub CLI (gh) girişiyle bağlanır; ayrıca onay gerekmez.")
+                Text(L("Terminaldeki GitHub CLI (gh) girişiyle bağlanır; ayrıca onay gerekmez."))
                     .font(.caption).foregroundStyle(GHTheme.muted)
             } else if !github.configured {
-                Text("Giriş için GitHub CLI gerekli: `brew install gh` ve `gh auth login`.").font(.caption).foregroundStyle(.orange)
+                Text(L("Giriş için GitHub CLI gerekli: `brew install gh` ve `gh auth login`.")).font(.caption).foregroundStyle(.orange)
             }
             if let e = github.error { Text(e).font(.callout).foregroundStyle(.red) }
         }
@@ -51,16 +51,16 @@ struct GitHubWindow: View {
 
     private func waiting(_ code: GitHubDeviceCode) -> some View {
         VStack(spacing: 14) {
-            Text("Tarayıcıda bu kodu gir").font(.title3.bold())
+            Text(L("Tarayıcıda bu kodu gir")).font(.title3.bold())
             Text(code.userCode).font(.system(size: 40, weight: .bold, design: .monospaced)).textSelection(.enabled)
                 .padding(.horizontal, 22).padding(.vertical, 10)
                 .background(RoundedRectangle(cornerRadius: 10).fill(GHTheme.card))
-            Text("Kod panoya kopyalandı. Açılan GitHub sayfasına yapıştırıp “Authorize” de; gerisi kendiliğinden olur.")
+            Text(L("Kod panoya kopyalandı. Açılan GitHub sayfasına yapıştırıp “Authorize” de; gerisi kendiliğinden olur."))
                 .foregroundStyle(GHTheme.muted).multilineTextAlignment(.center).frame(maxWidth: 420)
             HStack {
-                Button("Sayfayı yeniden aç") { NSWorkspace.shared.open(code.verificationURI) }
-                Button("Kodu kopyala") { GitHubModel.copy(code.userCode) }
-                Button("Vazgeç") { github.cancelSignIn() }
+                Button(L("Sayfayı yeniden aç")) { NSWorkspace.shared.open(code.verificationURI) }
+                Button(L("Kodu kopyala")) { GitHubModel.copy(code.userCode) }
+                Button(L("Vazgeç")) { github.cancelSignIn() }
             }
             ProgressView().controlSize(.small)
         }
@@ -76,16 +76,16 @@ struct GitHubWindow: View {
                 if let p = github.profile, let s = github.stats {
                     cards(p, s)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("\(p.total) katkı · son bir yıl").font(.headline)
+                        Text(L("{0} katkı · son bir yıl", "\(p.total)")).font(.headline)
                         Heatmap(days: p.days)
-                        Text("Commit \(p.commits) · Pull request \(p.pullRequests) · Issue \(p.issues) · İnceleme \(p.reviews)"
-                             + (p.privateCount > 0 ? " · gizli depolarda \(p.privateCount)" : ""))
+                        Text(L("Commit {0} · Pull request {1} · Issue {2} · İnceleme {3}", "\(p.commits)", "\(p.pullRequests)", "\(p.issues)", "\(p.reviews)")
+                             + (p.privateCount > 0 ? L(" · gizli depolarda {0}", "\(p.privateCount)") : ""))
                             .font(.caption).foregroundStyle(GHTheme.muted)
                     }
                     .padding(16).background(RoundedRectangle(cornerRadius: 12).fill(GHTheme.card))
                     repoList
                 } else if github.loading {
-                    ProgressView("Katkılar yükleniyor…").frame(maxWidth: .infinity).padding(40)
+                    ProgressView(L("Katkılar yükleniyor…")).frame(maxWidth: .infinity).padding(40)
                 }
                 if let e = github.error { Text(e).foregroundStyle(.red) }
             }
@@ -105,12 +105,12 @@ struct GitHubWindow: View {
             }
             Spacer()
             if let t = github.lastUpdated {
-                Text("güncellendi \(t, format: .relative(presentation: .named))").font(.caption).foregroundStyle(GHTheme.muted)
+                (Text(L("güncellendi") + " ") + Text(t, format: .relative(presentation: .named))).font(.caption).foregroundStyle(GHTheme.muted)
             }
             Button { Task { await github.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                .disabled(github.loading).help("Şimdi tazele")
+                .disabled(github.loading).help(L("Şimdi tazele"))
             Menu {
-                Button("Çıkış yap", role: .destructive) { github.signOut() }
+                Button(L("Çıkış yap"), role: .destructive) { github.signOut() }
             } label: { Image(systemName: "ellipsis.circle") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         }
@@ -118,21 +118,21 @@ struct GitHubWindow: View {
 
     private func cards(_ p: GitHubProfile, _ s: ContributionStats) -> some View {
         HStack(spacing: 12) {
-            StatCard(title: "Bugün", value: "\(s.today)", note: "katkı")
-            StatCard(title: "Son 7 gün", value: "\(s.lastSevenDays)", note: "katkı")
-            StatCard(title: "Seri", value: "\(s.currentStreak) 🔥", note: s.currentStreak == 1 ? "gün" : "gün üst üste",
+            StatCard(title: L("Bugün"), value: "\(s.today)", note: L("katkı"))
+            StatCard(title: L("Son 7 gün"), value: "\(s.lastSevenDays)", note: L("katkı"))
+            StatCard(title: L("Seri"), value: "\(s.currentStreak) 🔥", note: s.currentStreak == 1 ? L("gün") : L("gün üst üste"),
                      highlight: s.currentStreak > 0 && s.currentStreak == s.longestStreak)
-            StatCard(title: "En uzun seri", value: "\(s.longestStreak)", note: "gün")
-            StatCard(title: "Bu yıl", value: "\(p.total)", note: "katkı")
+            StatCard(title: L("En uzun seri"), value: "\(s.longestStreak)", note: L("gün"))
+            StatCard(title: L("Bu yıl"), value: "\(p.total)", note: L("katkı"))
         }
     }
 
     private var repoList: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Son \(GitHubModel.repoDays) gün · depolar").font(.headline)
+                Text(L("Son {0} gün · depolar", "\(GitHubModel.repoDays)")).font(.headline)
                 Spacer()
-                Text("\(github.reposTotal) commit").font(.caption).foregroundStyle(GHTheme.muted)
+                Text(L("{0} commit", "\(github.reposTotal)")).font(.caption).foregroundStyle(GHTheme.muted)
             }
             let top = github.repos.first?.commits ?? 1
             ForEach(github.repos.prefix(15)) { r in
@@ -151,7 +151,7 @@ struct GitHubWindow: View {
                 }
             }
             if github.repos.isEmpty && !github.loading {
-                Text("Bu dönemde commit bulunamadı.").foregroundStyle(GHTheme.muted)
+                Text(L("Bu dönemde commit bulunamadı.")).foregroundStyle(GHTheme.muted)
             }
         }
         .padding(16).background(RoundedRectangle(cornerRadius: 12).fill(GHTheme.card))
@@ -168,7 +168,7 @@ private struct StatCard: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption.bold()).foregroundStyle(GHTheme.muted)
             Text(value).font(.system(size: 26, weight: .bold, design: .rounded))
-            Text(highlight ? "rekor serindesin" : note).font(.caption).foregroundStyle(highlight ? GHTheme.green(4) : GHTheme.muted)
+            Text(highlight ? L("rekor serindesin") : note).font(.caption).foregroundStyle(highlight ? GHTheme.green(4) : GHTheme.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -189,7 +189,7 @@ private struct Heatmap: View {
             VStack(alignment: .trailing, spacing: Self.gap) {
                 Text(" ").font(.system(size: 9)).frame(height: 12)
                 ForEach(0..<7, id: \.self) { i in
-                    Text(["", "Pzt", "", "Çar", "", "Cum", ""][i]).font(.system(size: 9)).foregroundStyle(GHTheme.muted)
+                    Text(["", L("Pzt"), "", L("Çar"), "", L("Cum"), ""][i]).font(.system(size: 9)).foregroundStyle(GHTheme.muted)
                         .frame(height: Self.cell)
                 }
             }
@@ -203,7 +203,7 @@ private struct Heatmap: View {
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(GHTheme.green(ContributionGrid.level(day.count, in: days)))
                                     .frame(width: Self.cell, height: Self.cell)
-                                    .help("\(day.date): \(day.count) katkı")
+                                    .help(L("{0}: {1} katkı", day.date, "\(day.count)"))
                             } else {
                                 Color.clear.frame(width: Self.cell, height: Self.cell)
                             }
@@ -214,11 +214,11 @@ private struct Heatmap: View {
         }
         HStack(spacing: 4) {
             Spacer()
-            Text("Az").font(.system(size: 9)).foregroundStyle(GHTheme.muted)
+            Text(L("Az")).font(.system(size: 9)).foregroundStyle(GHTheme.muted)
             ForEach(0..<5, id: \.self) { l in
                 RoundedRectangle(cornerRadius: 2).fill(GHTheme.green(l)).frame(width: Self.cell, height: Self.cell)
             }
-            Text("Çok").font(.system(size: 9)).foregroundStyle(GHTheme.muted)
+            Text(L("Çok")).font(.system(size: 9)).foregroundStyle(GHTheme.muted)
         }
     }
 }

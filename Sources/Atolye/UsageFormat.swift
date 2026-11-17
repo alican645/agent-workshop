@@ -1,3 +1,4 @@
+import AtolyeCore
 import Foundation
 
 /// Maliyet ve token sayısının kısa yazımı.
@@ -16,6 +17,7 @@ enum UsageFormat {
         }
     }
 
-    static let note = "Anthropic API liste fiyatıyla tahmini karşılık. Abonelikle kullanımda ayrıca ödenmez; "
-        + "hangi oturumun ne kadar iş yaptığını karşılaştırmak içindir. Önbellekten okunan token'lar dahil."
+    static var note: String {
+        L("Anthropic API liste fiyatıyla tahmini karşılık. Abonelikle kullanımda ayrıca ödenmez; hangi oturumun ne kadar iş yaptığını karşılaştırmak içindir. Önbellekten okunan token'lar dahil.")
+    }
 }

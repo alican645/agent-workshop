@@ -35,7 +35,7 @@ public struct SessionStore: Sendable {
             if let i = sessions.firstIndex(where: { $0.id == e.sessionID }) {
                 index = i
             } else {
-                var n = Session(id: e.sessionID, projectName: Self.projectName(e.cwd), state: .idle, activity: "boşta",
+                var n = Session(id: e.sessionID, projectName: Self.projectName(e.cwd), state: .idle, activity: L("boşta"),
                                 stateSince: e.statusSince, lastEventAt: now)
                 if let carried = cmuxByPid[e.pid] { (n.workspace, n.surface) = carried }
                 sessions.append(n)
@@ -57,9 +57,9 @@ public struct SessionStore: Sendable {
                 s.state = newState
                 s.stateSince = e.statusSince
                 switch newState {
-                case .working: s.activity = "çalışıyor"
-                case .done: s.activity = "bitti"
-                case .idle: s.activity = "boşta"
+                case .working: s.activity = L("çalışıyor")
+                case .done: s.activity = L("bitti")
+                case .idle: s.activity = L("boşta")
                 case .waiting: break
                 }
                 if !initial, let kind: AlertKind = newState == .waiting ? .attention : newState == .done ? .finished : nil {
@@ -67,7 +67,7 @@ public struct SessionStore: Sendable {
                 }
             }
             if newState == .waiting {
-                s.activity = e.waitingFor.map { "izin: \($0)" } ?? s.lastTool.map { "izin: \($0)" } ?? "izin bekliyor"
+                s.activity = e.waitingFor.map { L("izin: {0}", $0) } ?? s.lastTool.map { L("izin: {0}", $0) } ?? L("izin bekliyor")
             }
             sessions[index] = s
         }

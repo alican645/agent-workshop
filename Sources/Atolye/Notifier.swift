@@ -23,8 +23,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let content = UNMutableNotificationContent()
         content.title = "\(a.zoneName) · \(a.label)"
         switch a.kind {
-        case .waiting: content.body = "Seni bekliyor" + (a.detail.map { ": \($0)" } ?? "")
-        case .done: content.body = "İşini bitirdi 👍"
+        case .waiting: content.body = L("Seni bekliyor") + (a.detail.map { ": \($0)" } ?? "")
+        case .done: content.body = L("İşini bitirdi 👍")
         }
         content.threadIdentifier = a.zoneName
         content.userInfo = ["session": a.robotID]

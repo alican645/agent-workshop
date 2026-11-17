@@ -18,13 +18,13 @@ struct RobotsWindow: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
-                section("Ana ajanlar", "Her yeni Claude oturumu bunlardan birini alır.") {
+                section(L("Ana ajanlar"), L("Her yeni Claude oturumu bunlardan birini alır.")) {
                     ForEach(RobotPool.builtins.filter { $0.role == .main }, id: \.id) { builtinCard($0.id, $0.name, config) }
                 }
-                section("Alt ajanlar", "Oturumların gönderdiği yardımcılar bunlardan birini alır.") {
+                section(L("Alt ajanlar"), L("Oturumların gönderdiği yardımcılar bunlardan birini alır.")) {
                     ForEach(RobotPool.builtins.filter { $0.role == .sub }, id: \.id) { builtinCard($0.id, $0.name, config) }
                 }
-                section("Kendi robotların", "Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot kendisi sallanır, zıplar ya da eğilir.") {
+                section(L("Kendi robotların"), L("Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot kendisi sallanır, zıplar ya da eğilir.")) {
                     ForEach(config.customs) { customCard($0, config) }
                     addCard
                 }
@@ -42,13 +42,13 @@ struct RobotsWindow: View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: "figure.wave").font(.system(size: 30)).foregroundStyle(Theme.focus)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Robotlar").font(.title2.bold())
-                Text("Yeni oturumlar açık robotlardan rastgele birini alır; atölyede o an olmayanlar önce gelir.")
+                Text(L("Robotlar")).font(.title2.bold())
+                Text(L("Yeni oturumlar açık robotlardan rastgele birini alır; atölyede o an olmayanlar önce gelir."))
                     .font(.callout).foregroundStyle(GHTheme.muted)
             }
             Spacer()
             Button { addRobot() } label: {
-                Label("Robot ekle", systemImage: "plus").padding(.horizontal, 10).padding(.vertical, 4)
+                Label(L("Robot ekle"), systemImage: "plus").padding(.horizontal, 10).padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent).tint(Theme.focus)
         }
@@ -76,7 +76,7 @@ struct RobotsWindow: View {
                 Toggle("", isOn: Binding(get: { on }, set: { v in change { try pool.setEnabled(id, v) } }))
                     .toggleStyle(.switch).controlSize(.small).labelsHidden()
                     .disabled(locked)
-                    .help(locked ? "Bu roldeki son açık robot; kapatmak için önce başka birini aç." : on ? "Kapat" : "Aç")
+                    .help(locked ? L("Bu roldeki son açık robot; kapatmak için önce başka birini aç.") : on ? L("Kapat") : L("Aç"))
             }
         }
     }
@@ -93,27 +93,27 @@ struct RobotsWindow: View {
                         .disabled(on && !RobotPool.canDisable(r.id, in: c))
                 }
                 Picker("", selection: Binding(get: { r.role }, set: { v in change { try pool.update(r.id, role: v) } })) {
-                    Text("Ana").tag(RobotRole.main)
-                    Text("Alt").tag(RobotRole.sub)
-                    Text("İkisi").tag(RobotRole.both)
+                    Text(L("Ana")).tag(RobotRole.main)
+                    Text(L("Alt")).tag(RobotRole.sub)
+                    Text(L("İkisi")).tag(RobotRole.both)
                 }
                 .pickerStyle(.segmented).labelsHidden().controlSize(.small)
                 HStack {
                     Button { change { try pool.update(r.id, flipped: !r.flipped) } } label: {
-                        Label("Çevir", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                        Label(L("Çevir"), systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
                     }
-                    .help("Model ters duruyorsa yönünü 180° çevir")
+                    .help(L("Model ters duruyorsa yönünü 180° çevir"))
                     Spacer()
                     Button(role: .destructive) {
                         change { try pool.remove(r.id) }
                         previews.forget(r.id)
                         model.robotFailures[r.id] = nil
                     } label: { Image(systemName: "trash") }
-                    .help("Robotu sil")
+                    .help(L("Robotu sil"))
                 }
                 .buttonStyle(.borderless).controlSize(.small)
                 if let error {
-                    Text("Yüklenemedi: \(error)").font(.caption).foregroundStyle(.red).lineLimit(3)
+                    Text(L("Yüklenemedi: {0}", error)).font(.caption).foregroundStyle(.red).lineLimit(3)
                 }
             }
         }
@@ -123,8 +123,8 @@ struct RobotsWindow: View {
         Button { addRobot() } label: {
             VStack(spacing: 8) {
                 Image(systemName: "plus.circle.fill").font(.system(size: 30)).foregroundStyle(Theme.focus)
-                Text("Robot ekle").font(.system(size: 13, weight: .semibold))
-                Text(".glb dosyası, en fazla 30 MB").font(.caption).foregroundStyle(GHTheme.muted)
+                Text(L("Robot ekle")).font(.system(size: 13, weight: .semibold))
+                Text(L(".glb dosyası, en fazla 30 MB")).font(.caption).foregroundStyle(GHTheme.muted)
             }
             .frame(maxWidth: .infinity, minHeight: 230)
             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(GHTheme.muted.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
@@ -143,7 +143,7 @@ struct RobotsWindow: View {
     private func addRobot() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "glb") ?? .data]
-        panel.prompt = "Ekle"
+        panel.prompt = L("Ekle")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         change {
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -156,9 +156,9 @@ struct RobotsWindow: View {
     private func show(_ error: Error) {
         let a = NSAlert()
         a.messageText = switch error as? RobotPoolError {
-        case .notGLB: "Bu dosya .glb değil."
-        case .tooLarge: "Dosya 30 MB'tan büyük."
-        case .lastInRole: "Her rolde en az bir açık robot kalmalı."
+        case .notGLB: L("Bu dosya .glb değil.")
+        case .tooLarge: L("Dosya 30 MB'tan büyük.")
+        case .lastInRole: L("Her rolde en az bir açık robot kalmalı.")
         case nil: error.localizedDescription
         }
         a.runModal()

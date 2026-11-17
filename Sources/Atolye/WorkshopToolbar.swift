@@ -1,3 +1,4 @@
+import AtolyeCore
 import SwiftUI
 
 /// Atölye ekranının üst çubuğu.
@@ -6,7 +7,7 @@ struct WorkshopToolbar: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("Atölye").font(.headline).foregroundStyle(Theme.barText)
+            Text("Agent Workshop").font(.headline).foregroundStyle(Theme.barText)
             Spacer()
             // Pencereler
             GitHubButton(github: model.github)
@@ -15,16 +16,16 @@ struct WorkshopToolbar: View {
             // Hesap ve harcama
             ProfileMenu(model: model)
             if model.todayTokens > 0 {
-                BarChip(icon: "chart.bar.xaxis", title: "Bugün ≈ \(UsageFormat.usd(model.todayCost))",
-                        detail: "\(UsageFormat.tokens(model.todayTokens)) token", interactive: false)
-                    .help("Bugün bütün Claude oturumlarında (kapananlar dahil) harcanan token ve API karşılığı.\n\(UsageFormat.note)")
+                BarChip(icon: "chart.bar.xaxis", title: L("Bugün ≈ {0}", UsageFormat.usd(model.todayCost)),
+                        detail: L("{0} token", UsageFormat.tokens(model.todayTokens)), interactive: false)
+                    .help(L("Bugün bütün Claude oturumlarında (kapananlar dahil) harcanan token ve API karşılığı.") + "\n" + UsageFormat.note)
             }
             BarSeparator()
             Button { model.addProject() } label: {
-                BarChip(icon: "plus", title: "Proje ekle", tint: Theme.focus)
+                BarChip(icon: "plus", title: L("Proje ekle"), tint: Theme.focus)
             }
             .buttonStyle(.plain)
-            .help("Bir proje klasörünü atölyeye sabitle")
+            .help(L("Bir proje klasörünü atölyeye sabitle"))
         }
         .padding(.horizontal, 14)
         .frame(height: 38)
@@ -41,10 +42,10 @@ private struct GitHubButton: View {
     var body: some View {
         Button { openWindow(id: "github") } label: {
             BarChip(icon: "square.grid.3x3.fill", title: "GitHub",
-                    detail: github.stats.flatMap { $0.currentStreak > 0 ? "\($0.currentStreak) gün 🔥" : nil })
+                    detail: github.stats.flatMap { $0.currentStreak > 0 ? L("{0} gün 🔥", "\($0.currentStreak)") : nil })
         }
         .buttonStyle(.plain)
-        .help("GitHub katkıların")
+        .help(L("GitHub katkıların"))
         .task { github.refreshIfStale() }
     }
 }
@@ -55,10 +56,10 @@ private struct RobotsButton: View {
 
     var body: some View {
         Button { openWindow(id: "robots") } label: {
-            BarChip(icon: "figure.wave", title: "Robotlar")
+            BarChip(icon: "figure.wave", title: L("Robotlar"))
         }
         .buttonStyle(.plain)
-        .help("Atölyedeki robotları seç, kendi .glb robotunu ekle")
+        .help(L("Atölyedeki robotları seç, kendi .glb robotunu ekle"))
     }
 }
 

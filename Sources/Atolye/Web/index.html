@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<title>Atölye</title>
+<title>Agent Workshop</title>
 <style>
   html,body{margin:0;height:100%;background:#f3e9da;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:#2c2a26;-webkit-user-select:none;user-select:none;cursor:default}
   #stage{position:fixed;inset:0}
@@ -62,17 +62,21 @@
 </script>
 </head>
 <body>
-<div id="loading">robotlar uyanıyor…</div>
+<div id="loading" data-i18n>robotlar uyanıyor…</div>
 <div id="stage"></div>
-<div id="empty">Atölye sessiz — açık bir oturum yok. Üstteki “Proje ekle” ile bir proje ekleyebilirsin.</div>
+<div id="empty" data-i18n>Atölye sessiz — açık bir oturum yok. Üstteki “Proje ekle” ile bir proje ekleyebilirsin.</div>
 <div id="top" class="hud"><h1 id="hello">Günaydın 👋</h1><div class="sub" id="clock"></div><div class="row" id="counts"></div></div>
 <div id="panel" class="hud"></div>
-<button id="home">← atölyeye dön</button>
-<div id="feed" class="hud"><h2>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty">henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud">bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · sürükle: döndür</div>
+<button id="home" data-i18n>← atölyeye dön</button>
+<div id="feed" class="hud"><h2 data-i18n>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty" data-i18n>henüz bir şey olmadı</div></div></div>
+<div id="hint" class="hud" data-i18n>bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · sürükle: döndür</div>
 
 <script>
-  window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = 'Hata: ' + e.message; });
+  // Durağan metinler: İngilizce seçiliyse sözlükten (sözlüğü uygulama sayfa açılmadan verir).
+  { const t = (k) => (window.I18N && window.I18N[k]) || k;
+    document.documentElement.lang = window.LANG || 'tr';
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.textContent); });
+    window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = t('Hata: ') + e.message; }); }
   // Sahne yüklenmeden gelen çağrıları sakla.
   window.atolye = { _q: null, _active: true, update(s) { this._q = s; }, setActive(v) { this._active = v; } };
   window.post = (m) => { try { webkit.messageHandlers.atolye.postMessage(m); } catch (e) { console.log('post', m); } };
@@ -83,18 +87,19 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
 import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
+import { t, LOCALE } from './i18n.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
-const ST = { busy: { c: '#2fa7d6', t: 'çalışıyor' }, waiting: { c: '#ff8c2e', t: 'seni bekliyor' }, done: { c: '#3aa57a', t: 'bitti' }, idle: { c: '#b3a998', t: 'boşta' } };
+const ST = { busy: { c: '#2fa7d6', t: t('çalışıyor') }, waiting: { c: '#ff8c2e', t: t('seni bekliyor') }, done: { c: '#3aa57a', t: t('bitti') }, idle: { c: '#b3a998', t: t('boşta') } };
 const SLOTS = { 1: [0], 2: [-2.4, 2.4], 3: [-3, 0, 3], 4: [-3.6, -1.2, 1.2, 3.6] };
 const MAX_SLOTS = 4, GAP_X = 16, GAP_Z = 14, LABEL_FAR = 34;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function clockText() {
   const n = new Date(), h = n.getHours();
-  document.getElementById('hello').textContent = (h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar') + ' 👋';
-  document.getElementById('clock').textContent = n.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + n.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('hello').textContent = (h < 12 ? t('Günaydın') : h < 18 ? t('İyi günler') : t('İyi akşamlar')) + ' 👋';
+  document.getElementById('clock').textContent = n.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + n.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
 }
 clockText(); setInterval(clockText, 30000);
 
@@ -298,7 +303,7 @@ function syncPool(list) {
       continue;
     }
     kindState.set(p.id, 'loading');
-    const timer = setTimeout(() => { if (kindState.get(p.id) === 'loading') fail(new Error('yükleme 30 sn içinde bitmedi')); }, 30000);
+    const timer = setTimeout(() => { if (kindState.get(p.id) === 'loading') fail(new Error(t('yükleme 30 sn içinde bitmedi'))); }, 30000);
     function fail(e) { clearTimeout(timer); if (kindState.get(p.id) === 'failed') return; markFailed(p.id, e); settle(); }
     loader.load(p.url, (g) => {
       if (kindState.get(p.id) !== 'loading') return;
@@ -414,7 +419,7 @@ function bubble(r, html, secs, cls = '') {
   r.bubT = secs; r.bubSticky = secs === Infinity;
 }
 function clearBubble(r) { r.bubEl.style.opacity = '0'; r.bubT = 0; r.bubSticky = false; r.bubKey = null; }
-function waitText(info) { return info.waitingFor ? `⚠ izin: ${esc(info.waitingFor)}` : '⚠ seni bekliyor'; }
+function waitText(info) { return info.waitingFor ? '⚠ ' + t('izin: {0}', esc(info.waitingFor)) : '⚠ ' + t('seni bekliyor'); }
 function behave(r) {
   const st = r.info.state;
   if (st === r.want) {
@@ -424,7 +429,7 @@ function behave(r) {
   r.want = st;
   if (st === 'waiting') { goTo(r, new V(r.home.x, 0.16, 3.4), 'wave'); bubble(r, `<span>${waitText(r.info)}</span>`, Infinity, 'wait'); }
   if (st === 'busy') { goTo(r, r.home, 'work'); clearBubble(r); }
-  if (st === 'done') { goTo(r, r.home, 'thumbs'); bubble(r, '✓ bitti', Infinity, 'done'); }
+  if (st === 'done') { goTo(r, r.home, 'thumbs'); bubble(r, '✓ ' + t('bitti'), Infinity, 'done'); }
   if (st === 'idle') { goTo(r, r.home, 'sit'); clearBubble(r); }
 }
 
@@ -454,7 +459,7 @@ function counts() {
   for (const z of snapshot.zones) for (const r of z.robots) { c[r.state]++; ag += r.helpers.length; }
   document.getElementById('counts').innerHTML = ['busy', 'waiting', 'done', 'idle'].map((k) =>
     `<span class="pill"><span class="d" style="background:${ST[k].c}"></span>${c[k]} ${ST[k].t}</span>`).join('') +
-    `<span class="pill"><span class="d" style="background:#8f7be0"></span>${ag} yardımcı</span>`;
+    `<span class="pill"><span class="d" style="background:#8f7be0"></span>${t('{0} yardımcı', ag)}</span>`;
   document.getElementById('empty').style.display = snapshot.zones.length ? 'none' : 'block';
 }
 let selected = null, fly = null;
@@ -463,19 +468,19 @@ function renderPanel() {
   const z = selected && snapshot.zones.find((z) => z.id === selected);
   if (!z) { if (selected) goHome(); panel.style.display = 'none'; return; }
   const hist = z.robots.flatMap((r) => r.history.slice(0, 2).map((h) => `<li>${esc(h)} <span style="color:#a09583">· ${esc(r.label)}</span></li>`)).slice(0, 5).join('');
-  const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ' <span style="color:#3aa57a">· çalışıyor</span>' : ''}</div>`).join('');
+  const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ` <span style="color:#3aa57a">· ${t('çalışıyor')}</span>` : ''}</div>`).join('');
   const html = `<h3><span class="d" style="background:${z.color};width:12px;height:12px"></span>${esc(z.name)}</h3>` +
-    (z.git ? `<div class="gitline">${gitText(z.git)}${z.git.headSubject ? ' · son commit: ' + esc(z.git.headSubject) : ''}</div>` : '') +
+    (z.git ? `<div class="gitline">${gitText(z.git)}${z.git.headSubject ? ' · ' + t('son commit: {0}', esc(z.git.headSubject)) : ''}</div>` : '') +
     `<div class="newrow"><button class="enter" data-kind="claude">＋ Claude</button><button class="enter" data-kind="shell">＋ Terminal</button><button class="enter" data-kind="git">Git</button></div>` +
     z.robots.map((r) => `<div class="sess" data-id="${esc(r.id)}"><div class="n"><span class="d" style="background:${ST[r.state].c}"></span>${esc(r.label)}${r.profile ? ` <span class="p">· ${esc(r.profile)}</span>` : ''}</div>` +
       `<div class="s">${ST[r.state].t}${r.tool ? ' · ' + esc(r.tool) : ''}</div>` +
-      (r.cost > 0 ? `<div class="cost">≈ ${usd(r.cost)} · ${tok(r.tokens || 0)} token</div>` : '') +
+      (r.cost > 0 ? `<div class="cost">≈ ${usd(r.cost)} · ${t('{0} token', tok(r.tokens || 0))}</div>` : '') +
       r.helpers.map((h) => `<div class="ag">↳ ${esc(h.task)}${h.tool ? ' · ' + esc(h.tool) : ''}</div>`).join('') +
-      (r.state === 'waiting' ? `<div class="ask">${waitText(r)} — cmux'ta yanıtla</div>` : '') + `</div>`).join('') +
-    (hist ? `<h4>SON İŞLER</h4><ul class="hist">${hist}</ul>` : '') +
-    (machs ? `<h4>TERMİNALLER</h4>${machs}` : '') +
-    (z.todos.length ? `<h4>YAPILACAKLAR</h4><ul class="todo">${z.todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
-    (z.pinned ? `<span class="unpin" id="unpin">sabitlemeyi kaldır</span>` : '');
+      (r.state === 'waiting' ? `<div class="ask">${t('{0} — cmux\'ta yanıtla', waitText(r))}</div>` : '') + `</div>`).join('') +
+    (hist ? `<h4>${t('SON İŞLER')}</h4><ul class="hist">${hist}</ul>` : '') +
+    (machs ? `<h4>${t('TERMİNALLER')}</h4>${machs}` : '') +
+    (z.todos.length ? `<h4>${t('YAPILACAKLAR')}</h4><ul class="todo">${z.todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+    (z.pinned ? `<span class="unpin" id="unpin">${t('sabitlemeyi kaldır')}</span>` : '');
   if (html === panel._last) return;
   panel._last = html; panel.innerHTML = html; panel.style.display = 'block';
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
@@ -538,10 +543,10 @@ function applyGit(Z, pg, ng) {
   Z.gitEl.innerHTML = ng ? gitText(ng) : '';
   if (!pg || !ng) return;
   const n = `<b>${esc(Z.info.name)}</b>`;
-  if (pg.branch !== ng.branch) feed(`${n} · dal değişti: ${esc(pg.branch)} → <b>${esc(ng.branch)}</b>`);
-  else if (ng.head && pg.head !== ng.head && ng.behind < pg.behind) feed(`${n} · <span style="color:#4a7fd0">⇣ ${pg.behind - ng.behind} commit çekildi</span>`);
+  if (pg.branch !== ng.branch) feed(`${n} · ${t('dal değişti: {0} → {1}', esc(pg.branch), `<b>${esc(ng.branch)}</b>`)}`);
+  else if (ng.head && pg.head !== ng.head && ng.behind < pg.behind) feed(`${n} · <span style="color:#4a7fd0">⇣ ${t('{0} commit çekildi', pg.behind - ng.behind)}</span>`);
   else if (ng.head && pg.head !== ng.head) feed(`${n} · <span style="color:#3aa57a">✔ commit</span>: “${esc(ng.headSubject || '')}”`);
-  else if (ng.ahead < pg.ahead && ng.behind === pg.behind) feed(`${n} · <span style="color:#3aa57a">⇡ ${pg.ahead - ng.ahead} commit itildi</span>`);
+  else if (ng.ahead < pg.ahead && ng.behind === pg.behind) feed(`${n} · <span style="color:#3aa57a">⇡ ${t('{0} commit itildi', pg.ahead - ng.ahead)}</span>`);
 }
 function apply(s) {
   const prev = snapshot; snapshot = s;
@@ -565,16 +570,16 @@ function apply(s) {
       if (!r) {
         r = makeRobot(Z, { id: ri.id, kindId: chooseKind('main', ri.id), ring: info.color, home });
         r.g.rotation.y = Math.PI;
-        if (prev.zones.length || prevRobots.size) feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} atölyeye geldi`);
+        if (prev.zones.length || prevRobots.size) feed(`<b>${esc(info.name)}</b> · ${t('{0} atölyeye geldi', esc(ri.label))}`);
       }
       if (!r.home.equals(home)) { r.home.copy(home); r.want = null; }
       const old = prevRobots.get(ri.id);
       r.info = ri;
       r.tagEl.innerHTML = esc(ri.label) + (ri.profile ? ` <span class="p">· ${esc(ri.profile)}</span>` : '');
       if (old && old.state !== ri.state) {
-        if (ri.state === 'waiting') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#ff8c2e">seni çağırıyor</span>${ri.waitingFor ? ': ' + esc(ri.waitingFor) : ''}`);
-        if (ri.state === 'done') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#3aa57a">işini bitirdi</span> 👍`);
-        if (ri.state === 'busy' && old.state !== 'waiting') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} işe başladı`);
+        if (ri.state === 'waiting') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#ff8c2e">${t('seni çağırıyor')}</span>${ri.waitingFor ? ': ' + esc(ri.waitingFor) : ''}`);
+        if (ri.state === 'done') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#3aa57a">${t('işini bitirdi')}</span> 👍`);
+        if (ri.state === 'busy' && old.state !== 'waiting') feed(`<b>${esc(info.name)}</b> · ${t('{0} işe başladı', esc(ri.label))}`);
       }
       if (ri.tool && ri.tool !== r.lastTool && ri.state === 'busy') {
         if (!r.bubSticky) bubble(r, esc(ri.tool), 2.4);
@@ -591,7 +596,7 @@ function apply(s) {
           h = makeRobot(Z, { id: hi.id, kindId: chooseKind('sub', hi.id), home: hhome, start: r.g.position, agent: true, parent: r });
           h.info = { state: 'busy' };
           goTo(h, hhome, 'work');
-          feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} yardımcı gönderdi: <span style="color:#6f5fb0">“${esc(hi.task)}”</span>`);
+          feed(`<b>${esc(info.name)}</b> · ${t('{0} yardımcı gönderdi: {1}', esc(ri.label), `<span style="color:#6f5fb0">“${esc(hi.task)}”</span>`)}`);
         }
         if (!h.home.equals(hhome)) { h.home.copy(hhome); goTo(h, hhome, 'work'); }
         h.tagEl.textContent = `↳ ${hi.task}`;
@@ -602,7 +607,7 @@ function apply(s) {
   }
   for (const r of robots.values()) if (!seen.has(r.id) && !r.leaving) {
     removeRobot(r);
-    if (r.agent) feed(`<b>${esc(r.zone.info.name)}</b> · yardımcı “${esc(r.tagEl.textContent.slice(2))}” işini bitirip döndü`);
+    if (r.agent) feed(`<b>${esc(r.zone.info.name)}</b> · ${t('yardımcı “{0}” işini bitirip döndü', esc(r.tagEl.textContent.slice(2)))}`);
   }
   const live = new Set(s.zones.map((z) => z.id));
   for (const Z of zones.values()) if (!live.has(Z.id)) Z.leaving = true;
@@ -708,7 +713,7 @@ addEventListener('resize', () => {
 Promise.allSettled(BUILTINS.map((def) => loader.loadAsync(def.url).then((g) => {
   kinds.set(def.id, modelKind(def.id, g, { hide: def.hide, clips: def.clips, builtin: true }));
 }).catch((e) => post({ type: 'robotFailed', id: def.id, error: String(e?.message || e) })))).then(() => {
-  if (!kinds.size) { document.getElementById('loading').textContent = 'Robot modelleri yüklenemedi.'; return; }
+  if (!kinds.size) { document.getElementById('loading').textContent = t('Robot modelleri yüklenemedi.'); return; }
   for (const role of ['main', 'sub']) if (!kinds.has(DEFAULTS[role])) { // varsayılan yoksa rolün yüklenen ilk robotu
     const alt = BUILTINS.find((b) => b.role === role && kinds.has(b.id)) || BUILTINS.find((b) => kinds.has(b.id));
     DEFAULTS[role] = alt.id;

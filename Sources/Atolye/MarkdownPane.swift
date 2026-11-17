@@ -1,3 +1,4 @@
+import AtolyeCore
 import AppKit
 import SwiftUI
 import WebKit
@@ -60,7 +61,7 @@ struct MarkdownPane: NSViewRepresentable {
             let m = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
             guard m != mtime || m == nil else { return }
             mtime = m
-            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? "*Dosya okunamadı:* `\(path)`"
+            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? L("*Dosya okunamadı:* `{0}`", path)
             guard let json = try? JSONEncoder().encode([text]), let s = String(data: json, encoding: .utf8) else { return }
             web.evaluateJavaScript("render(\(s)[0], \((try? String(data: JSONEncoder().encode(path), encoding: .utf8)) ?? "\"\""))")
         }

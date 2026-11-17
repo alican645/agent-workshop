@@ -26,16 +26,16 @@ public enum GitHubTokenPoll: Equatable, Sendable {
 
     public static func parse(_ data: Data) -> GitHubTokenPoll {
         guard let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .failed("GitHub'dan beklenmeyen yanıt.")
+            return .failed(L("GitHub'dan beklenmeyen yanıt."))
         }
         if let t = o["access_token"] as? String { return .token(t) }
         switch o["error"] as? String {
         case "authorization_pending": return .pending
         case "slow_down": return .slowDown((o["interval"] as? Int) ?? 10)
-        case "expired_token": return .failed("Kodun süresi doldu, yeniden dene.")
-        case "access_denied": return .failed("Giriş reddedildi.")
+        case "expired_token": return .failed(L("Kodun süresi doldu, yeniden dene."))
+        case "access_denied": return .failed(L("Giriş reddedildi."))
         case let e?: return .failed((o["error_description"] as? String) ?? e)
-        case nil: return .failed("GitHub'dan beklenmeyen yanıt.")
+        case nil: return .failed(L("GitHub'dan beklenmeyen yanıt."))
         }
     }
 }
@@ -218,7 +218,10 @@ public enum ContributionGrid {
         return count < q[0] ? 1 : count < q[1] ? 2 : count < q[2] ? 3 : 4
     }
 
-    static let months = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"]
+    static var months: [String] {
+        L10n.isEnglish ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            : ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"]
+    }
 
     /// Ayın ilk tam haftasının sütununa ay adı.
     public static func monthLabels(_ weeks: [[ContributionDay?]]) -> [(week: Int, name: String)] {

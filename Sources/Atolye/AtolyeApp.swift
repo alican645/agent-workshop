@@ -4,7 +4,10 @@ import SwiftUI
 
 @main
 struct AtolyeApp: App {
-    @State private var model = WorkshopModel()
+    @State private var model: WorkshopModel = {
+        AppLanguage.setUp()
+        return WorkshopModel()
+    }()
 
     init() {
         // `swift run` ile paket dışından açılınca da normal pencere uygulaması olsun.
@@ -15,16 +18,18 @@ struct AtolyeApp: App {
         // Üst çubuktaki düğmeyle açılan kişisel GitHub panosu (açılışta gösterilmez).
         Window("GitHub", id: "github") {
             GitHubWindow(github: model.github)
+                .environment(\.locale, L10n.locale)
         }
         .defaultSize(width: 900, height: 680)
         .defaultLaunchBehavior(.suppressed)
         // Robot havuzu: hazır robotlar ve kendi .glb robotları.
-        Window("Robotlar", id: "robots") {
+        Window(L("Robotlar"), id: "robots") {
             RobotsWindow(model: model)
+                .environment(\.locale, L10n.locale)
         }
         .defaultSize(width: 520, height: 560)
         .defaultLaunchBehavior(.suppressed)
-        Window("Atölye", id: "atolye") {
+        Window("Agent Workshop", id: "atolye") {
             // cmux gibi: solda hep oturum listesi; sağda atölye ya da açık projenin terminalleri.
             HStack(spacing: 0) {
                 SessionSidebar(model: model)
@@ -40,6 +45,7 @@ struct AtolyeApp: App {
                 }
             }
             .frame(minWidth: 900, minHeight: 520)
+            .environment(\.locale, L10n.locale)
             .ignoresSafeArea()
             .onAppear {
                 model.start()
@@ -49,8 +55,9 @@ struct AtolyeApp: App {
         .defaultSize(width: 1280, height: 800)
         .windowStyle(.hiddenTitleBar)
         .commands {
-            CommandMenu("Terminaller") {
-                Button("Tüm terminalleri kapat…") { model.killAllTerminals() }
+            CommandGroup(after: .appSettings) { LanguageMenu() }
+            CommandMenu(L("Terminaller")) {
+                Button(L("Tüm terminalleri kapat…")) { model.killAllTerminals() }
             }
         }
     }
