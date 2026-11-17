@@ -15,6 +15,10 @@ final class WorkshopModel {
     /// Seni bekleyen Claude'ların terminalleri (pencere başlığı yanıp söner).
     private(set) var waitingTerminals: Set<String> = []
     @ObservationIgnored let notifier = Notifier()
+    /// Claude hesapları (profiller).
+    let profiles = Profiles()
+    @ObservationIgnored private var lastProfilesRefresh = Date.distantPast
+    static let profilesInterval: TimeInterval = 5
 
     @ObservationIgnored private var store = SessionStore()
     @ObservationIgnored private var scanner = RegistryScanner()
@@ -61,6 +65,12 @@ final class WorkshopModel {
         host.start()
         notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
         notifier.start()
+        let mainDir = profiles.main.configDir
+        DispatchQueue.global(qos: .utility).async { Profiles.installIntegration(mainDir: mainDir) }
+        profiles.onWarning = { [weak self] p, text in
+            self?.notifier.postLimit(id: p.id, title: "\(p.name) limitine yaklaştı",
+                                     body: text + ". Yeni oturumları başka bir profille açabilirsin.")
+        }
         tick(initial: true)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick(initial: false) }
@@ -154,8 +164,9 @@ final class WorkshopModel {
     /// Atölyeye dönüş: görünen bütün pencereler panele çekilir.
     func tuckAll() { tuck(desk.windows.filter { !$0.minimized }.map(\.id)) }
 
-    func newWindow(_ kind: TerminalKind, in root: String) {
-        host.create(kind, cwd: root) { [weak self] info in
+    /// `profile` verilmezse etkin profil.
+    func newWindow(_ kind: TerminalKind, in root: String, profile: String? = nil) {
+        host.create(kind, cwd: root, env: profiles.environment(profile)) { [weak self] info in
             self?.changeDesk { $0.open(.terminal(info.id), root: root) }
         }
     }
@@ -248,9 +259,14 @@ final class WorkshopModel {
         let now = Date()
         host.refresh()
         pruneDesk()
-        let profiles = Self.loadProfiles()
+        if now.timeIntervalSince(lastProfilesRefresh) >= Self.profilesInterval {
+            lastProfilesRefresh = now
+            self.profiles.refresh()
+        }
+        let profiles = self.profiles.profiles
         let entries = scanner.scan(dirs: profiles.map { ($0.id, $0.configDir) }, isAlive: Self.isProcessAlive)
-        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.id == AccountStore.defaultID ? "" : $0.name) })
+        // Birden çok profil varsa her robotun profili görünsün.
+        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, profiles.count > 1 ? $0.name : "") })
         let alerts = store.applyRegistry(entries, profileNames: names, now: now, initial: initial)
         for a in alerts { Self.play(a) }
 
@@ -353,16 +369,9 @@ final class WorkshopModel {
     }
 
 
-    private struct SavedAccounts: Decodable { var store: AccountStore }
-
-    /// AjanTakip'in hesap dosyasından profiller (salt okunur); dosya yoksa yalnız varsayılan profil.
-    static func loadProfiles() -> [AccountProfile] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let url = URL(fileURLWithPath: home + "/.config/ajantakip/accounts.json")
-        if let data = try? Data(contentsOf: url), let saved = try? JSONDecoder().decode(SavedAccounts.self, from: data) {
-            return saved.store.profiles
-        }
-        return AccountStore(home: home).profiles
+    /// Profilde Claude'u açar (giriş yapmak için içinde /login yazılır).
+    func login(profile id: String) {
+        newWindow(.claude, in: FileManager.default.homeDirectoryForCurrentUser.path, profile: id)
     }
 
     nonisolated static func isProcessAlive(_ pid: Int32) -> Bool {

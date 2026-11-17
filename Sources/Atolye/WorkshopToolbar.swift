@@ -8,6 +8,7 @@ struct WorkshopToolbar: View {
         HStack(spacing: 12) {
             Text("Atölye").font(.headline).foregroundStyle(Theme.barText)
             Spacer()
+            ProfileMenu(model: model)
             if model.todayTokens > 0 {
                 HStack(spacing: 5) {
                     Image(systemName: "chart.bar.xaxis").font(.system(size: 11))

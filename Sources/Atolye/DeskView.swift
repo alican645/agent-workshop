@@ -300,6 +300,13 @@ struct NewWindowMenu: View {
     var body: some View {
         Menu {
             Button("Yeni Claude oturumu  ⌘⇧T") { model.newWindow(.claude, in: root) }
+            if model.profiles.profiles.count > 1 {
+                Menu("Başka profille Claude") {
+                    ForEach(model.profiles.profiles.filter { $0.id != model.profiles.active.id }) { p in
+                        Button(p.name + (p.email.map { " · \($0)" } ?? "")) { model.newWindow(.claude, in: root, profile: p.id) }
+                    }
+                }
+            }
             Button("Yeni terminal  ⌘T") { model.newWindow(.shell, in: root) }
             Divider()
             Button("Git") { model.addGit(in: root) }

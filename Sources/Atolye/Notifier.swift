@@ -35,6 +35,16 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(req)
     }
 
+    /// Hesap limiti uyarısı (Atölye öndeyken de görünür).
+    func postLimit(id: String, title: String, body: String) {
+        guard Self.available else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "limit-\(id)", content: content, trigger: nil))
+    }
+
     /// Ajan artık beklemiyorsa ya da Atölye öne gelince eski bildirimler kalkar.
     func clear(sessions ids: [String]) {
         guard Self.available, !ids.isEmpty else { return }
@@ -53,6 +63,6 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     /// Uygulama öndeyken bildirim gösterme (sahne ve pencereler zaten gösteriyor).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        []
+        notification.request.identifier.hasPrefix("limit-") ? [.banner, .sound] : []
     }
 }
