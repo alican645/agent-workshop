@@ -9,6 +9,7 @@ struct WorkshopToolbar: View {
             Text("Atölye").font(.headline).foregroundStyle(Theme.barText)
             Spacer()
             GitHubButton(github: model.github)
+            RobotsButton()
             ProfileMenu(model: model)
             if model.todayTokens > 0 {
                 HStack(spacing: 5) {
@@ -55,5 +56,22 @@ private struct GitHubButton: View {
         .buttonStyle(.plain)
         .help("GitHub katkıların")
         .task { github.refreshIfStale() }
+    }
+}
+
+/// Üst çubukta Robotlar penceresini açan düğme.
+private struct RobotsButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button { openWindow(id: "robots") } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "figure.wave").font(.system(size: 11))
+                Text("Robotlar").font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(Theme.barMuted)
+        }
+        .buttonStyle(.plain)
+        .help("Atölyedeki robotları seç, kendi .glb robotunu ekle")
     }
 }

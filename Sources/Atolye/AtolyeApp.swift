@@ -18,6 +18,12 @@ struct AtolyeApp: App {
         }
         .defaultSize(width: 900, height: 680)
         .defaultLaunchBehavior(.suppressed)
+        // Robot havuzu: hazır robotlar ve kendi .glb robotları.
+        Window("Robotlar", id: "robots") {
+            RobotsWindow(model: model)
+        }
+        .defaultSize(width: 520, height: 560)
+        .defaultLaunchBehavior(.suppressed)
         Window("Atölye", id: "atolye") {
             // cmux gibi: solda hep oturum listesi; sağda atölye ya da açık projenin terminalleri.
             HStack(spacing: 0) {
