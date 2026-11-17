@@ -1,0 +1,8 @@
+Atölye'deki hazır robot modelleri Quaternius'a (https://quaternius.com) aittir ve CC0 1.0
+(kamu malı, https://creativecommons.org/publicdomain/zero/1.0/) lisanslıdır.
+
+- RobotExpressive.glb — Animated Robot, Tomás Laulhé (Quaternius); düzenleme Don McCurdy (three.js örneklerinden)
+- George.glb, Leela.glb, Mike.glb, Stan.glb — Animated Mech Pack
+- Android.glb — Cyberpunk Game Kit, karakter
+
+GLB dönüşümleri: huggingface.co/datasets/codepawl/quaternius-glb (CC0 1.0).

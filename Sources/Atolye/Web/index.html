@@ -82,7 +82,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
-import { builtinKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
+import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
@@ -268,7 +268,7 @@ function setMachines(Z, list) {
 }
 
 // ---------- robots ----------
-let base = null;                 // RobotExpressive: hazır robotların gövdesi
+let started = false;             // hazır robotlar yüklendi, sahne güncellenebilir
 const kinds = new Map();         // kostüm id → { template, clips, H, ... } (hazır ve yüklenmiş kendi robotları)
 const kindState = new Map();     // kendi robotu id → 'loading' | 'failed' | 'ok'
 let pool = [];                   // açık robotlar (snapshot.robots)
@@ -328,7 +328,7 @@ function settle() {
 /** Robotun kostümünü yerinde değiştir (konum, durum, etiket korunur). */
 function reskin(r, kindId) {
   const kind = kinds.get(kindId); if (!kind) return;
-  const h = ROBOT_H[r.agent ? 'sub' : 'main'] * (kind.def?.scale || 1);
+  const h = ROBOT_H[r.agent ? 'sub' : 'main'] * 1;
   let inst;
   try { inst = instantiate(kind, h); } catch (e) { markFailed(kindId, e); return; }
   r.g.remove(r.root); r.mixer.stopAllAction(); r.mixer.uncacheRoot(r.root);
@@ -345,11 +345,11 @@ function makeRobot(zone, opts) {
   const role = opts.agent ? 'sub' : 'main';
   let kindId = kinds.has(opts.kindId) ? opts.kindId : DEFAULTS[role];
   let kind = kinds.get(kindId), inst, h;
-  try { h = ROBOT_H[role] * (kind.def?.scale || 1); inst = instantiate(kind, h); }
+  try { h = ROBOT_H[role] * 1; inst = instantiate(kind, h); }
   catch (e) { // bozuk model atölyeyi durdurmasın: varsayılan robotla devam
     markFailed(kindId, e);
     kindId = DEFAULTS[role]; kind = kinds.get(kindId);
-    h = ROBOT_H[role] * (kind.def?.scale || 1); inst = instantiate(kind, h);
+    h = ROBOT_H[role] * 1; inst = instantiate(kind, h);
   }
   const g = new THREE.Group(); g.add(inst.root);
   zone.g.add(g);
@@ -609,7 +609,7 @@ function apply(s) {
   if (zonesChanged) layout();
   counts(); renderPanel();
 }
-window.atolye.update = (s) => { if (base) apply(s); else window.atolye._q = s; };
+window.atolye.update = (s) => { if (started) apply(s); else window.atolye._q = s; };
 
 // ---------- frame loop ----------
 const clock = new THREE.Clock();
@@ -704,14 +704,21 @@ addEventListener('resize', () => {
   renderer.setSize(W(), H()); labels.setSize(W(), H());
 });
 
-loader.load('./models/RobotExpressive.glb', (gltf) => {
-  base = { scene: gltf.scene, clips: gltf.animations };
-  for (const def of BUILTINS) kinds.set(def.id, builtinKind(def, base));
+// Hazır robotların hepsi yüklenince sahne başlar; yüklenemeyen hazır robot havuzda atlanır.
+Promise.allSettled(BUILTINS.map((def) => loader.loadAsync(def.url).then((g) => {
+  kinds.set(def.id, modelKind(def.id, g, { hide: def.hide, clips: def.clips, builtin: true }));
+}).catch((e) => post({ type: 'robotFailed', id: def.id, error: String(e?.message || e) })))).then(() => {
+  if (!kinds.size) { document.getElementById('loading').textContent = 'Robot modelleri yüklenemedi.'; return; }
+  for (const role of ['main', 'sub']) if (!kinds.has(DEFAULTS[role])) { // varsayılan yoksa rolün yüklenen ilk robotu
+    const alt = BUILTINS.find((b) => b.role === role && kinds.has(b.id)) || BUILTINS.find((b) => kinds.has(b.id));
+    DEFAULTS[role] = alt.id;
+  }
   document.getElementById('loading').remove();
+  started = true;
   const q = window.atolye._q; window.atolye._q = null;
   apply(q || { zones: [] });
   setActive(window.atolye._active);
-}, undefined, (err) => { document.getElementById('loading').textContent = 'Robot modeli yüklenemedi: ' + (err?.message || err); });
+});
 
 post({ type: 'ready' });
 </script>

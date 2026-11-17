@@ -34,11 +34,11 @@ private let glb = Data([0x67, 0x6C, 0x54, 0x46]) + Data(count: 16)
 
     @Test func cannotDisableLastMain() throws {
         let s = RobotPoolStore(dir: tempDir())
-        try s.setEnabled("usta", false)
-        try s.setEnabled("muhendis", false)
-        #expect(throws: RobotPoolError.lastInRole) { try s.setEnabled("kasif", false) }
-        try s.setEnabled("usta", true)
-        try s.setEnabled("kasif", false)
+        try s.setEnabled("george", false)
+        try s.setEnabled("mike", false)
+        #expect(throws: RobotPoolError.lastInRole) { try s.setEnabled("stan", false) }
+        try s.setEnabled("george", true)
+        try s.setEnabled("stan", false)
     }
 
     @Test func customBothCountsForBothRoles() throws {
@@ -60,9 +60,9 @@ private let glb = Data([0x67, 0x6C, 0x54, 0x46]) + Data(count: 16)
     @Test func sceneRobotsListsEnabledOnly() throws {
         let s = RobotPoolStore(dir: tempDir())
         let r = try s.add(data: glb, name: "x", role: .main)
-        try s.setEnabled("vida", false)
+        try s.setEnabled("android", false)
         let list = RobotPool.sceneRobots(s.config)
-        #expect(list.filter(\.builtin).map(\.id) == ["usta", "muhendis", "kasif", "kivilcim", "pit"])
+        #expect(list.filter(\.builtin).map(\.id) == ["george", "mike", "stan", "leela", "usta"])
         #expect(list.first { $0.id == r.id }?.url == "atolye://app/robots/\(r.id).glb")
         #expect(list.filter(\.builtin).allSatisfy { $0.url == nil })
     }

@@ -42,8 +42,8 @@ public enum RobotPoolError: Error, Equatable {
 public enum RobotPool {
     /// Hazır robotlar; sahnedeki `robots.mjs` kataloğuyla aynı kimlikler.
     public static let builtins: [(id: String, name: String, role: RobotRole)] = [
-        ("usta", "Usta", .main), ("muhendis", "Mühendis", .main), ("kasif", "Kâşif", .main),
-        ("kivilcim", "Kıvılcım", .sub), ("pit", "Pıt", .sub), ("vida", "Vida", .sub),
+        ("george", "George", .main), ("mike", "Mike", .main), ("stan", "Stan", .main),
+        ("leela", "Leela", .sub), ("android", "Android", .sub), ("usta", "Usta", .sub),
     ]
     public static let maxBytes = 31_457_280
 

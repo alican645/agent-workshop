@@ -1,15 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILTINS, pick, matchClips, hashId } from '../../Sources/Atolye/Web/robots.mjs';
+import { BUILTINS, DEFAULTS, pick, matchClips, hashId } from '../../Sources/Atolye/Web/robots.mjs';
 
 const pool = BUILTINS.map((b) => ({ id: b.id, role: b.role, builtin: true }));
 const RE = ['Dance', 'Death', 'Idle', 'Jump', 'No', 'Punch', 'Running', 'Sitting', 'Standing', 'ThumbsUp', 'Walking', 'WalkJump', 'Wave', 'Yes'];
 
-test('6 hazır robot: 3 ana, 3 alt, renkleri farklı', () => {
-  assert.deepEqual(BUILTINS.map((b) => b.id), ['usta', 'muhendis', 'kasif', 'kivilcim', 'pit', 'vida']);
-  assert.equal(BUILTINS.filter((b) => b.role === 'main').length, 3);
+test('6 hazır robot: 3 ana, 3 alt, her biri ayrı model', () => {
+  assert.deepEqual(BUILTINS.map((b) => b.id), ['george', 'mike', 'stan', 'leela', 'android', 'usta']);
+  assert.deepEqual(BUILTINS.filter((b) => b.role === 'main').map((b) => b.id), ['george', 'mike', 'stan']);
   assert.equal(BUILTINS.filter((b) => b.role === 'sub').length, 3);
-  assert.equal(new Set(BUILTINS.map((b) => b.colors.main)).size, 6);
+  assert.equal(new Set(BUILTINS.map((b) => b.url)).size, 6);
+  assert.ok(BUILTINS.every((b) => b.url.startsWith('./models/') && b.url.endsWith('.glb')));
+  assert.deepEqual(DEFAULTS, { main: 'mike', sub: 'usta' });
+});
+
+test('android: kılıç gizli, bekleme ve çalışma klipleri elle seçili', () => {
+  const a = BUILTINS.find((b) => b.id === 'android');
+  assert.deepEqual(a.hide, ['Sword']);
+  const names = ['Idle_Gun_Pointing', 'Idle_Neutral', 'Idle_Sword', 'Interact', 'Punch_Left', 'Walk', 'Wave'];
+  const m = matchClips(names, a.clips);
+  assert.equal(m.idle, 'Idle_Neutral');
+  assert.equal(m.work, 'Interact');
+  assert.equal(m.wave, 'Wave');
+});
+
+test('matchClips: mech adları (Hello el sallama)', () => {
+  const m = matchClips(['Dance', 'Hello', 'Idle', 'Punch', 'Walk', 'Yes', 'Run']);
+  assert.deepEqual([m.idle, m.walk, m.wave, m.yes, m.sit], ['Idle', 'Walk', 'Hello', 'Yes', null]);
 });
 
 test('hashId kararlı', () => {
@@ -22,14 +39,14 @@ test('pick aynı oturuma aynı robotu verir', () => {
 });
 
 test('pick kullanılmayanı tercih eder', () => {
-  assert.equal(pick(pool, 'main', new Map([['usta', 1], ['muhendis', 1]]), 'x'), 'kasif');
-  assert.equal(pick(pool, 'sub', new Map([['pit', 2], ['vida', 1]]), 'x'), 'kivilcim');
+  assert.equal(pick(pool, 'main', new Map([['george', 1], ['mike', 1]]), 'x'), 'stan');
+  assert.equal(pick(pool, 'sub', new Map([['usta', 2], ['android', 1]]), 'x'), 'leela');
 });
 
 test('pick yüklenemeyeni atlar, aday yoksa varsayılan', () => {
-  const p = [{ id: 'muhendis', role: 'main', failed: true }];
-  assert.equal(pick(p, 'main', new Map(), 'x'), 'usta');
-  assert.equal(pick([], 'sub', new Map(), 'x'), 'pit');
+  const p = [{ id: 'george', role: 'main', failed: true }];
+  assert.equal(pick(p, 'main', new Map(), 'x'), 'mike');
+  assert.equal(pick([], 'sub', new Map(), 'x'), 'usta');
 });
 
 test('pick both rollü robotu iki rolde de sayar', () => {

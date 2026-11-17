@@ -22,7 +22,7 @@ MCP'ler ve hafızayla kullanırsın.
   **bitti**, **boşta**. Yardımcı ajanlar (subagent) robotun yanında küçük yardımcılar olarak çıkar.
 - Bölge panelinde son araç çağrıları, açık `TODO.local.md` maddeleri ve git durumu.
 - Akış: commit, push, pull ve dal değişikliği olayları sahnede ve olay akışında görünür.
-- **6 farklı robot:** ana ajanlar için Usta, Mühendis, Kâşif; alt ajanlar için Kıvılcım, Pıt, Vida.
+- **6 farklı robot:** ana ajanlar için George, Mike, Stan; alt ajanlar için Leela, Android, Usta.
   Her yeni oturum rolündeki robotlardan rastgele birini alır, o an atölyede olmayanlar önce gelir.
 - **Kendi robotun:** üst çubuktaki **Robotlar** penceresinden bir `.glb` dosyası (en fazla 30 MB) ekle.
   Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot
@@ -133,8 +133,10 @@ Tasarım notları ve uygulama planları `docs/superpowers/` altında.
 
 ## Teşekkürler
 
-- [three.js](https://threejs.org) (MIT) ve robot modeli *RobotExpressive* — Tomás Laulhé, düzenleme
+- [three.js](https://threejs.org) (MIT) ve robot modeli *RobotExpressive* — Tomás Laulhé (Quaternius), düzenleme
   Don McCurdy (CC0).
+- Robot modelleri George, Leela, Mike, Stan (*Animated Mech Pack*) ve Android (*Cyberpunk Game Kit*) —
+  [Quaternius](https://quaternius.com) (CC0). Ayrıntı: `Sources/Atolye/Web/models/LICENSE.txt`.
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT), [marked](https://marked.js.org) (MIT).
 - Bazı fikirler (token/maliyet takibi gibi) Orbiterm'den esinlendi; kod paylaşılmadı.
 
