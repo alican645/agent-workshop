@@ -85,68 +85,44 @@ final class WorkshopModel {
     /// Öndeki pencerenin projesi (yeni pencere kısayolları için).
     var frontRoot: String? { desk.front?.root }
 
-    /// Sol paneldeki yerine çekilmekte olan (ya da oradan çıkmakta olan) pencereler: küçük ve panelde çizilir.
-    var tucked: Set<String> = []
-    /// Uçuş sürerken içeriği gizlenen pencereler (terminal AppKit görünümü ölçeklenmez).
-    var flying: Set<String> = []
+    /// Sol paneldeki yerine çekilmekte olan pencereler. Animasyonu her pencere kendi yürütür (DeskView).
+    var leaving: Set<String> = []
+    /// Küçültülmüşken yeniden açılan pencereler: ilk çizimde panelden çıkarak gelir.
+    @ObservationIgnored var arriving: Set<String> = []
     /// Sol paneldeki proje başlıklarının pencere koordinatlarındaki yeri (çekilme hedefi).
     @ObservationIgnored var sidebarTargets: [String: CGRect] = [:]
     @ObservationIgnored private var tuckGeneration = 0
     static let tuckDuration = 0.34
 
     func changeDesk(_ change: (inout Desk) -> Void) {
-        // Süren bir çekilme varsa iptal: kullanıcı bir pencereyi geri istedi.
-        if !tucked.isEmpty {
+        // Süren bir çekilme varsa iptal: kullanıcı pencereleri geri istedi.
+        if !leaving.isEmpty {
             tuckGeneration += 1
-            let back = tucked
-            withAnimation(.spring(duration: 0.3)) { tucked = [] }
-            land(back, after: 0.3)
+            leaving = []
         }
         let hidden = Set(desk.windows.filter(\.minimized).map(\.id))
         change(&desk)
         saveDesk()
-        // Küçültülmüşken açılanlar sol paneldeki yerlerinden çıkarak gelsin.
         let shown = desk.windows.filter { !$0.minimized && hidden.contains($0.id) }.map(\.id)
         guard !shown.isEmpty else { return }
-        var t = Transaction()
-        t.disablesAnimations = true
-        withTransaction(t) {
-            tucked.formUnion(shown)
-            flying.formUnion(shown)
-        }
-        DispatchQueue.main.async { [weak self] in
-            withAnimation(.spring(duration: 0.38, bounce: 0.15)) { self?.tucked.subtract(shown) }
-        }
-        land(shown, after: 0.4)
-    }
-
-    /// Uçuş bitince içerik geri gelir.
-    private func land(_ ids: some Sequence<String>, after delay: Double) {
-        let ids = Set(ids)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self else { return }
-            self.flying.subtract(ids.subtracting(self.tucked))
-        }
+        arriving.formUnion(shown)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.arriving.subtract(shown) }
     }
 
     /// Pencereleri sol paneldeki projelerinin yerine çekerek küçültür.
     func tuck(_ ids: [String]) {
-        let ids = ids.filter { desk.window($0)?.minimized == false }
+        let ids = ids.filter { desk.window($0)?.minimized == false && !leaving.contains($0) }
         guard !ids.isEmpty else { return }
         tuckGeneration += 1
         let gen = tuckGeneration
-        flying.formUnion(ids)
-        withAnimation(.easeIn(duration: Self.tuckDuration)) { tucked.formUnion(ids) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.tuckDuration) { [weak self] in
+        leaving.formUnion(ids)
+        // Animasyon bittikten biraz sonra gerçekten küçült.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.tuckDuration + 0.06) { [weak self] in
             guard let self, gen == self.tuckGeneration else { return }
-            for id in ids { self.desk.minimize(id) }
+            let gone = self.leaving
+            for id in gone { self.desk.minimize(id) }
             self.saveDesk()
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) {
-                self.tucked.subtract(ids)
-                self.flying.subtract(ids)
-            }
+            self.leaving = []
         }
     }
 

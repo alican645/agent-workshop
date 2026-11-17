@@ -23,15 +23,14 @@ struct DeskView: View {
                 }
                 ForEach(model.desk.windows.filter { !$0.minimized }) { w in
                     let r = rect(w)
-                    let tuck = model.tucked.contains(w.id) ? tuckMove(r, root: w.root, canvas: size, origin: g.frame(in: .global).origin) : nil
-                    FloatingWindow(model: model, window: w, front: model.desk.front?.id == w.id, canvas: size,
-                                   rect: r, onLive: { live = ($0 == nil ? nil : (w.id, $0!)) },
-                                   onSnapPreview: { snapPreview = $0 })
-                        .frame(width: r.w * size.width, height: r.h * size.height)
-                        .scaleEffect(tuck == nil ? 1 : 0.04)
-                        .opacity(tuck == nil ? 1 : 0.15)
-                        .offset(x: r.x * size.width + (tuck?.width ?? 0), y: r.y * size.height + (tuck?.height ?? 0))
-                        .allowsHitTesting(tuck == nil)
+                    WindowSlot(model: model, window: w, leaving: model.leaving.contains(w.id),
+                               tuckOffset: tuckMove(r, root: w.root, canvas: size, origin: g.frame(in: .global).origin)) { flying in
+                        FloatingWindow(model: model, window: w, front: model.desk.front?.id == w.id, canvas: size,
+                                       rect: r, flying: flying, onLive: { live = ($0 == nil ? nil : (w.id, $0!)) },
+                                       onSnapPreview: { snapPreview = $0 })
+                    }
+                    .frame(width: r.w * size.width, height: r.h * size.height)
+                    .offset(x: r.x * size.width, y: r.y * size.height)
                 }
                 shelf.frame(maxWidth: .infinity, alignment: .trailing).padding(10)
             }
@@ -75,6 +74,55 @@ struct DeskView: View {
     }
 }
 
+/// Pencerenin sol panele çekilme / oradan çıkma animasyonu. Durum pencerenin kendisinde tutulur;
+/// böylece animasyon modeldeki değişikliğin hangi işlemle geldiğine bağlı kalmaz ve her pencere aynı davranır.
+private struct WindowSlot<Content: View>: View {
+    let model: WorkshopModel
+    let window: DeskWindow
+    let leaving: Bool
+    let tuckOffset: CGSize
+    @ViewBuilder let content: (_ flying: Bool) -> Content
+    /// true: pencere sol panelde (küçük); false: yerinde.
+    @State private var tucked: Bool
+    /// İçerik gizli mi (terminal görünümü ölçeklenmediği için uçuşta gizlenir).
+    @State private var flying: Bool
+
+    init(model: WorkshopModel, window: DeskWindow, leaving: Bool, tuckOffset: CGSize,
+         @ViewBuilder content: @escaping (_ flying: Bool) -> Content) {
+        self.model = model
+        self.window = window
+        self.leaving = leaving
+        self.tuckOffset = tuckOffset
+        self.content = content
+        let arriving = model.arriving.contains(window.id)
+        _tucked = State(initialValue: arriving || leaving)
+        _flying = State(initialValue: arriving || leaving)
+    }
+
+    var body: some View {
+        content(flying)
+            .scaleEffect(tucked ? 0.04 : 1)
+            .opacity(tucked ? 0.1 : 1)
+            .offset(tucked ? tuckOffset : .zero)
+            .allowsHitTesting(!tucked && !leaving)
+            .onAppear {
+                guard tucked, !leaving else { return }
+                model.arriving.remove(window.id)
+                // Bir sonraki karede başlat: panelde çizilmiş hâlinden çıkarak gelsin.
+                DispatchQueue.main.async { animate(to: false) }
+            }
+            .onChange(of: leaving) { _, now in animate(to: now) }
+    }
+
+    private func animate(to tuck: Bool) {
+        flying = true
+        let curve: Animation = tuck ? .easeIn(duration: WorkshopModel.tuckDuration) : .spring(duration: 0.38, bounce: 0.15)
+        withAnimation(curve) { tucked = tuck } completion: {
+            if !tucked { flying = false }
+        }
+    }
+}
+
 /// Başlık çubuklu, taşınabilir ve boyutlandırılabilir tek pencere.
 private struct FloatingWindow: View {
     let model: WorkshopModel
@@ -82,6 +130,7 @@ private struct FloatingWindow: View {
     let front: Bool
     let canvas: CGSize
     let rect: FloatRect
+    let flying: Bool
     let onLive: (FloatRect?) -> Void
     let onSnapPreview: (FloatRect?) -> Void
     @State private var start: FloatRect?
@@ -92,7 +141,7 @@ private struct FloatingWindow: View {
     var body: some View {
         VStack(spacing: 0) {
             titleBar
-            if model.flying.contains(window.id) {
+            if flying {
                 Theme.room
             } else {
                 TabContent(model: model, window: window, focused: front)
