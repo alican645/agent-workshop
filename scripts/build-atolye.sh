@@ -15,6 +15,7 @@ cp "$BIN" "$APP/Contents/MacOS/Atolye"
 cp "$HOSTBIN" "$APP/Contents/MacOS/atolye-host"
 cp Resources/Atolye-Info.plist "$APP/Contents/Info.plist"
 cp -R Sources/Atolye/Web "$APP/Contents/Resources/Web"
+cp Resources/Atolye.icns "$APP/Contents/Resources/Atolye.icns"
 codesign -s - --force "$APP" >/dev/null
 echo "Oluşturuldu: $APP"
 
