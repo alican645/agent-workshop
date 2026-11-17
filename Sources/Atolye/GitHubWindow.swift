@@ -34,11 +34,11 @@ struct GitHubWindow: View {
                 }
                 .buttonStyle(.borderedProminent).tint(GHTheme.green(4))
             }
-            if github.ghPath != nil {
+            if !github.configured, github.ghPath != nil {
                 Button { github.useGHLogin() } label: {
                     Text("Bu Mac'teki GitHub girişini kullan").padding(.horizontal, 14).padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent).tint(github.configured ? .gray : GHTheme.green(4))
+                .buttonStyle(.borderedProminent).tint(GHTheme.green(4))
                 Text("Terminaldeki GitHub CLI (gh) girişiyle bağlanır; ayrıca onay gerekmez.")
                     .font(.caption).foregroundStyle(GHTheme.muted)
             } else if !github.configured {
