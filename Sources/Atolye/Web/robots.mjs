@@ -7,23 +7,23 @@
  */
 export const BUILTINS = [
   { id: 'usta', name: 'Usta', role: 'main', scale: 1,
-    colors: { main: '#e8772e', second: '#f3e6cf' }, material: { metalness: 0.05, roughness: 0.8 },
-    bones: {}, accessories: ['helmet', 'toolbag'] },
+    colors: { main: '#e8772e', second: '#ffcf3a' }, material: { metalness: 0.05, roughness: 0.8 },
+    bones: {}, accessories: ['helmet', 'headlamp'] },
   { id: 'muhendis', name: 'Mühendis', role: 'main', scale: 1.06,
-    colors: { main: '#2f4f8f', second: '#9fd8ff' }, material: { metalness: 0.65, roughness: 0.3 },
-    bones: { Torso: 0.92, 'UpperLeg.L': 1.12, 'UpperLeg.R': 1.12 }, accessories: ['visor', 'twinAntenna'] },
+    colors: { main: '#2f4f8f', second: '#9fd8ff' }, material: { metalness: 0.35, roughness: 0.35 },
+    bones: { 'UpperLeg.L': 1.3, 'UpperLeg.R': 1.3, Head: 0.9 }, accessories: ['visor', 'twinAntenna'] },
   { id: 'kasif', name: 'Kâşif', role: 'main', scale: 0.95,
     colors: { main: '#6f8a3a', second: '#3b3530' }, material: { metalness: 0.1, roughness: 0.75 },
-    bones: { Head: 1.25, Torso: 1.12, 'UpperLeg.L': 0.82, 'UpperLeg.R': 0.82 }, accessories: ['headphones'] },
+    bones: { Head: 1.35, Torso: 1.1, 'UpperLeg.L': 0.75, 'UpperLeg.R': 0.75 }, accessories: ['headphones'] },
   { id: 'kivilcim', name: 'Kıvılcım', role: 'sub', scale: 1,
     colors: { main: '#f2c230', second: '#ff6a3d' }, material: { metalness: 0.2, roughness: 0.25 },
-    bones: { Head: 0.88 }, accessories: ['antenna'] },
+    bones: { Head: 0.8, 'UpperLeg.L': 1.15, 'UpperLeg.R': 1.15 }, accessories: ['antenna'] },
   { id: 'pit', name: 'Pıt', role: 'sub', scale: 0.95,
     colors: { main: '#8f7be0', second: '#f6f1e8' }, material: { metalness: 0.05, roughness: 0.6 },
-    bones: { Head: 1.35, Torso: 0.85 }, accessories: [] },
+    bones: { Head: 1.6, 'UpperLeg.L': 0.8, 'UpperLeg.R': 0.8 }, accessories: ['propeller'] },
   { id: 'vida', name: 'Vida', role: 'sub', scale: 1,
-    colors: { main: '#8a9199', second: '#ff3b3b' }, material: { metalness: 0.8, roughness: 0.35 },
-    bones: { 'Shoulder.L': 1.25, 'Shoulder.R': 1.25 }, accessories: ['helmet', 'monoVisor'] },
+    colors: { main: '#9aa3ad', second: '#ff3b3b' }, material: { metalness: 0.3, roughness: 0.4 },
+    bones: { 'Shoulder.L': 1.45, 'Shoulder.R': 1.45, Torso: 1.1 }, accessories: ['helmet', 'monoVisor'] },
 ];
 
 export const DEFAULTS = { main: 'usta', sub: 'pit' };
