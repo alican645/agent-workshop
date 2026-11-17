@@ -12,7 +12,7 @@ export const BUILTINS = [
   { id: 'leela', name: 'Leela', role: 'sub', url: './models/Leela.glb' },
   { id: 'android', name: 'Android', role: 'sub', url: './models/Android.glb',
     hide: ['Sword'], clips: { idle: 'Idle_Neutral', work: 'Interact' } },
-  { id: 'usta', name: 'Usta', role: 'sub', url: './models/RobotExpressive.glb' },
+  { id: 'usta', name: 'Bolt', role: 'sub', url: './models/RobotExpressive.glb' },
 ];
 
 export const DEFAULTS = { main: 'mike', sub: 'usta' };

@@ -16,7 +16,13 @@ cp "$HOSTBIN" "$APP/Contents/MacOS/atolye-host"
 cp Resources/Atolye-Info.plist "$APP/Contents/Info.plist"
 cp -R Sources/Atolye/Web "$APP/Contents/Resources/Web"
 cp Resources/Atolye.icns "$APP/Contents/Resources/Atolye.icns"
-codesign -s - --force "$APP" >/dev/null
+# Sabit bir imza kimliği: Anahtar Zinciri uygulamayı derlemeler arasında aynı tanır, her açılışta şifre sormaz.
+# CODESIGN_IDENTITY verilmezse ilk "Apple Development" kimliği; o da yoksa ad-hoc (o zaman her derlemede sorar).
+IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/{print $2; exit}')}"
+IDENTITY="${IDENTITY:--}"
+codesign -s "$IDENTITY" --force "$APP/Contents/MacOS/atolye-host" >/dev/null
+codesign -s "$IDENTITY" --force "$APP" >/dev/null
+echo "İmza: $IDENTITY"
 echo "Oluşturuldu: $APP"
 
 if [[ "${1:-}" == "--install" ]]; then

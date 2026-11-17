@@ -35,8 +35,14 @@ final class GitHubModel {
     var configured: Bool { !GitHubConfig.clientID.isEmpty }
 
     init() {
-        token = Keychain.load()
-        if token != nil { phase = .signedIn }
+        // Anahtar Zinciri şifre sorabilir: arka planda oku ki açılış (ve arayüz) o soruyu beklemesin.
+        Task { [weak self] in
+            let saved = await Task.detached { Keychain.load() }.value
+            guard let self, self.token == nil, let saved else { return }
+            self.token = saved
+            self.phase = .signedIn
+            self.refreshIfStale()
+        }
     }
 
     var stats: ContributionStats? {

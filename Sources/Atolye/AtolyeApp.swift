@@ -15,20 +15,6 @@ struct AtolyeApp: App {
     }
 
     var body: some Scene {
-        // Üst çubuktaki düğmeyle açılan kişisel GitHub panosu (açılışta gösterilmez).
-        Window("GitHub", id: "github") {
-            GitHubWindow(github: model.github)
-                .environment(\.locale, L10n.locale)
-        }
-        .defaultSize(width: 900, height: 680)
-        .defaultLaunchBehavior(.suppressed)
-        // Robot havuzu: hazır robotlar ve kendi .glb robotları.
-        Window(L("Robotlar"), id: "robots") {
-            RobotsWindow(model: model)
-                .environment(\.locale, L10n.locale)
-        }
-        .defaultSize(width: 520, height: 560)
-        .defaultLaunchBehavior(.suppressed)
         Window("Agent Workshop", id: "atolye") {
             // cmux gibi: solda hep oturum listesi; sağda atölye ya da açık projenin terminalleri.
             HStack(spacing: 0) {
@@ -54,12 +40,37 @@ struct AtolyeApp: App {
         }
         .defaultSize(width: 1280, height: 800)
         .windowStyle(.hiddenTitleBar)
+        // İlk sahne ana penceredir: açılışta ve Dock simgesine tıklanınca o açılır.
+        .defaultLaunchBehavior(.presented)
         .commands {
             CommandGroup(after: .appSettings) { LanguageMenu() }
+            CommandGroup(before: .windowList) { MainWindowButton() }
             CommandMenu(L("Terminaller")) {
                 Button(L("Tüm terminalleri kapat…")) { model.killAllTerminals() }
             }
         }
+        // Üst çubuktaki düğmeyle açılan kişisel GitHub panosu (açılışta gösterilmez).
+        Window("GitHub", id: "github") {
+            GitHubWindow(github: model.github)
+                .environment(\.locale, L10n.locale)
+        }
+        .defaultSize(width: 900, height: 680)
+        .defaultLaunchBehavior(.suppressed)
+        // Robot havuzu: hazır robotlar ve kendi .glb robotları.
+        Window(L("Robotlar"), id: "robots") {
+            RobotsWindow(model: model)
+                .environment(\.locale, L10n.locale)
+        }
+        .defaultSize(width: 520, height: 560)
+        .defaultLaunchBehavior(.suppressed)
+    }
+}
+
+/// Pencere menüsünde ana pencereyi yeniden açan öğe (kapatıldıysa).
+private struct MainWindowButton: View {
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Button("Agent Workshop") { openWindow(id: "atolye") }.keyboardShortcut("0")
     }
 }
 

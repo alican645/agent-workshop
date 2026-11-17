@@ -22,7 +22,7 @@ MCP'ler ve hafızayla kullanırsın.
   **bitti**, **boşta**. Yardımcı ajanlar (subagent) robotun yanında küçük yardımcılar olarak çıkar.
 - Bölge panelinde son araç çağrıları, açık `TODO.local.md` maddeleri ve git durumu.
 - Akış: commit, push, pull ve dal değişikliği olayları sahnede ve olay akışında görünür.
-- **6 farklı robot:** ana ajanlar için George, Mike, Stan; alt ajanlar için Leela, Android, Usta.
+- **6 farklı robot:** ana ajanlar için George, Mike, Stan; alt ajanlar için Leela, Android, Bolt.
   Her yeni oturum rolündeki robotlardan rastgele birini alır, o an atölyede olmayanlar önce gelir.
 - **Kendi robotun:** üst çubuktaki **Robotlar** penceresinden bir `.glb` dosyası (en fazla 30 MB) ekle.
   Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot
