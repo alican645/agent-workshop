@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import Foundation
 import SwiftTerm
 

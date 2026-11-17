@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import SwiftUI
 
 /// Salt okunur git görünümü: solda değişen dosyalar ve son commit'ler, sağda seçilenin diff'i.

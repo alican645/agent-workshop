@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import SwiftUI
 
 /// Kişisel GitHub panosu: katkı grafiği, sayılar, son 30 günün depoları.

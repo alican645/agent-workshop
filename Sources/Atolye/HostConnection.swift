@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import AppKit
 import AtolyeHostKit
 import Observation

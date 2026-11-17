@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import AppKit
 import Foundation
 
@@ -121,17 +121,10 @@ final class Profiles {
 
     // MARK: Kalıcılık
 
-    private struct Legacy: Decodable { var store: AccountStore }
-
     private static func load(home: String) -> AccountStore {
         if let d = try? Data(contentsOf: storeURL), let s = try? JSONDecoder().decode(AccountStore.self, from: d) { return s }
-        // İlk açılış: AjanTakip'teki profilleri al, adları sıra numarasına çevir.
+        // İlk açılış: adları sıra numarasına çevir.
         var s = AccountStore(home: home)
-        let legacy = URL(fileURLWithPath: home + "/.config/ajantakip/accounts.json")
-        if let d = try? Data(contentsOf: legacy), let l = try? JSONDecoder().decode(Legacy.self, from: d) {
-            s.profiles = l.store.profiles
-            s.activeID = AccountStore.defaultID
-        }
         for i in s.profiles.indices {
             let id = s.profiles[i].id
             s.profiles[i].name = id == AccountStore.defaultID ? "Profil 1"
@@ -147,10 +140,8 @@ final class Profiles {
 
     // MARK: Kurulum (her açılışta, değişiklik yoksa dokunmaz)
 
-    /// statusline'a limit bloğunu ekler; AjanTakip'ten kalan kancaları, .zshrc ve statusline bloklarını kaldırır.
-    /// Değişen her dosyanın aslı önce `yedek/` klasörüne kopyalanır.
+    /// statusline'a limit bloğunu ekler. Değişen dosyanın aslı önce `yedek/` klasörüne kopyalanır.
     nonisolated static func installIntegration(mainDir: String) {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
         func rewrite(_ path: String, _ change: (String) -> String?) {
             let real = (path as NSString).resolvingSymlinksInPath
             guard let old = try? String(contentsOfFile: real, encoding: .utf8), let new = change(old), new != old else { return }
@@ -158,12 +149,6 @@ final class Profiles {
             try? new.write(toFile: real, atomically: true, encoding: .utf8)
         }
         rewrite(mainDir + "/statusline-command.sh") { AtolyeIntegration.installStatusline(into: $0) }
-        rewrite(home + "/.zshrc") { AtolyeIntegration.removingAjanTakipZsh($0) }
-        let settings = (mainDir + "/settings.json" as NSString).resolvingSymlinksInPath
-        if let d = FileManager.default.contents(atPath: settings), let new = AtolyeIntegration.removingAjanTakipHooks(d) {
-            backup(settings)
-            try? new.write(to: URL(fileURLWithPath: settings), options: .atomic)
-        }
     }
 
     nonisolated private static func backup(_ path: String) {

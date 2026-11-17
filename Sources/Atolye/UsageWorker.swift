@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import Foundation
 
 /// Oturum kayıtlarındaki token kullanımını arka planda sayar. Sayaçlar dosya yoluna göre tutulur ve artımlı okur;

@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import SwiftUI
 
 /// Sol panel: projelere göre gruplu, açık Claude oturumları. Tıklayınca oturumun terminaline gider.

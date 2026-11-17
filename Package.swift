@@ -2,19 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "AjanTakip",
+    name: "Atolye",
     platforms: [.macOS(.v26)],
     dependencies: [
         .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.20.0"),
     ],
     targets: [
-        .target(name: "AjanTakipCore"),
-        .executableTarget(name: "AjanTakip", dependencies: ["AjanTakipCore"]),
-        .executableTarget(name: "Atolye", dependencies: ["AjanTakipCore", "AtolyeHostKit",
+        .target(name: "AtolyeCore"),
+        .executableTarget(name: "Atolye", dependencies: ["AtolyeCore", "AtolyeHostKit",
                                                        .product(name: "SwiftTerm", package: "SwiftTerm")], exclude: ["Web"]),
-        .target(name: "AtolyeHostKit", dependencies: ["AjanTakipCore", .product(name: "SwiftTerm", package: "SwiftTerm")]),
+        .target(name: "AtolyeHostKit", dependencies: ["AtolyeCore", .product(name: "SwiftTerm", package: "SwiftTerm")]),
         .executableTarget(name: "atolye-host", dependencies: ["AtolyeHostKit"]),
-        .testTarget(name: "AjanTakipCoreTests", dependencies: ["AjanTakipCore"]),
+        .testTarget(name: "AtolyeCoreTests", dependencies: ["AtolyeCore"]),
         .testTarget(name: "AtolyeHostKitTests", dependencies: ["AtolyeHostKit"]),
     ]
 )

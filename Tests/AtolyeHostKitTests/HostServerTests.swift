@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import Darwin
 import Foundation
 import Testing

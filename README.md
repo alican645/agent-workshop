@@ -125,9 +125,7 @@ Atölye'nin bilgisayarında değiştirdikleri (değişen her dosyanın aslı ön
 | `Atolye` | SwiftUI uygulaması; sahne `WKWebView` içinde three.js ile çizilir (`Sources/Atolye/Web`) |
 | `atolye-host` | Terminalleri barındıran arka plan yardımcısı (Unix soketi üzerinden) |
 | `AtolyeHostKit` | Yardımcının sunucu/istemci kodu, [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) ile |
-| `AjanTakipCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
-| `AjanTakip` | Projenin ilk hâli olan menü çubuğu uygulaması (artık kullanılmıyor; Swift paketi ve
-çekirdek modül adını oradan alıyor) |
+| `AtolyeCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
 
 Tasarım notları ve uygulama planları `docs/superpowers/` altında.
 
