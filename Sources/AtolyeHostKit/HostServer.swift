@@ -155,7 +155,7 @@ public final class HostServer: @unchecked Sendable {
 
     private func create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, for key: ObjectIdentifier) {
         let id = UUID().uuidString
-        var env = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CMUX_") }
+        var env = TerminalEnvironment.clean(ProcessInfo.processInfo.environment)
         env["ATOLYE_TERMINAL_ID"] = id
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"

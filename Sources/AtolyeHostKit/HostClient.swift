@@ -118,7 +118,7 @@ public final class HostClient: @unchecked Sendable {
         for fd: Int32 in [0, 1, 2] {
             posix_spawn_file_actions_addopen(&actions, fd, "/dev/null", fd == 0 ? O_RDONLY : O_WRONLY, 0)
         }
-        var env = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CMUX_") }
+        var env = TerminalEnvironment.clean(ProcessInfo.processInfo.environment)
         env["ATOLYE_SOCKET"] = socketPath
         let envp = env.map { strdup("\($0.key)=\($0.value)") } + [nil]
         let argv = [strdup(exe), nil]
