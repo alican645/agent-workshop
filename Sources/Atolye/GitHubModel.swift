@@ -52,6 +52,42 @@ final class GitHubModel {
         signInTask = Task { await runDeviceFlow() }
     }
 
+    /// Bu Mac'teki GitHub CLI (`gh`) — varsa girişini kullanmak için.
+    let ghPath: String? = ExecutableLocator.find(
+        "gh", preferred: [FileManager.default.homeDirectoryForCurrentUser.path + "/.local/bin/gh"],
+        pathEnv: ProcessInfo.processInfo.environment["PATH"], isExecutable: FileManager.default.isExecutableFile(atPath:))
+
+    /// OAuth kaydı gerekmeden: `gh auth token` ile alınan anahtarı kullanır.
+    func useGHLogin() {
+        guard let gh = ghPath else { return }
+        error = nil
+        Task {
+            let token = await Task.detached { Self.run(gh, ["auth", "token"]) }.value
+            guard let token, !token.isEmpty else {
+                error = "GitHub CLI'da giriş bulunamadı. Terminalde `gh auth login` ile giriş yapıp tekrar dene."
+                return
+            }
+            Keychain.save(token)
+            self.token = token
+            phase = .signedIn
+            await refresh()
+        }
+    }
+
+    nonisolated private static func run(_ exe: String, _ args: [String]) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: exe)
+        p.arguments = args
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        guard p.terminationStatus == 0 else { return nil }
+        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func cancelSignIn() {
         signInTask?.cancel()
         signInTask = nil

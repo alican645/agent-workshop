@@ -28,13 +28,21 @@ struct GitHubWindow: View {
             Text("Katkı grafiğini, serini ve son dönemde çalıştığın depoları burada görürsün.\n"
                  + "Atölye yalnızca okur; hiçbir şey yazmaz. Anahtar bu Mac'in Anahtar Zinciri'nde durur.")
                 .multilineTextAlignment(.center).foregroundStyle(GHTheme.muted).frame(maxWidth: 440)
-            Button { github.signIn() } label: {
-                Text("GitHub ile giriş yap").padding(.horizontal, 14).padding(.vertical, 6)
+            if github.configured {
+                Button { github.signIn() } label: {
+                    Text("GitHub ile giriş yap").padding(.horizontal, 14).padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent).tint(GHTheme.green(4))
             }
-            .buttonStyle(.borderedProminent).tint(GHTheme.green(4))
-            .disabled(!github.configured)
-            if !github.configured {
-                Text("GitHub OAuth uygulamasının Client ID'si henüz ayarlanmadı.").font(.caption).foregroundStyle(.orange)
+            if github.ghPath != nil {
+                Button { github.useGHLogin() } label: {
+                    Text("Bu Mac'teki GitHub girişini kullan").padding(.horizontal, 14).padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent).tint(github.configured ? .gray : GHTheme.green(4))
+                Text("Terminaldeki GitHub CLI (gh) girişiyle bağlanır; ayrıca onay gerekmez.")
+                    .font(.caption).foregroundStyle(GHTheme.muted)
+            } else if !github.configured {
+                Text("Giriş için GitHub CLI gerekli: `brew install gh` ve `gh auth login`.").font(.caption).foregroundStyle(.orange)
             }
             if let e = github.error { Text(e).font(.callout).foregroundStyle(.red) }
         }
