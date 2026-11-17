@@ -141,4 +141,13 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
         let robots = snap.zones[0].robots
         #expect(robots.map(\.tokens) == [330, nil] && robots.map(\.cost) == [1.25, nil])
     }
+
+    @Test func snapshotEncodesRobots() throws {
+        var snap = WorkshopSnapshot(zones: [])
+        let bare = String(decoding: try JSONEncoder().encode(snap), as: UTF8.self)
+        #expect(!bare.contains("\"robots\""))
+        snap.robots = RobotPool.sceneRobots(RobotPoolConfig())
+        let full = String(decoding: try JSONEncoder().encode(snap), as: UTF8.self)
+        #expect(full.contains("\"robots\"") && full.contains("\"builtin\""))
+    }
 }

@@ -87,6 +87,8 @@ struct SceneView: NSViewRepresentable {
                 }
             case "addProject":
                 model.addProject()
+            case "robotFailed":
+                if let id = body["id"] as? String { model.robotFailed(id, body["error"] as? String ?? "bilinmeyen hata") }
             case "unpin":
                 if let id = body["id"] as? String { model.unpin(id) }
             default:

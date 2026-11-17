@@ -84,6 +84,8 @@ public struct GitBadge: Codable, Equatable, Sendable {
 
 public struct WorkshopSnapshot: Codable, Equatable, Sendable {
     public var zones: [ZoneInfo]
+    /// Açık robotların havuzu (hazır ve kendi robotları); sahne yeni robotları buradan seçer.
+    public var robots: [PoolRobot]? = nil
 }
 
 /// Oturumları atölye bölgelerine (projeler) ve robotlara çevirir.

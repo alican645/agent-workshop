@@ -21,6 +21,12 @@ final class WorkshopModel {
     let github = GitHubModel()
     /// Kendi robotlarının klasörü (`<id>.glb` ve `robots.json`).
     nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
+    /// Robot havuzu: hazır robotların aç-kapası ve kendi `.glb` robotları.
+    let robotPool: RobotPoolStore = { let s = RobotPoolStore(dir: WorkshopModel.robotsDir); s.load(); return s }()
+    /// Sahnenin yükleyemediği kendi robotları (id → hata).
+    var robotFailures: [String: String] = [:]
+    /// Robotlar penceresi her değişiklikte artırır; görünümler yeniden çizilsin.
+    var robotsVersion = 0
     @ObservationIgnored private var lastProfilesRefresh = Date.distantPast
     static let profilesInterval: TimeInterval = 5
 
@@ -236,6 +242,16 @@ final class WorkshopModel {
         tick(initial: false)
     }
 
+    /// Havuz değişti: sahneye yeni havuzu hemen gönder.
+    func robotsChanged() {
+        robotsVersion += 1
+        tick(initial: false)
+    }
+
+    func robotFailed(_ id: String, _ error: String) {
+        robotFailures[id] = error
+    }
+
     func unpin(_ root: String) {
         changeDesk { $0.pinned.removeAll { $0 == root } }
         tick(initial: false)
@@ -310,10 +326,11 @@ final class WorkshopModel {
                 todos[root] = TodoList.parse(text)
             }
         }
-        let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
+        var snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
                                   terminalOf: terminalOf, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
                                   now: now, fileExists: fm.fileExists(atPath:))
+        snap.robots = RobotPool.sceneRobots(robotPool.config)
         refreshGit(roots: snap.zones.map(\.id), now: now)
         refreshUsage(configDirs: profiles.map(\.configDir), now: now)
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
