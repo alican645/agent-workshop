@@ -131,4 +131,14 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
                                   git: ["/p/x": badge], fileExists: exists)
         #expect(snap.zones.map(\.git) == [badge, nil])
     }
+
+    @Test func robotsCarryUsage() {
+        var u = SessionUsage()
+        u.tokens = TokenUsage(input: 10, output: 20, cacheRead: 300)
+        u.cost = 1.25
+        let snap = Workshop.build(sessions: [sess("a", cwd: "/p/x"), sess("b", cwd: "/p/x")], details: [:], todos: [:],
+                                  usage: ["a": u], fileExists: exists)
+        let robots = snap.zones[0].robots
+        #expect(robots.map(\.tokens) == [330, nil] && robots.map(\.cost) == [1.25, nil])
+    }
 }

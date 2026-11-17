@@ -35,6 +35,9 @@ public struct RobotInfo: Codable, Equatable, Sendable {
     public var history: [String]
     /// Oturum bir Atölye terminalindeyse onun kimliği.
     public var terminal: String?
+    /// Oturumun (yardımcılar dahil) toplam token'ı ve API liste fiyatıyla yaklaşık maliyeti (dolar).
+    public var tokens: Int? = nil
+    public var cost: Double? = nil
 }
 
 /// Atölyede açılmış düz terminal: tezgâhta bir makine.
@@ -140,7 +143,7 @@ public enum Workshop {
 
     public static func build(sessions: [Session], details: [String: RobotDetails], todos: [String: [TodoItem]],
                              terminals: [TerminalInfo] = [], terminalOf: [String: String] = [:], pinned: [String] = [],
-                             git: [String: GitBadge] = [:], now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
+                             git: [String: GitBadge] = [:], usage: [String: SessionUsage] = [:], now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
         var groups: [String: [(Session, String)]] = [:]
         for s in sessions {
             guard let cwd = s.cwd, !cwd.isEmpty else { continue }
@@ -172,7 +175,8 @@ public enum Workshop {
                     waitingFor: s.state == .waiting ? d?.waitingFor : nil,
                     helpers: (d?.helpers ?? []).map { HelperInfo(id: $0.id, task: $0.task, tool: $0.lastTool.map(toolText)) },
                     history: (d?.history ?? []).suffix(historyLimit).reversed().map(toolText),
-                    terminal: terminalOf[s.id])
+                    terminal: terminalOf[s.id],
+                    tokens: usage[s.id]?.tokens.total, cost: usage[s.id]?.cost)
             }
             let open = (todos[root] ?? []).filter { !$0.done }.prefix(todoLimit).map(\.text)
             return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(open),
