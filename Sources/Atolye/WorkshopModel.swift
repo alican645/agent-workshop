@@ -19,6 +19,8 @@ final class WorkshopModel {
     let profiles = Profiles()
     /// GitHub girişi ve kişisel pano.
     let github = GitHubModel()
+    /// Kendi robotlarının klasörü (`<id>.glb` ve `robots.json`).
+    nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
     @ObservationIgnored private var lastProfilesRefresh = Date.distantPast
     static let profilesInterval: TimeInterval = 5
 

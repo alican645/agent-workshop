@@ -1,3 +1,4 @@
+import AjanTakipCore
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -12,7 +13,7 @@ struct SceneView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.setURLSchemeHandler(WebFiles(root: Self.webRoot()), forURLScheme: "atolye")
+        config.setURLSchemeHandler(WebFiles(root: Self.webRoot(), robotsRoot: WorkshopModel.robotsDir), forURLScheme: "atolye")
         config.userContentController.add(context.coordinator, name: "atolye")
         let web = WKWebView(frame: .zero, configuration: config)
         web.setValue(false, forKey: "drawsBackground")
@@ -113,17 +114,17 @@ struct SceneView: NSViewRepresentable {
     }
 }
 
-/// `atolye://app/<yol>` isteklerini Web klasöründen karşılar.
+/// `atolye://app/<yol>` isteklerini Web klasöründen, `robots/…` isteklerini kendi robot klasöründen karşılar.
 final class WebFiles: NSObject, WKURLSchemeHandler {
     let root: URL
+    let robotsRoot: URL
 
-    init(root: URL) { self.root = root.standardizedFileURL }
+    init(root: URL, robotsRoot: URL) { self.root = root; self.robotsRoot = robotsRoot }
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
         guard let url = task.request.url else { return }
         let rel = url.path.hasPrefix("/") ? String(url.path.dropFirst()) : url.path
-        let file = root.appendingPathComponent(rel.isEmpty ? "index.html" : rel).standardizedFileURL
-        guard file.path.hasPrefix(root.path + "/"), let data = try? Data(contentsOf: file) else {
+        guard let file = WebPath.resolve(rel, webRoot: root, robotsRoot: robotsRoot), let data = try? Data(contentsOf: file) else {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
         }
