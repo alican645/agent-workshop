@@ -204,5 +204,14 @@
  "Girintiyi artır": "Indent",
  "Girintiyi azalt": "Outdent",
  "Sil": "Delete",
- "Yeni madde, Enter ile ekle": "New item, press Enter to add"
+ "Yeni madde, Enter ile ekle": "New item, press Enter to add",
+ "Bu ay": "This month",
+ "En yoğun gün": "Busiest day",
+ "henüz yok": "none yet",
+ "{0} token · son bir yıl": "{0} tokens · last year",
+ "Kullanım": "Usage",
+ "Bütün Claude oturumları ve hesaplar, yardımcı ajanlar dahil": "All Claude sessions and accounts, helper agents included",
+ "Kayıtlar {0} tarihinden beri.": "Records since {0}.",
+ "Claude Code eski oturum kayıtlarını siler (varsayılan 30 gün); Agent Workshop günlük toplamları ayrıca saklar, grafik zamanla bir yıla tamamlanır.": "Claude Code deletes old session logs (30 days by default); Agent Workshop keeps its own daily totals, so the chart fills up to a full year over time.",
+ "Tıkla: günlük kullanım grafiği.": "Click: daily usage chart."
 }

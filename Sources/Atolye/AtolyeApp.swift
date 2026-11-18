@@ -70,6 +70,13 @@ struct AtolyeApp: App {
         }
         .defaultSize(width: 820, height: 560)
         .defaultLaunchBehavior(.suppressed)
+        // Günlük token kullanımı (üst çubuktaki "Bugün" çipinden).
+        Window(L("Kullanım"), id: "usage") {
+            UsageWindow(model: model)
+                .environment(\.locale, L10n.locale)
+        }
+        .defaultSize(width: 920, height: 520)
+        .defaultLaunchBehavior(.suppressed)
     }
 }
 

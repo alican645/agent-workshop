@@ -158,7 +158,7 @@ struct GitHubWindow: View {
     }
 }
 
-private struct StatCard: View {
+struct StatCard: View {
     let title: String
     let value: String
     let note: String
@@ -176,9 +176,11 @@ private struct StatCard: View {
     }
 }
 
-/// GitHub tarzı katkı ısı haritası.
-private struct Heatmap: View {
+/// GitHub tarzı katkı ısı haritası. `color` seviyeye (0–4) göre renk, `help` kutunun üstüne gelince çıkan yazı.
+struct Heatmap: View {
     let days: [ContributionDay]
+    var color: (Int) -> Color = GHTheme.green
+    var help: (ContributionDay) -> String = { L("{0}: {1} katkı", $0.date, "\($0.count)") }
     static let cell: CGFloat = 11
     static let gap: CGFloat = 3
 
@@ -201,9 +203,9 @@ private struct Heatmap: View {
                         ForEach(0..<7, id: \.self) { d in
                             if d < week.count, let day = week[d] {
                                 RoundedRectangle(cornerRadius: 2)
-                                    .fill(GHTheme.green(ContributionGrid.level(day.count, in: days)))
+                                    .fill(color(ContributionGrid.level(day.count, in: days)))
                                     .frame(width: Self.cell, height: Self.cell)
-                                    .help(L("{0}: {1} katkı", day.date, "\(day.count)"))
+                                    .help(help(day))
                             } else {
                                 Color.clear.frame(width: Self.cell, height: Self.cell)
                             }
@@ -216,7 +218,7 @@ private struct Heatmap: View {
             Spacer()
             Text(L("Az")).font(.system(size: 9)).foregroundStyle(GHTheme.muted)
             ForEach(0..<5, id: \.self) { l in
-                RoundedRectangle(cornerRadius: 2).fill(GHTheme.green(l)).frame(width: Self.cell, height: Self.cell)
+                RoundedRectangle(cornerRadius: 2).fill(color(l)).frame(width: Self.cell, height: Self.cell)
             }
             Text(L("Çok")).font(.system(size: 9)).foregroundStyle(GHTheme.muted)
         }

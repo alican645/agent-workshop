@@ -20,6 +20,7 @@ final class WorkshopModel {
     /// GitHub girişi ve kişisel pano.
     let github = GitHubModel()
     let todos = Todos()
+    let usageHistory = UsageHistoryModel()
     /// Kendi robotlarının klasörü (`<id>.glb` ve `robots.json`).
     nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
     /// Robot havuzu: hazır robotların aç-kapası ve kendi `.glb` robotları.
@@ -412,6 +413,7 @@ final class WorkshopModel {
         snap.robots = RobotPool.sceneRobots(robotPool.config)
         refreshGit(roots: snap.zones.map(\.id), now: now)
         refreshUsage(configDirs: profiles.map(\.configDir), now: now)
+        usageHistory.refresh(configDirs: profiles.map(\.configDir))
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }
         notify(old: snapshot, new: snap)
         snapshot = snap

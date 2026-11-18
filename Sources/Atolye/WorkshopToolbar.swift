@@ -17,9 +17,7 @@ struct WorkshopToolbar: View {
             // Hesap ve harcama
             ProfileMenu(model: model)
             if model.todayTokens > 0 {
-                BarChip(icon: "chart.bar.xaxis", title: L("Bugün ≈ {0}", UsageFormat.usd(model.todayCost)),
-                        detail: L("{0} token", UsageFormat.tokens(model.todayTokens)), interactive: false)
-                    .help(L("Bugün bütün Claude oturumlarında (kapananlar dahil) harcanan token ve API karşılığı.") + "\n" + UsageFormat.note)
+                UsageButton(model: model)
             }
             BarSeparator()
             Button { model.addProject() } label: {
@@ -63,6 +61,22 @@ private struct TodosButton: View {
         }
         .buttonStyle(.plain)
         .help(L("Projelerin TODO.local.md maddeleri"))
+    }
+}
+
+/// Günün toplamı; tıklayınca günlük kullanım grafiği (Kullanım penceresi) açılır.
+private struct UsageButton: View {
+    let model: WorkshopModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button { openWindow(id: "usage") } label: {
+            BarChip(icon: "chart.bar.xaxis", title: L("Bugün ≈ {0}", UsageFormat.usd(model.todayCost)),
+                    detail: L("{0} token", UsageFormat.tokens(model.todayTokens)))
+        }
+        .buttonStyle(.plain)
+        .help(L("Bugün bütün Claude oturumlarında (kapananlar dahil) harcanan token ve API karşılığı.") + "\n"
+              + L("Tıkla: günlük kullanım grafiği.") + "\n" + UsageFormat.note)
     }
 }
 
