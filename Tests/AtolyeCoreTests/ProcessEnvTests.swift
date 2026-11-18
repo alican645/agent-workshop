@@ -35,4 +35,18 @@ import Testing
         #expect(ProcessEnv.terminalID(env: ["ATOLYE_TERMINAL_ID": ""]) == nil)
         #expect(ProcessEnv.terminalID(env: [:]) == nil)
     }
+
+    @Test func isAliveIgnoresZombies() {
+        #expect(ProcessEnv.isAlive(pid: getpid()))
+        #expect(!ProcessEnv.isAlive(pid: 999_999))
+        var pid: pid_t = 0
+        let args: [UnsafeMutablePointer<CChar>?] = [strdup("/usr/bin/true"), nil]
+        defer { args.forEach { free($0) } }
+        #expect(posix_spawn(&pid, "/usr/bin/true", nil, nil, args, nil) == 0)
+        Thread.sleep(forTimeInterval: 0.3) // çıktı ama toplanmadı: zombi
+        #expect(kill(pid, 0) == 0)
+        #expect(!ProcessEnv.isAlive(pid: pid))
+        var st: Int32 = 0
+        waitpid(pid, &st, 0)
+    }
 }

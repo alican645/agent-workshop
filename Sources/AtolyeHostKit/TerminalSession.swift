@@ -52,9 +52,11 @@ final class TerminalSession: LocalProcessDelegate {
             Darwin.kill(k, SIGHUP)
             Darwin.kill(k, SIGTERM)
         }
-        guard !kids.isEmpty else { return }
+        // Kabuk da (ör. tuzak kurmuş zsh) direnirse zorla bitir; oturum süreç bitene kadar tutulur.
+        let stubborn = kids + (pid > 0 ? [pid] : [])
+        guard !stubborn.isEmpty else { return }
         DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
-            for k in kids where Darwin.kill(k, 0) == 0 { Darwin.kill(k, SIGKILL) }
+            for k in stubborn where Darwin.kill(k, 0) == 0 { Darwin.kill(k, SIGKILL) }
         }
     }
 

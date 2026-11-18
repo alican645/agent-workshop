@@ -14,6 +14,18 @@ public struct CmuxIDs: Equatable, Sendable {
 
 /// Aynı kullanıcıya ait bir sürecin ortam değişkenlerini `KERN_PROCARGS2` ile okur.
 public enum ProcessEnv {
+    /// Süreç gerçekten çalışıyor mu? `kill(pid, 0)` zombi ve çıkmakta olan (`ps`'te `E`) süreçlere de
+    /// başarı döner; çekirdekte takılı kalmış bir Claude da böylece canlı sanılıyordu.
+    public static func isAlive(pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0 else { return kill(pid, 0) == 0 || errno == EPERM }
+        guard size > 0, info.kp_proc.p_pid == pid else { return false }
+        return info.kp_proc.p_stat != SZOMB && info.kp_proc.p_flag & P_WEXIT == 0
+    }
+
     public static func environment(pid: Int32) -> [String: String]? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0

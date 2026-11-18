@@ -520,7 +520,7 @@ final class WorkshopModel {
     }
 
     nonisolated static func isProcessAlive(_ pid: Int32) -> Bool {
-        kill(pid, 0) == 0 || errno == EPERM
+        ProcessEnv.isAlive(pid: pid)
     }
 
     static func play(_ kind: AlertKind) {

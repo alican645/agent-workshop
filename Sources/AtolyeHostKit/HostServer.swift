@@ -12,6 +12,10 @@ public final class HostServer: @unchecked Sendable {
     private var listenSource: DispatchSourceRead?
     private var clients: [ObjectIdentifier: Client] = [:]
     private var terminals: [String: TerminalSession] = [:]
+    /// Kapatılmış ama süreci henüz bitmemiş terminaller. Süreç bitene kadar tutulmalı: bırakılınca SwiftTerm
+    /// PTY'yi okumayı keser ama ana ucu açık tutar; okunmayan çıktı yüzünden oturum lideri zsh çekirdekte
+    /// (ttywait) "çıkıyor" durumunda sonsuza dek takılır, Claude da onunla. Kayıt dosyası canlı kalır.
+    private var dying: [String: TerminalSession] = [:]
     private var order: [String] = []
     private var idleWork: DispatchWorkItem?
 
@@ -135,15 +139,23 @@ public final class HostServer: @unchecked Sendable {
         case let .kill(id):
             if let t = terminals.removeValue(forKey: id) {
                 order.removeAll { $0 == id }
-                if t.info.running { t.terminate() }
+                retire(t)
             }
             scheduleIdleCheck()
         case .killAll:
-            for t in terminals.values where t.info.running { t.terminate() }
+            for t in terminals.values { retire(t) }
             terminals = [:]
             order = []
             scheduleIdleCheck()
         }
+    }
+
+    /// Listeden çıkan terminali öldürür ama süreç bitene kadar okumaya devam etsin diye tutar.
+    private func retire(_ t: TerminalSession) {
+        t.attached.removeAll()
+        guard t.info.running else { return }
+        dying[t.info.id] = t
+        t.terminate()
     }
 
     static func command(for kind: TerminalKind, args: [String] = []) -> [String] {
@@ -174,6 +186,7 @@ public final class HostServer: @unchecked Sendable {
                                 },
                                 onExit: { [weak self] t, code in
                                     guard let self else { return }
+                                    self.dying.removeValue(forKey: t.info.id)
                                     let frame = Frame.encode(HostEvent.exited(id: t.info.id, code: code))
                                     for k in t.attached { self.clients[k]?.write(frame) }
                                 })
