@@ -204,13 +204,12 @@ import Testing
                 == " " + String(repeating: down, count: submit - s.options[0].stop) + "\r\r")
     }
 
-    @Test func multiOnEarlierPageSubmitsOnce() throws {
-        // Başka cevapsız sekme var: Submit sonraki soruya geçer; ikinci Enter onu körlemesine cevaplardı.
+    @Test func multiOnEarlierPageSendsNothing() throws {
+        // Başka cevapsız sekme var: ara sayfada Submit'in ne yaptığı doğrulanmadı; hiçbir şey gönderilmez.
         let s = try screen("ask-pages-q3", replacing: "☒", with: "☐")
         #expect(!s.finalPage && s.page?.index == 0)
-        let submit = try #require(s.submitStop)
-        #expect(str(PromptKeys.keys(for: ans(s, checks: [0]), on: s))
-                == " " + String(repeating: down, count: submit - s.options[0].stop) + "\r")
+        #expect(PromptKeys.keys(for: ans(s, checks: [0]), on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s, checks: []), on: s) == nil)
     }
 
     // Bulgu 4: cevap gösterilen menünün kimliğini taşır; aynı etiketli başka bir menüye gitmez.

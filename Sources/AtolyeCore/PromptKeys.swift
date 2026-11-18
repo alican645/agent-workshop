@@ -52,7 +52,8 @@ public enum PromptKeys {
             out += enter
         } else {
             // Yalnız kutulu satırlar işaretlenebilir: kutusuz "Chat about this" satırında Boşluk/Enter menüden çıkar.
-            guard answer.option == nil, let submit = screen.submitStop,
+            // Ara sayfada (başka cevapsız sekme var) Submit'in ne yaptığı doğrulanmadı: hiçbir şey gönderilmez.
+            guard screen.finalPage, answer.option == nil, let submit = screen.submitStop,
                   answer.checks.allSatisfy({ opts.indices.contains($0) && opts[$0].checked != nil }) else { return nil }
             var want = Set(answer.checks)
             var freeIndex: Int?
@@ -77,10 +78,7 @@ public enum PromptKeys {
                 out += (i == freeIndex) ? (freeText ?? "") : space
             }
             move(to: submit)
-            out += enter
-            // "Review your answers" sayfası yalnız son cevapsız sorudan sonra gelir; daha önceki bir sayfada
-            // Submit o soruyu bitirip sonraki soruya geçer ve ikinci Enter onu körlemesine cevaplardı.
-            if screen.finalPage { out += enter }
+            out += enter + enter   // Submit, sonra "Review your answers" sayfasında Enter (yalnız son sayfada)
         }
         return out.data(using: .utf8)
     }
