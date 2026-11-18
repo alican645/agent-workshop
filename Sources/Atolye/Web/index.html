@@ -35,7 +35,6 @@
   #panel h4 .cnt{letter-spacing:0;font-weight:600;color:#b8ad9c;margin-left:4px}
   button{font:inherit;font-size:12px;border-radius:8px;padding:6px 11px;cursor:pointer;border:1px solid rgba(90,70,40,.2);background:#fff;color:#2c2a26}
   #home{position:fixed;right:16px;bottom:16px;z-index:5;display:none;box-shadow:0 4px 14px rgba(80,60,30,.15)}
-  #hint{right:16px;bottom:16px;font-size:12px;color:#8a7f70}
   .tag{font-size:11px;font-weight:600;color:#3a352d;background:rgba(255,255,255,.92);padding:2px 7px;border-radius:7px;box-shadow:0 2px 6px rgba(60,40,20,.15);white-space:nowrap;transition:opacity .3s}
   .tag.ag{font-weight:500;color:#5b4c9c;font-size:10px}
   .tag .p{font-weight:500;color:#8a7f70}
@@ -73,7 +72,6 @@
 <div id="panel" class="hud"></div>
 <button id="home" data-i18n>← atölyeye dön</button>
 <div id="feed" class="hud"><h2 data-i18n>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty" data-i18n>henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud" data-i18n>bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · tahtaya tıkla: yapılacaklar · sürükle: döndür</div>
 
 <script>
   // Durağan metinler: İngilizce seçiliyse sözlükten (sözlüğü uygulama sayfa açılmadan verir).
@@ -549,7 +547,7 @@ function counts() {
   document.getElementById('empty').style.display = snapshot.zones.length ? 'none' : 'block';
 }
 let selected = null, fly = null;
-const panel = document.getElementById('panel'), homeBtn = document.getElementById('home'), hint = document.getElementById('hint');
+const panel = document.getElementById('panel'), homeBtn = document.getElementById('home');
 function renderPanel() {
   const z = selected && snapshot.zones.find((z) => z.id === selected);
   if (!z) { if (selected) goHome(); panel.style.display = 'none'; return; }
@@ -586,9 +584,9 @@ function select(Z) {
   selected = Z.id;
   const p = Z.target;
   fly = { tgt: new V(p.x, 1.2, p.z), cam: new V(p.x, 9, p.z + 14) };
-  homeBtn.style.display = 'block'; hint.style.display = 'none'; panel._last = null; renderPanel();
+  homeBtn.style.display = 'block'; panel._last = null; renderPanel();
 }
-function goHome() { selected = null; fly = { tgt: homeTgt.clone(), cam: homeCam.clone() }; homeBtn.style.display = 'none'; hint.style.display = ''; panel.style.display = 'none'; }
+function goHome() { selected = null; fly = { tgt: homeTgt.clone(), cam: homeCam.clone() }; homeBtn.style.display = 'none'; panel.style.display = 'none'; }
 homeBtn.onclick = goHome;
 controls.addEventListener('start', () => { fly = null; });
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null;
@@ -608,6 +606,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   post({ type: 'sceneTap' }); // boşluğa ya da bölgeye dokunuş: pencereler sol panele çekilir
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) select([...zones.values()].find((z) => z.hit === zh.object));
+  else if (selected) goHome(); // bölge dışına dokunuş: odaktan çık
 });
 
 renderer.domElement.addEventListener('dblclick', (e) => {
