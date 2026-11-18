@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DETAIL_MAX, waitingPrompts, balloonHtml, answerMessage, isPlaceholder, menuKey, dropFocus } from '../../Sources/Atolye/Web/prompts.mjs';
+import { DETAIL_MAX, DETAIL_COMPACT, waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isCheckable, menuKey, dropFocus } from '../../Sources/Atolye/Web/prompts.mjs';
 import { makeT } from '../../Sources/Atolye/Web/i18n.mjs';
 
 const t = makeT(null);
@@ -10,7 +10,7 @@ const opts = { t, esc, compact: false };
 const prompt = (o = {}) => ({
   kind: 'permission', question: 'Do you want to proceed?',
   options: [{ label: 'Yes', freeText: false }, { label: 'No', freeText: false }],
-  multi: false, answerable: true, sent: false, failed: false, ...o,
+  multi: false, answerable: true, sent: false, failed: false, menuId: 'm1', ...o,
 });
 const item = (p, o = {}) => ({ robot: 'r1', label: 'claude', color: '#f00', prompt: p, ...o });
 const html = (p, o = {}, ui = {}) => balloonHtml([item(p, o)], { ...opts, ...ui });
@@ -66,7 +66,18 @@ test('failedShowsOpenTerminal', () => {
   const h = html(prompt({ failed: true }), { terminal: 't1' });
   assert.ok(h.includes('gitmedi — terminali aç'));
   assert.ok(h.includes('data-term="t1"'));
-  assert.ok(!h.includes('disabled')); // yeniden denenebilir
+  // Bulgu 5: yeniden deneme yok; seçenekler kapalı, "terminali aç" bağlantısı açık.
+  const buttons = [...h.matchAll(/<button[^>]*class="po[^"]*"[^>]*>/g)].map((m) => m[0]);
+  assert.equal(buttons.length, 2);
+  for (const b of buttons) assert.ok(b.includes('disabled'), b);
+});
+
+// Bulgu 5: Swift eski sürümde sent ile failed'ı birlikte yollayabilir; "gitmedi" öncelikli.
+test('failedWinsOverSent', () => {
+  const h = html(prompt({ sent: true, failed: true }), { terminal: 't1' });
+  assert.ok(h.includes('gitmedi — terminali aç'));
+  assert.ok(!h.includes('gönderildi…'));
+  assert.ok(h.includes('data-term="t1"'));
 });
 
 test('detailIsTruncated', () => {
@@ -125,22 +136,52 @@ test('freeTextEditShowsInput', () => {
 });
 
 test('placeholderOnlyForUntypedFreeText', () => {
-  assert.ok(isPlaceholder({ label: 'Type something.', freeText: true }));
-  assert.ok(isPlaceholder({ label: 'Tell Claude what to change', freeText: true }));
-  assert.ok(!isPlaceholder({ label: 'hello', freeText: true }));
-  assert.ok(!isPlaceholder({ label: 'Type something.', freeText: false }));
+  assert.ok(isPlaceholder({ label: 'Type something.', freeText: true }, 'question'));
+  assert.ok(!isPlaceholder({ label: 'hello', freeText: true }, 'question'));
+  assert.ok(!isPlaceholder({ label: 'Type something.', freeText: false }, 'question'));
+});
+
+// Bulgu 1: plan/izin menüsünde serbest satır sıradan seçenektir (tıkla = seç + Enter, yazı kutusu yok).
+test('placeholderOnlyInQuestions', () => {
+  assert.ok(!isPlaceholder({ label: 'Tell Claude what to change', freeText: true }, 'plan'));
+  assert.ok(!isPlaceholder({ label: 'No, and tell Claude what to do differently', freeText: true }, 'permission'));
+  assert.ok(!isPlaceholder({ label: 'Type something.', freeText: true }));
+});
+
+// Bulgu 2: çoklu seçimde kutusuz satır ("Chat about this") işaretlenemez: kutu yok, düğme kapalı.
+test('multiRowWithoutCheckboxIsDisabled', () => {
+  const p = prompt({ kind: 'question', multi: true, options: [
+    { label: 'Apple', freeText: false, checked: false }, { label: 'Chat about this', freeText: false }] });
+  assert.ok(isCheckable(p, 0));
+  assert.ok(!isCheckable(p, 1));
+  assert.ok(!isCheckable(p, 5));
+  const h = html(p);
+  const buttons = [...h.matchAll(/<button[^>]*class="po[^"]*"[^>]*>.*?<\/button>/g)].map((m) => m[0]);
+  assert.ok(!buttons[0].includes('disabled') && buttons[0].includes('☐'));
+  assert.ok(buttons[1].includes('disabled'), buttons[1]);
+  assert.ok(!buttons[1].includes('☐') && !buttons[1].includes('☑'));
+  // Tek seçimde "Chat about this" sıradan seçenektir.
+  assert.ok(isCheckable(prompt(), 0) === false);
 });
 
 test('answerMessageCarriesLabels', () => {
   const p = prompt();
   const m = answerMessage('r1', p, { option: 1 });
-  assert.deepEqual(m, { type: 'answer', robot: 'r1', labels: ['Yes', 'No'], option: 1 });
+  assert.deepEqual(m, { type: 'answer', robot: 'r1', labels: ['Yes', 'No'], menuId: 'm1', option: 1 });
+});
+
+// Bulgu 4: cevap gösterilen menünün kimliğini taşır; kimlik yoksa alan yazılmaz (Swift mesajı reddeder).
+test('answerMessageEchoesMenuId', () => {
+  assert.equal(answerMessage('r1', prompt({ menuId: 'x' }), { option: 0 }).menuId, 'x');
+  assert.ok(!('menuId' in answerMessage('r1', prompt({ menuId: undefined }), { option: 0 })));
+  assert.ok(!('menuId' in answerMessage('r1', prompt({ menuId: 5 }), { option: 0 })));
+  assert.notEqual(menuKey(prompt({ menuId: 'a' })), menuKey(prompt({ menuId: 'b' })));
 });
 
 test('answerMessageMultiSendsChecksOnly', () => {
   const p = prompt({ multi: true, options: [{ label: 'A', freeText: false, checked: false }, { label: 'B', freeText: false, checked: true }] });
   const m = answerMessage('r1', p, { option: 0, checks: [1, 0] });
-  assert.deepEqual(m, { type: 'answer', robot: 'r1', labels: ['A', 'B'], checks: [0, 1] });
+  assert.deepEqual(m, { type: 'answer', robot: 'r1', labels: ['A', 'B'], menuId: 'm1', checks: [0, 1] });
 });
 
 test('answerMessageOmitsEmptyText', () => {
@@ -149,7 +190,7 @@ test('answerMessageOmitsEmptyText', () => {
   assert.ok(!('text' in answerMessage('r1', p, { option: 0, text: null })));
   assert.equal(answerMessage('r1', p, { option: 0, text: 'hi' }).text, 'hi');
   const json = JSON.parse(JSON.stringify(answerMessage('r1', p, { option: 0 })));
-  assert.deepEqual(Object.keys(json).sort(), ['labels', 'option', 'robot', 'type']);
+  assert.deepEqual(Object.keys(json).sort(), ['labels', 'menuId', 'option', 'robot', 'type']);
 });
 
 test('escapesHtml', () => {
@@ -160,12 +201,24 @@ test('escapesHtml', () => {
   assert.ok(!h.includes('<s>'));
 });
 
-test('compactHidesDetailAndDescriptions', () => {
-  const p = prompt({ detail: 'rm -rf build', options: [{ label: 'Yes', description: 'desc here', freeText: false }] });
+test('compactHidesDescriptions', () => {
+  const p = prompt({ kind: 'question', options: [{ label: 'Yes', description: 'desc here', freeText: false }] });
   const h = balloonHtml([item(p)], { ...opts, compact: true });
-  assert.ok(!h.includes('rm -rf build'));
   assert.ok(!h.includes('desc here'));
   assert.ok(h.includes('[1]'));
+});
+
+// Bulgu 9: küçük görünümde de izin komutu (kısaltılmış) görünür: "Yes" görülmemiş bir komutu onaylamasın.
+test('compactShowsClippedPermissionDetail', () => {
+  const detail = 'rm -rf build; ' + 'x'.repeat(200);
+  const h = balloonHtml([item(prompt({ detail }))], { ...opts, compact: true });
+  const m = h.match(/<div class="pd" title="([^"]*)">([^<]*)<\/div>/);
+  assert.ok(m, h);
+  assert.equal(m[1], detail);
+  assert.ok(m[2].startsWith('rm -rf build'));
+  assert.ok(m[2].length <= DETAIL_COMPACT && m[2].endsWith('…'));
+  assert.equal(DETAIL_COMPACT, 60);
+  assert.ok(balloonHtml([item(prompt({ detail: 'ls' }))], { ...opts, compact: true }).includes('>ls</div>'));
 });
 
 // Yeni menü (aynı etiketli yeni bir izin bile) eski odağı devralmaz: rakam görülmemiş soruyu cevaplamasın.

@@ -117,7 +117,7 @@ import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
 import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
 import { t, LOCALE } from './i18n.mjs';
 import { homeDistance, homePosition } from './view.mjs';
-import { waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isOff, initialChecks, menuKey, dropFocus } from './prompts.mjs';
+import { waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isCheckable, isOff, initialChecks, menuKey, dropFocus } from './prompts.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
@@ -681,7 +681,7 @@ function renderBalloon(Z) {
     const pd = ui.pending.get(it.robot);
     if (pd && (pd.full !== JSON.stringify(it.prompt) || now - pd.at > PENDING_MS)) ui.pending.delete(it.robot);
   }
-  // Yeni menü eski odağı devralmaz (aynı etiketli yeni bir izin bile); fare üstündeyse yeniden üstüne gelince odaklanır.
+  // Yeni menü eski odağı devralmaz (aynı etiketli yeni bir izin bile); fare üstündeyse kıpırdayınca (pointermove) yeniden odaklanır.
   hoverFocus = dropFocus(hoverFocus, changed); clickFocus = dropFocus(clickFocus, changed);
   const compact = selected == null;
   Z.balloon.visible = items.length > 0;
@@ -708,7 +708,8 @@ function markFocus() {
     if (on) el.dataset.focus = '1'; else delete el.dataset.focus;
   });
 }
-const isBusy = (it) => isOff(it.prompt) || it.prompt.sent || ui.pending.has(it.robot);
+// Gitmedi sayılan menüye yeniden deneme yok: cevap terminalde verilir.
+const isBusy = (it) => isOff(it.prompt) || it.prompt.sent || it.prompt.failed || ui.pending.has(it.robot);
 function sendAnswer(Z, it, args, shown) {
   if (isBusy(it)) return;
   post(answerMessage(it.robot, it.prompt, args));
@@ -728,15 +729,17 @@ function choose(Z, it, i) {
   const p = it.prompt, o = p.options[i];
   if (!o || isBusy(it)) return;
   if (p.multi) {
+    if (!isCheckable(p, i)) return; // kutusuz satır ("Chat about this") işaretlenmez
     const set = new Set(ui.checks.get(it.robot) ?? initialChecks(p));
     if (set.has(i)) set.delete(i); else set.add(i);
     ui.checks.set(it.robot, set);
-    if (set.has(i) && isPlaceholder(o)) return openEdit(Z, it, i);
+    if (set.has(i) && isPlaceholder(o, p.kind)) return openEdit(Z, it, i);
     if (!set.has(i) && ui.edit.get(it.robot) === i) ui.edit.delete(it.robot);
     return renderBalloon(Z);
   }
-  // Boş serbest metin satırı yazı kutusu açar; terminalde önceden yazılmışsa (Swift yeni metni reddeder) yalnız seçilir.
-  if (isPlaceholder(o)) return openEdit(Z, it, i);
+  // Sorudaki boş serbest metin satırı yazı kutusu açar; terminalde önceden yazılmışsa (Swift yeni metni reddeder)
+  // ya da plan/izin menüsündeyse (metin gönderilmez) yalnız seçilir: Enter'dan sonrası terminalde.
+  if (isPlaceholder(o, p.kind)) return openEdit(Z, it, i);
   sendAnswer(Z, it, { option: i }, o.label);
 }
 /** "Gönder": çoklu seçimde işaretlerin tamamı, tek seçimde yazı kutusundaki metin. */
@@ -747,7 +750,8 @@ function submit(Z, it) {
   if (p.multi) {
     const set = new Set(ui.checks.get(it.robot) ?? initialChecks(p));
     // Metni yazılmamış boş satır işaretlenmez: terminalde yazı moduna geçirirdi.
-    if (!text) p.options.forEach((o, i) => { if (isPlaceholder(o) && !o.checked) set.delete(i); });
+    if (!text) p.options.forEach((o, i) => { if (isPlaceholder(o, p.kind) && !o.checked) set.delete(i); });
+    for (const i of [...set]) if (!isCheckable(p, i)) set.delete(i);
     const shown = [...set].sort((a, b) => a - b).map((i) => (i === ei && text ? text : p.options[i].label)).join(', ');
     return sendAnswer(Z, it, { checks: [...set], ...(text ? { text } : {}) }, shown || '—');
   }
@@ -772,7 +776,9 @@ function wireBalloon(Z) {
     const b = e.target.closest('button.po');
     if (b && !b.disabled) choose(Z, c.it, Number(b.dataset.i));
   });
-  Z.balEl.addEventListener('pointerover', (e) => {
+  // Odak yalnız fare gerçekten kıpırdayınca: hareketsiz imlecin altına yeni çıkan menü 1–9'u almasın
+  // (pointerover yeniden çizimde de gelir).
+  Z.balEl.addEventListener('pointermove', (e) => {
     const c = card(e); if (!c || hoverFocus?.robot === c.it.robot) return;
     hoverFocus = { zone: Z.id, robot: c.it.robot }; markFocus();
   });
