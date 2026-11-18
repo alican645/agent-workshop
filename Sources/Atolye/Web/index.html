@@ -90,6 +90,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
 import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
 import { t, LOCALE } from './i18n.mjs';
+import { homeDistance, homePosition } from './view.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
@@ -624,10 +625,18 @@ function layout() {
     const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols), col = i % cols;
     Z.target.set((col - (inRow - 1) / 2) * GAP_X, 0, (row - (rows - 1) / 2) * GAP_Z);
   });
-  const span = Math.max(24, cols * GAP_X, rows * GAP_Z * 1.4);
-  homeTgt = new V(0, 0, 0);
-  homeCam = new V(0, span * 0.36, span * 0.5);
+  grid = { cols, rows };
+  fitHome();
   if (!selected) fly = { tgt: homeTgt.clone(), cam: homeCam.clone() };
+}
+/** Genel görünüm: bütün platformlar ekrana sığacak kadar uzak (proje sayısına ve pencere oranına göre). */
+let grid = { cols: 1, rows: 1 };
+function fitHome() {
+  const d = homeDistance({ ...grid, gapX: GAP_X, gapZ: GAP_Z, fov: camera.fov, aspect: camera.aspect });
+  homeTgt = new V(0, 0, 0);
+  homeCam = new V(...homePosition(d));
+  controls.maxDistance = Math.max(120, d * 1.6);
+  scene.fog.near = Math.max(70, d + 15); scene.fog.far = Math.max(160, d * 2.5);
 }
 function usd(v) { return v < 0.01 ? '<$0.01' : '$' + (v < 100 ? v.toFixed(2) : v.toFixed(0)); }
 function tok(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n); }
@@ -806,6 +815,7 @@ document.addEventListener('visibilitychange', () => setActive(document.visibilit
 addEventListener('resize', () => {
   camera.aspect = W() / H(); camera.updateProjectionMatrix();
   renderer.setSize(W(), H()); labels.setSize(W(), H());
+  fitHome(); // odakta değilken bir sonraki "atölyeye dön" yeni orana göre
 });
 
 // Hazır robotların hepsi yüklenince sahne başlar; yüklenemeyen hazır robot havuzda atlanır.
