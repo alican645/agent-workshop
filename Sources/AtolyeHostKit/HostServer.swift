@@ -142,6 +142,9 @@ public final class HostServer: @unchecked Sendable {
                 retire(t)
             }
             scheduleIdleCheck()
+        case let .screen(id):
+            guard let m = terminals[id]?.mirror else { return send(.error("ekran yok: \(id)"), to: key) }
+            send(.screen(id: id, lines: m.lines(), cursorRow: m.cursorRow), to: key)
         case .killAll:
             for t in terminals.values { retire(t) }
             terminals = [:]

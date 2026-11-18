@@ -68,6 +68,8 @@ final class HostConnection {
         case let .exited(id, code):
             terminals[id]?.running = false
             terminals[id]?.exitCode = code
+        case .screen:
+            break  // ekran yanıtını isteyen yer ayrıca işler (şimdilik kimse istemiyor)
         case let .error(msg):
             if msg == HostClient.disconnected { retry() }
         }
