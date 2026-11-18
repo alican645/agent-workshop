@@ -31,7 +31,10 @@ public enum PromptKeys {
         // text verilmişse yalnız serbest metin seçeneğinde, temizlenince boş kalmayan metin geçerli.
         func typed(for i: Int) -> String?? {
             guard let raw = answer.text else { return .some(nil) }
-            guard opts[i].freeText else { return nil }
+            // Satırda önceden yazılmış metin varsa (etiket artık yer tutucu değil) terminal üstüne ekler
+            // ("hello"+"world"); silme tuşu doğrulanmadığı için cevap verilmez.
+            guard opts[i].freeText,
+                  PromptParser.freeTextPrefixes.contains(where: { opts[i].label.hasPrefix($0) }) else { return nil }
             let t = sanitize(raw)
             return t.isEmpty ? nil : .some(t)
         }

@@ -133,4 +133,20 @@ import Testing
         s.submitStop = nil
         #expect(PromptKeys.keys(for: ans(s, checks: [0]), on: s) == nil)
     }
+
+    @Test func prefilledFreeTextRowRejectsNewText() throws {
+        let s = try screen("ask-single-typed")   // serbest satırın etiketi "hello"
+        let i = try #require(s.options.firstIndex(where: { $0.freeText }))
+        #expect(s.options[i].label == "hello")
+        #expect(PromptKeys.keys(for: ans(s, option: i, text: "x"), on: s) == nil)
+        // Yeni metinsiz seçim serbest: ekrandakini gönderir.
+        #expect(PromptKeys.keys(for: ans(s, option: i), on: s) != nil)
+    }
+
+    @Test func prefilledMultiFreeTextRowRejectsNewText() throws {
+        var s = try screen("ask-multi")
+        let i = try #require(s.options.firstIndex(where: { $0.freeText }))
+        s.options[i].label = "kiwi"; s.options[i].checked = true
+        #expect(PromptKeys.keys(for: ans(s, checks: [i], text: "x"), on: s) == nil)
+    }
 }
