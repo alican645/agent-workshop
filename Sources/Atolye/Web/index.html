@@ -58,6 +58,32 @@
   .gittag{font-size:11px;font-weight:600;background:#2c2a26;color:#f3e9da;padding:2px 9px;border-radius:9px;white-space:nowrap;transition:opacity .3s}
   .gittag .gc{color:#ffb070}.gittag .ga{color:#8fd3b4}.gittag .gb{color:#9fc3ff}
   .gitline{font-size:12px;color:#5c554b;margin:-4px 0 8px}
+  /* Platform balonu: bekleyen ajanın seçenekleri. Yalnız balonun kendisi tıklanır, çevresi sahneyi sürükler. */
+  .pwrap{pointer-events:none}
+  .pbal{pointer-events:auto;width:268px;max-height:300px;overflow:auto;background:rgba(255,253,248,.95);border:1px solid rgba(90,70,40,.12);border-radius:14px;padding:6px 10px;box-shadow:0 6px 24px rgba(80,60,30,.16);font-size:12px;color:#2c2a26;transform-origin:50% 0;transition:transform .3s}
+  .pbal.compact{transform:scale(.75)}
+  .pq{padding:6px 0}
+  .pq+.pq{border-top:1px solid rgba(90,70,40,.1)}
+  .pq[data-focus]{box-shadow:inset 3px 0 0 #ff8c2e;padding-left:8px;margin-left:-8px}
+  .pq .ph{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#5c554b}
+  .pq .ph .pg{margin-left:auto;font-weight:500;color:#a09583;font-variant-numeric:tabular-nums}
+  .pq .pt{font-weight:600;margin:3px 0 4px;line-height:1.35}
+  .pq .pd{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#5c554b;background:rgba(90,70,40,.06);border-radius:6px;padding:3px 6px;margin-bottom:5px;word-break:break-all}
+  .pq .po{display:block;width:100%;text-align:left;margin:3px 0;padding:5px 8px;line-height:1.3}
+  .pq .po:hover:not([disabled]){background:#fff2e4;border-color:#f0b37a}
+  .pq .po .pk{color:#a09583;font-variant-numeric:tabular-nums}
+  .pq .po .pds{display:block;font-size:11px;color:#8a7f70;margin-top:1px}
+  .pq button[disabled]{opacity:.5;cursor:default}
+  .pq .pin{display:flex;gap:5px;margin:3px 0}
+  .pq .pin input{flex:1;min-width:0;font:inherit;font-size:12px;padding:5px 7px;border-radius:8px;border:1px solid #f0b37a;outline:none;-webkit-user-select:text;user-select:text}
+  .pq .psend{margin-top:3px;background:#2c2a26;color:#fff;border-color:#2c2a26}
+  .pq .pin .psend{margin-top:0}
+  .pq a{color:#6f5fb0;cursor:pointer;text-decoration:underline}
+  .pq .pl{display:inline-block;margin-top:4px;font-size:12px}
+  .pq .ps,.pq .pnote{font-size:11px;color:#8a7f70;margin-top:4px}
+  .pq .ps.err{color:#c0502a}.pq .ps.err a{color:#c0502a}
+  .pq.off .pt,.pq.off .po{opacity:.6}
+  .compact .pq .pt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   #empty{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;font-size:14px;color:#8a7f70;display:none}
 </style>
 <script type="importmap">
@@ -91,6 +117,7 @@ import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
 import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
 import { t, LOCALE } from './i18n.mjs';
 import { homeDistance, homePosition } from './view.mjs';
+import { waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isOff, initialChecks } from './prompts.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
@@ -217,6 +244,9 @@ function buildZone(info) {
   for (const x of [-2.3, 2.3]) { const p = box(0.12, 3.0, 0.12, metal); p.position.set(x, 1.5, -3.8); g.add(p); }
   const gitEl = css('gittag', ''); const gitTag = new CSS2DObject(gitEl); gitTag.position.set(0, 2.72, -3.75); gitTag.visible = false; g.add(gitTag);
   const more = new CSS2DObject(css('more', '')); more.position.set(3.2, 4.4, -3.75); more.visible = false; g.add(more);
+  // Platform balonu: tabelanın alt kenarından aşağı sarkar (üst kenarı noktada), git etiketinin yerini alır.
+  const balWrap = css('pwrap', '<div class="pbal"></div>'), balEl = balWrap.firstChild;
+  const balloon = new CSS2DObject(balWrap); balloon.center.set(0.5, 0); balloon.position.set(0, 2.95, -3.75); balloon.visible = false; g.add(balloon);
   const crates = [[-5, 3], [5, 3]].map(([x, zz]) => { const c = box(0.9, 0.9, 0.9, 0xc99a63); c.position.set(x, 0.53, zz); c.rotation.y = Math.random(); g.add(c); return new V(x, 0, zz - 0.9); });
   const frame = new THREE.Group(); g.add(frame);
   const fm = new THREE.MeshStandardMaterial({ color: 0xff8c2e, emissive: 0xff7a1a, emissiveIntensity: 1.2 });
@@ -232,7 +262,8 @@ function buildZone(info) {
   const slots = new THREE.Group(); bench.add(slots);
   const machGroup = new THREE.Group(); g.add(machGroup);
   g.scale.setScalar(0.001);
-  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag, board };
+  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag, board, balloon, balEl, prompts: [] };
+  wireBalloon(Z);
   zones.set(info.id, Z);
   return Z;
 }
@@ -594,13 +625,16 @@ function select(Z) {
   selected = Z.id;
   const p = Z.target;
   fly = { tgt: new V(p.x, 1.2, p.z), cam: new V(p.x, 9, p.z + 14) };
-  homeBtn.style.display = 'block'; panel._last = null; renderPanel();
+  homeBtn.style.display = 'block'; panel._last = null; renderPanel(); renderBalloons();
 }
-function goHome() { selected = null; fly = { tgt: homeTgt.clone(), cam: homeCam.clone() }; homeBtn.style.display = 'none'; panel.style.display = 'none'; }
+function goHome() { selected = null; fly = { tgt: homeTgt.clone(), cam: homeCam.clone() }; homeBtn.style.display = 'none'; panel.style.display = 'none'; renderBalloons(); }
 homeBtn.onclick = goHome;
 controls.addEventListener('start', () => { fly = null; });
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null;
-renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  down = [e.clientX, e.clientY];
+  if (clickFocus) { clickFocus = null; markFocus(); } // sahneye tıklama balon odağını bırakır
+});
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; }
   down = null; ndc.set((e.clientX / W()) * 2 - 1, -(e.clientY / H()) * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -624,6 +658,143 @@ renderer.domElement.addEventListener('dblclick', (e) => {
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) post({ type: 'openZone', id: [...zones.values()].find((z) => z.hit === zh.object).id });
 });
+
+// ---------- platform balonu (bekleyen ajanın seçenekleri) ----------
+// Yerel durum robot id'sine göre: tıklanıp snapshot'ı beklenen cevap (çift tık iki kez göndermesin),
+// çoklu seçimde yerel işaretler, yazı kutusu açık seçenek. Menü değişince işaret/yazı kutusu sıfırlanır.
+const PENDING_MS = 3000;
+const ui = { pending: new Map(), checks: new Map(), edit: new Map(), menus: new Map() };
+let hoverFocus = null, clickFocus = null; // { zone, robot }: 1–9 / Esc bu balona gider
+const menuKey = (p) => JSON.stringify([p.kind, p.question, p.multi, p.page, (p.options || []).map((o) => o.label)]);
+const focusNow = () => hoverFocus || clickFocus;
+function promptItem(f) {
+  const Z = f && zones.get(f.zone);
+  const it = Z && !Z.leaving && Z.prompts.find((x) => x.robot === f.robot);
+  return it ? { Z, it } : null;
+}
+function renderBalloon(Z) {
+  const items = Z.leaving ? [] : waitingPrompts(Z.info);
+  Z.prompts = items;
+  const now = performance.now();
+  for (const it of items) {
+    const mk = menuKey(it.prompt);
+    if (ui.menus.get(it.robot) !== mk) { ui.menus.set(it.robot, mk); ui.checks.delete(it.robot); ui.edit.delete(it.robot); }
+    const pd = ui.pending.get(it.robot);
+    if (pd && (pd.full !== JSON.stringify(it.prompt) || now - pd.at > PENDING_MS)) ui.pending.delete(it.robot);
+  }
+  const compact = selected == null;
+  Z.balloon.visible = items.length > 0;
+  Z.gitTag.visible = !!Z.info.git && !Z.balloon.visible; // balon git etiketinin üstüne düşer
+  const html = balloonHtml(items, { t, esc, compact, pending: new Set(ui.pending.keys()), checks: ui.checks, edit: ui.edit });
+  Z.balEl.classList.toggle('compact', compact);
+  if (html === Z.balEl._last) return markFocus();
+  // Yeniden çizimde yazılmakta olan metin ve imleç korunur.
+  const inp = Z.balEl.querySelector('.pin input');
+  const keep = inp && { robot: inp.closest('.pq').dataset.robot, i: inp.dataset.i, v: inp.value, f: document.activeElement === inp, s: inp.selectionStart };
+  Z.balEl._last = html; Z.balEl.innerHTML = html;
+  if (keep) {
+    const n = Z.balEl.querySelector(`.pq[data-robot="${CSS.escape(keep.robot)}"] .pin input[data-i="${keep.i}"]`);
+    if (n) { n.value = keep.v; if (keep.f) { n.focus(); n.setSelectionRange(keep.s, keep.s); } }
+  }
+  markFocus();
+}
+function renderBalloons() { for (const Z of zones.values()) renderBalloon(Z); }
+/** Klavye odağındaki kartı işaretle (yeniden çizmeden: üstüne gelirken tıklama kaybolmasın). */
+function markFocus() {
+  const f = focusNow();
+  for (const Z of zones.values()) Z.balEl.querySelectorAll('.pq').forEach((el) => {
+    const on = !!f && f.zone === Z.id && f.robot === el.dataset.robot;
+    if (on) el.dataset.focus = '1'; else delete el.dataset.focus;
+  });
+}
+const isBusy = (it) => isOff(it.prompt) || it.prompt.sent || ui.pending.has(it.robot);
+function sendAnswer(Z, it, args, shown) {
+  if (isBusy(it)) return;
+  post(answerMessage(it.robot, it.prompt, args));
+  ui.pending.set(it.robot, { full: JSON.stringify(it.prompt), at: performance.now() });
+  ui.edit.delete(it.robot);
+  feed(`<b>${esc(Z.info.name)}</b> · ${t('{0}\'e cevap verildi: {1}', esc(it.label), esc(shown))}`);
+  renderBalloon(Z);
+  setTimeout(() => renderBalloon(Z), PENDING_MS + 50); // snapshot gelmese de düğmeler geri açılsın
+}
+function openEdit(Z, it, i) {
+  ui.edit.set(it.robot, i); renderBalloon(Z);
+  Z.balEl.querySelector(`.pq[data-robot="${CSS.escape(it.robot)}"] .pin input`)?.focus();
+}
+/** Seçeneğe tıklama ya da 1–9. */
+function choose(Z, it, i) {
+  const p = it.prompt, o = p.options[i];
+  if (!o || isBusy(it)) return;
+  if (p.multi) {
+    const set = new Set(ui.checks.get(it.robot) ?? initialChecks(p));
+    if (set.has(i)) set.delete(i); else set.add(i);
+    ui.checks.set(it.robot, set);
+    if (set.has(i) && isPlaceholder(o)) return openEdit(Z, it, i);
+    if (!set.has(i) && ui.edit.get(it.robot) === i) ui.edit.delete(it.robot);
+    return renderBalloon(Z);
+  }
+  // Boş serbest metin satırı yazı kutusu açar; terminalde önceden yazılmışsa (Swift yeni metni reddeder) yalnız seçilir.
+  if (isPlaceholder(o)) return openEdit(Z, it, i);
+  sendAnswer(Z, it, { option: i }, o.label);
+}
+/** "Gönder": çoklu seçimde işaretlerin tamamı, tek seçimde yazı kutusundaki metin. */
+function submit(Z, it) {
+  const p = it.prompt, ei = ui.edit.get(it.robot);
+  const inp = Z.balEl.querySelector(`.pq[data-robot="${CSS.escape(it.robot)}"] .pin input`);
+  const text = inp && inp.value.trim() ? inp.value : '';
+  if (p.multi) {
+    const set = new Set(ui.checks.get(it.robot) ?? initialChecks(p));
+    // Metni yazılmamış boş satır işaretlenmez: terminalde yazı moduna geçirirdi.
+    if (!text) p.options.forEach((o, i) => { if (isPlaceholder(o) && !o.checked) set.delete(i); });
+    const shown = [...set].sort((a, b) => a - b).map((i) => (i === ei && text ? text : p.options[i].label)).join(', ');
+    return sendAnswer(Z, it, { checks: [...set], ...(text ? { text } : {}) }, shown || '—');
+  }
+  if (ei == null) return;
+  if (!text) { inp?.focus(); return; }
+  sendAnswer(Z, it, { option: ei, text }, text);
+}
+function wireBalloon(Z) {
+  const card = (e) => {
+    const el = e.target.closest?.('.pq'); if (!el) return null;
+    const it = Z.prompts.find((x) => x.robot === el.dataset.robot);
+    return it ? { el, it } : null;
+  };
+  Z.balEl.addEventListener('click', (e) => {
+    const c = card(e); if (!c) return;
+    clickFocus = { zone: Z.id, robot: c.it.robot }; markFocus();
+    const a = e.target.closest('[data-act]');
+    if (a?.dataset.act === 'plan') return post({ type: 'openPlan', robot: c.it.robot });
+    if (a?.dataset.act === 'term') return post({ type: 'openTerminal', id: a.dataset.term });
+    if (a?.dataset.act === 'send') return a.disabled ? undefined : submit(Z, c.it);
+    const b = e.target.closest('button.po');
+    if (b && !b.disabled) choose(Z, c.it, Number(b.dataset.i));
+  });
+  Z.balEl.addEventListener('pointerover', (e) => {
+    const c = card(e); if (!c || hoverFocus?.robot === c.it.robot) return;
+    hoverFocus = { zone: Z.id, robot: c.it.robot }; markFocus();
+  });
+  Z.balEl.addEventListener('pointerleave', () => { hoverFocus = null; markFocus(); });
+  Z.balEl.addEventListener('keydown', (e) => {
+    if (!e.target.matches('.pin input')) return;
+    e.stopPropagation(); // yazı kutusundayken tuşlar kutuya gider (1–9 seçim yapmaz)
+    const c = card(e); if (!c) return;
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submit(Z, c.it); }
+    if (e.key === 'Escape') { e.preventDefault(); ui.edit.delete(c.it.robot); renderBalloon(Z); }
+  });
+}
+// 1–9 odaktaki balonun seçeneği, Enter çoklu seçimde gönderir, Esc odağı bırakır. ⌘'li kısayollara dokunulmaz.
+addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target.matches?.('input, textarea')) return;
+  const f = focusNow(); if (!f) return;
+  const found = promptItem(f);
+  if (!found) { hoverFocus = clickFocus = null; return; }
+  const { Z, it } = found;
+  if (e.key === 'Escape') { hoverFocus = clickFocus = null; markFocus(); }
+  else if (/^[1-9]$/.test(e.key)) choose(Z, it, Number(e.key) - 1);
+  else if (e.key === 'Enter' && it.prompt.multi) submit(Z, it);
+  else return;
+  e.preventDefault(); e.stopPropagation();
+}, true);
 
 // ---------- reconcile snapshot ----------
 function layout() {
@@ -731,6 +902,10 @@ function apply(s) {
   for (const Z of zones.values()) if (!live.has(Z.id)) Z.leaving = true;
   if (zonesChanged) layout();
   counts(); renderPanel();
+  // Bekleyenlerin balonları; artık beklemeyen robotların yerel balon durumu atılır.
+  const asking = new Set(s.zones.flatMap((z) => z.robots.filter((r) => r.prompt).map((r) => r.id)));
+  for (const m of [ui.pending, ui.checks, ui.edit, ui.menus]) for (const id of [...m.keys()]) if (!asking.has(id)) m.delete(id);
+  renderBalloons();
 }
 window.atolye.update = (s) => { if (started) apply(s); else window.atolye._q = s; };
 
