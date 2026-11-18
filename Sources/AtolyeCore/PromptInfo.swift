@@ -112,9 +112,6 @@ public struct PromptInfo: Codable, Equatable, Sendable {
 /// Ekrandan okunan menüyü sohbet kaydındaki bekleyen çağrıyla birleştirir. Ekran esastır: kayıt yalnız
 /// soru metnini ve seçenek açıklamalarını ekler; etiketlere, sıraya, sayıya dokunmaz.
 public enum PromptMerge {
-    /// Uzun komut ekranda kesilmiş olabilir: baştan bu kadar karakter ekranda geçiyorsa aynı komut sayılır.
-    static let commandPrefix = 30
-
     public static func info(screen: ScreenPrompt?, pending: PendingTool?, hasTerminal: Bool,
                             sent: Bool, failed: Bool) -> PromptInfo? {
         guard hasTerminal else { return outside(pending: pending) }
@@ -126,9 +123,9 @@ public enum PromptMerge {
             answerable: true, sent: sent, failed: failed)
         switch screen.kind {
         case .permission:
-            // Alt ajanın izinleri ana kayıtta yoktur; kayıttaki komut ancak ekranda da görünüyorsa kullanılır.
+            // Alt ajanın izinleri ana kayıtta yoktur; kayıttaki komut ancak ekrandaki komutun kendisiyse kullanılır.
             if pending?.name == "Bash", let cmd = pending?.input["command"]?.string, let shown = screen.detail,
-               appears(cmd, in: shown) {
+               sameCommand(cmd, onScreen: shown) {
                 info.detail = cmd
             }
         case .question:
@@ -186,12 +183,20 @@ public enum PromptMerge {
         return qs.isEmpty ? nil : qs
     }
 
-    /// Komut (boşluklar sadeleştirilerek) ekran metninde geçiyor mu; uzunsa baş kısmı yeter.
-    static func appears(_ command: String, in screen: String) -> Bool {
+    /// Kayıttaki komut ekrandaki komutla (boşluklar sadeleştirilerek) birebir aynı mı. Ekranın komutu
+    /// `╌╌╌` çizgileri arasındaki satırlardır (kırılmış komut tek satıra birleştirilir); çizgi yoksa tek tek
+    /// satırlar. Alt dize ya da baş kısım eşleşmesi yetmez: başka bir komut (alt ajanın `… --force`'u) gizlenmesin.
+    static func sameCommand(_ command: String, onScreen detail: String) -> Bool {
         func flat(_ s: String) -> String { s.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
-        let c = flat(command), s = flat(screen)
+        let c = flat(command)
         guard !c.isEmpty else { return false }
-        if s.contains(c) { return true }
-        return c.count > commandPrefix && s.contains(String(c.prefix(commandPrefix)))
+        let lines = detail.components(separatedBy: "\n")
+        let rules = lines.indices.filter { i in
+            let t = lines[i].trimmingCharacters(in: .whitespaces)
+            return !t.isEmpty && t.allSatisfy { $0 == "╌" }
+        }
+        var candidates = lines.map(flat)
+        if rules.count >= 2 { candidates.append(flat(lines[(rules[0] + 1)..<rules[1]].joined(separator: " "))) }
+        return candidates.contains(c)
     }
 }

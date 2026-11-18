@@ -65,8 +65,11 @@ final class WorkshopModel {
     static let usageInterval: TimeInterval = 4
     /// Seçenek menüsü: terminal → son ekran isteği (zamanı ve o anki son çıktı zamanı).
     @ObservationIgnored private var screenAsked: [String: (at: Date, output: Date?)] = [:]
-    /// Robot → gönderilen cevap (zamanı ve gönderildiği menü); menü kalkınca ya da değişince silinir.
-    @ObservationIgnored private var promptSent: [String: (at: Date, menu: MenuKey)] = [:]
+    /// Robot → gönderilen cevap (zamanı, gönderildiği menü ve o anki bekleyen araç çağrısı);
+    /// menü kalkınca, değişince ya da bekleyen çağrı değişince silinir.
+    @ObservationIgnored private var promptSent: [String: (at: Date, menu: MenuKey, tool: String?)] = [:]
+    /// Ekranı okunup tuşları hazırlanan cevaplar (robot); bu sürede ikinci tık yok sayılır.
+    @ObservationIgnored private var answering: Set<String> = []
     /// Gönderildiği halde menüsü yerinde duran robotlar ("gitmedi — terminali aç").
     @ObservationIgnored private var promptFailed: Set<String> = []
     /// Oturum → plans/<oturum>.md'ye son yazılan plan metni.
@@ -76,12 +79,16 @@ final class WorkshopModel {
     /// Cevaptan sonra menü bu kadar süre yerinde durursa gitmedi sayılır.
     static let answerTimeout: TimeInterval = 8
 
-    /// "Aynı menü" karşılaştırması: başlık, sayfa ve etiketler.
+    /// "Aynı menü" karşılaştırması: başlık, detay (komut), sayfa ve etiketler. Art arda gelen iki
+    /// "Do you want to proceed?" izni ancak komutlarıyla ayrılır.
     private struct MenuKey: Equatable {
         var title: String?
+        var detail: String?
         var page: Int?
         var labels: [String]
-        init(_ p: ScreenPrompt) { title = p.title; page = p.page?.index; labels = p.options.map(\.label) }
+        init(_ p: ScreenPrompt) {
+            title = p.title; detail = p.detail; page = p.page?.index; labels = p.options.map(\.label)
+        }
     }
 
     private struct Transcript {
@@ -448,6 +455,7 @@ final class WorkshopModel {
         transcripts = transcripts.filter { live.contains($0.key) }
         promptSent = promptSent.filter { live.contains($0.key) }
         promptFailed.formIntersection(live)
+        answering.formIntersection(live)
         planWritten = planWritten.filter { live.contains($0.key) }
         screenAsked = screenAsked.filter { host.terminals[$0.key] != nil }
         sessionProfile = byID.mapValues(\.profileID)
@@ -504,7 +512,7 @@ final class WorkshopModel {
         }
         // Menü kalktı ya da başka bir menü geldi: gönderim tamam. Aynı menü 8 sn'dir duruyorsa gitmemiş.
         if let sent = promptSent[s.id] {
-            if let parsed, MenuKey(parsed) == sent.menu {
+            if let parsed, MenuKey(parsed) == sent.menu, pending?.id == sent.tool {
                 if now.timeIntervalSince(sent.at) > Self.answerTimeout { promptFailed.insert(s.id) }
             } else {
                 promptSent[s.id] = nil
@@ -552,14 +560,19 @@ final class WorkshopModel {
     func answer(robot id: String, answer: PromptAnswer) {
         guard let s = store.sessions.first(where: { $0.id == id }), s.state == .waiting,
               let tid = screenTerminal(sessionTerminal[id]) else { return }
-        // Gönderilmiş ve henüz sonuçlanmamış cevabın üstüne ikinci kez basma (çift tık).
-        if promptSent[id] != nil, !promptFailed.contains(id) { return }
+        // Gönderilmiş ve henüz sonuçlanmamış cevabın üstüne ikinci kez basma (çift tık). Ekran beklenirken
+        // gelen ikinci tık da yok sayılır: ikisi aynı (tuşlardan önceki) ekranı alıp tuşları iki kez yollardı.
+        func busy() -> Bool { answering.contains(id) || (promptSent[id] != nil && !promptFailed.contains(id)) }
+        guard !busy() else { return }
+        answering.insert(id)
         host.requestScreen(tid) { [weak self] screen in
             guard let self else { return }
+            self.answering.remove(id)
             let parsed = screen.flatMap { PromptParser.parse(lines: $0.lines, cursorRow: $0.cursorRow) }
-            if let parsed, let keys = PromptKeys.keys(for: answer, on: parsed) {
+            if self.promptSent[id] == nil || self.promptFailed.contains(id),
+               let parsed, let keys = PromptKeys.keys(for: answer, on: parsed) {
                 self.host.send(tid, data: keys)
-                self.promptSent[id] = (Date(), MenuKey(parsed))
+                self.promptSent[id] = (Date(), MenuKey(parsed), self.transcripts[id]?.tail.pending?.id)
                 self.promptFailed.remove(id)
             }
             self.tick(initial: false)

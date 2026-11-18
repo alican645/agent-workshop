@@ -39,6 +39,43 @@ private let colorScreen = ScreenPrompt(
         #expect(info?.detail == "touch out.txt")
     }
 
+    private func permission(_ detail: String, pending cmd: String) -> PromptInfo? {
+        let screen = ScreenPrompt(kind: .permission, title: "Do you want to proceed?", detail: detail,
+                                  options: [ScreenOption(label: "Yes", stop: 0), ScreenOption(label: "No", stop: 1)],
+                                  selected: 0, multi: false, page: nil)
+        return PromptMerge.info(screen: screen, pending: PendingTool(id: "x", name: "Bash", input: ["command": .string(cmd)]),
+                                hasTerminal: true, sent: false, failed: false)
+    }
+
+    @Test func screenSupersetCommandKept() {
+        // Alt ajan "--force" istiyor, ana kayıttaki komut daha zayıf: ekrandaki gösterilmeli.
+        let detail = "Bash command\n╌╌╌╌\n git push origin x --force\n╌╌╌╌"
+        #expect(permission(detail, pending: "git push origin x")?.detail == detail)
+    }
+
+    @Test func prefixOnlyCommandKept() {
+        let detail = "Bash command\n swift build --product Atolye && swift test --filter Prompt"
+        #expect(permission(detail, pending: "swift build --product Atolye && swift test --filter PromptInfo")?.detail == detail)
+        #expect(permission("Bash command\n swift build", pending: "swift build --product Atolye")?.detail == "Bash command\n swift build")
+    }
+
+    @Test func wrappedCommandBetweenRulesMatches() {
+        let detail = "Bash command\n╌╌╌╌\n echo one two\n three four\n╌╌╌╌\nDo something"
+        #expect(permission(detail, pending: "echo one two three four")?.detail == "echo one two three four")
+    }
+
+    @Test func realBashPermissionUsesTranscriptCommand() throws {
+        let url = try #require(Bundle.module.url(forResource: "bash-permission", withExtension: "txt", subdirectory: "Fixtures/prompts"))
+        let lines = try String(contentsOf: url, encoding: .utf8).components(separatedBy: "\n")
+        let screen = try #require(PromptParser.parse(lines: lines, cursorRow: 0))
+        let ok = PromptMerge.info(screen: screen, pending: PendingTool(id: "x", name: "Bash", input: ["command": .string("touch out.txt")]),
+                                  hasTerminal: true, sent: false, failed: false)
+        #expect(ok?.detail == "touch out.txt")
+        let other = PromptMerge.info(screen: screen, pending: PendingTool(id: "x", name: "Bash", input: ["command": .string("touch")]),
+                                     hasTerminal: true, sent: false, failed: false)
+        #expect(other?.detail == screen.detail)
+    }
+
     @Test func transcriptEnrichesQuestion() {
         let pending = ask([(q: "Hangi renk? (uzun soru metni)", multi: false, opts: [("Red", "sıcak"), ("Blue", "soğuk")])])
         let info = PromptMerge.info(screen: colorScreen, pending: pending, hasTerminal: true, sent: true, failed: false)
