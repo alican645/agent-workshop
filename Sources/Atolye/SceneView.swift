@@ -90,6 +90,12 @@ struct SceneView: NSViewRepresentable {
                 model.addProject()
             case "robotFailed":
                 if let id = body["id"] as? String { model.robotFailed(id, body["error"] as? String ?? L("bilinmeyen hata")) }
+            case "todoAdd":
+                if let root = body["root"] as? String, let text = body["text"] as? String { model.addTodo(text, root: root) }
+            case "todoToggle":
+                if let root = body["root"] as? String, let line = body["line"] as? Int, let text = body["text"] as? String {
+                    model.toggleTodo(line: line, text: text, root: root)
+                }
             case "unpin":
                 if let id = body["id"] as? String { model.unpin(id) }
             default:

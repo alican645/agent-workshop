@@ -266,6 +266,26 @@ final class WorkshopModel {
         tick(initial: false)
     }
 
+    // MARK: Beyaz tahta (TODO.local.md)
+
+    func addTodo(_ text: String, root: String) {
+        writeTodo { try TodoFile.add(text, root: root) }
+    }
+
+    func toggleTodo(line: Int, text: String, root: String) {
+        writeTodo { try TodoFile.toggle(line: line, text: text, root: root) }
+    }
+
+    private func writeTodo(_ write: () throws -> Void) {
+        do { try write() } catch {
+            let a = NSAlert()
+            a.messageText = L("TODO.local.md yazılamadı")
+            a.informativeText = error.localizedDescription
+            a.runModal()
+        }
+        tick(initial: false)
+    }
+
     private func saveDesk() { try? desk.save(to: Self.deskURL) }
 
     /// Yardımcının listesi geldikten sonra bir kez: artık olmayan terminallerin pencerelerini kaldır.

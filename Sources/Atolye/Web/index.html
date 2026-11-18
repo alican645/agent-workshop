@@ -27,8 +27,17 @@
   .sess .s{font-size:12px;color:#8a7f70;margin:2px 0 0 16px}
   .sess .ag{font-size:12px;color:#6f5fb0;margin:3px 0 0 16px}
   .sess .ask{margin:6px 0 0 16px;padding:6px 8px;border-radius:8px;background:#fff2e4;border:1px solid #f0b37a;font-size:12px;color:#9a5a1c}
-  .hist,.todo{font-size:12px;color:#5c554b;line-height:1.7;margin:0;padding-left:16px}
-  .todo li::marker{content:"☐  "}
+  .hist{font-size:12px;color:#5c554b;line-height:1.7;margin:0;padding-left:16px}
+  .todo{font-size:12px;color:#5c554b;line-height:1.5;margin:0;padding:0;list-style:none}
+  .todo li{display:flex;gap:8px;align-items:flex-start;padding:3px 6px;margin:0 -6px;border-radius:6px;cursor:pointer}
+  .todo li:hover{background:rgba(90,70,40,.06)}
+  .todo li .cb{flex:none;width:12px;height:12px;margin-top:2px;border:1.5px solid #8a7f70;border-radius:3px;font-size:10px;line-height:12px;text-align:center;color:#fff}
+  .todo li.done{color:#a09583;text-decoration:line-through}
+  .todo li.done .cb{background:#3aa57a;border-color:#3aa57a}
+  #todoForm{margin:6px 0 2px}
+  #todoIn{width:100%;box-sizing:border-box;font:inherit;font-size:12px;padding:6px 9px;border-radius:8px;border:1px solid rgba(90,70,40,.2);background:#fff;color:#2c2a26;-webkit-user-select:text;user-select:text;outline:none}
+  #todoIn:focus{border-color:#ff8c2e;box-shadow:0 0 0 3px rgba(255,140,46,.18)}
+  #panel h4 .cnt{letter-spacing:0;font-weight:600;color:#b8ad9c;margin-left:4px}
   button{font:inherit;font-size:12px;border-radius:8px;padding:6px 11px;cursor:pointer;border:1px solid rgba(90,70,40,.2);background:#fff;color:#2c2a26}
   #home{position:fixed;right:16px;bottom:16px;z-index:5;display:none;box-shadow:0 4px 14px rgba(80,60,30,.15)}
   #hint{right:16px;bottom:16px;font-size:12px;color:#8a7f70}
@@ -69,7 +78,7 @@
 <div id="panel" class="hud"></div>
 <button id="home" data-i18n>← atölyeye dön</button>
 <div id="feed" class="hud"><h2 data-i18n>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty" data-i18n>henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud" data-i18n>bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · sürükle: döndür</div>
+<div id="hint" class="hud" data-i18n>bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · tahtaya tıkla: yapılacaklar · sürükle: döndür</div>
 
 <script>
   // Durağan metinler: İngilizce seçiliyse sözlükten (sözlüğü uygulama sayfa açılmadan verir).
@@ -224,10 +233,12 @@ function buildZone(info) {
   const lamp = new THREE.PointLight(0xff8c2e, 0, 14, 1.5); lamp.position.set(0, 4, -2); frame.add(lamp);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(12, 4, 9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   hit.position.y = 2; g.add(hit);
+  const board = buildBoard(); board.g.position.set(-4.25, 0.16, -3.75); g.add(board.g);
+  board.hit.userData.zoneId = info.id; boardHits.push(board.hit);
   const slots = new THREE.Group(); bench.add(slots);
   const machGroup = new THREE.Group(); g.add(machGroup);
   g.scale.setScalar(0.001);
-  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag };
+  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag, board };
   zones.set(info.id, Z);
   return Z;
 }
@@ -243,6 +254,86 @@ function setSlots(Z, n) {
     scr.position.set(x, 1.75, -0.39); Z.slots.add(scr);
     return scr;
   });
+}
+
+// ---------- beyaz tahta (TODO.local.md) ----------
+// Maddeler okunmaz: kutucuk + karalama. Bitenlerin kutusu işaretli, karalaması çizili.
+const BOARD_ROWS = 6;
+const boardHits = [];
+function buildBoard() {
+  const g = new THREE.Group();
+  for (const x of [-1.05, 1.05]) { const leg = box(0.07, 3.05, 0.07, metal); leg.position.set(x, 1.52, -0.06); g.add(leg); }
+  for (const x of [-1.05, 1.05]) { const foot = box(0.07, 0.05, 0.7, metal); foot.position.set(x, 0.03, -0.06); g.add(foot); }
+  const frame = box(2.5, 1.72, 0.07, 0xc9c6c0, { roughness: 0.4, metalness: 0.3 }); frame.position.y = 2.35; g.add(frame);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 });
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(2.38, 1.6), mat); face.position.set(0, 2.35, 0.037); g.add(face);
+  const tray = box(1.6, 0.05, 0.14, 0xc9c6c0, { roughness: 0.4, metalness: 0.3 }); tray.position.set(0, 1.49, 0.08); g.add(tray);
+  [0xd9534f, 0x2f6fd6, 0x2c2a26].forEach((c, i) => {
+    const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.26, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
+    pen.rotation.z = Math.PI / 2; pen.position.set(-0.45 + i * 0.32, 1.54, 0.09); g.add(pen);
+  });
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.9, 0.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  hit.position.y = 2.3; g.add(hit);
+  return { g, mat, hit, key: null };
+}
+/** Metinden sabit sözde rastgele sayılar: karalama her çizimde aynı görünsün. */
+function seeded(str) {
+  let h = 2166136261; for (const ch of str) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+  return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 10000) / 10000; };
+}
+function scribble(c, x, y, len, rnd) {
+  c.beginPath(); c.moveTo(x, y);
+  // kelime kelime: dalgalı çizgi parçaları, aralarında boşluk
+  let cx = x;
+  while (cx < x + len) {
+    const w = Math.min(x + len - cx, 30 + rnd() * 60);
+    c.moveTo(cx, y + (rnd() - 0.5) * 4);
+    for (let i = 1; i <= 12; i++) {
+      const px = cx + (w * i) / 12;
+      c.lineTo(px, y + Math.sin(i * 1.9 + rnd() * 2) * (5 + rnd() * 4) + (rnd() - 0.5) * 3);
+    }
+    cx += w + 14 + rnd() * 10;
+  }
+  c.stroke();
+}
+function setBoard(Z, todos) {
+  const list = todos || [];
+  const key = list.map((t) => (t.done ? '1' : '0') + t.text).join('\n');
+  if (key === Z.board.key) return;
+  Z.board.key = key;
+  const tex = canvasTex(768, 512, (c, w, h) => {
+    c.fillStyle = '#fbfcfd'; c.fillRect(0, 0, w, h);
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    // başlık
+    c.fillStyle = '#d9534f'; c.font = '700 64px "Marker Felt", "Chalkboard SE", "Comic Sans MS", sans-serif';
+    c.textBaseline = 'alphabetic'; c.fillText('TODO', 44, 86);
+    c.strokeStyle = '#d9534f'; c.lineWidth = 5; c.beginPath(); c.moveTo(42, 104); c.quadraticCurveTo(140, 98, 230, 106); c.stroke();
+    const rows = list.slice(0, BOARD_ROWS), rowH = 62, top = 160;
+    rows.forEach((t, i) => {
+      const rnd = seeded(t.text + i), y = top + i * rowH, x = 60;
+      c.strokeStyle = '#2c2a26'; c.lineWidth = 5;
+      c.beginPath(); c.roundRect(x + (rnd() - 0.5) * 3, y - 20, 38, 38, 5); c.stroke();
+      const len = Math.min(560, 120 + t.text.length * 9);
+      if (t.done) {
+        c.strokeStyle = '#3aa57a'; c.lineWidth = 7;
+        c.beginPath(); c.moveTo(x + 6, y); c.lineTo(x + 17, y + 12); c.lineTo(x + 40, y - 22); c.stroke();
+        c.strokeStyle = '#a6a29b'; c.lineWidth = 4; scribble(c, x + 66, y, len, rnd);
+        c.strokeStyle = '#7d7a74'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + 60, y + 2); c.lineTo(x + 72 + len, y - 2); c.stroke();
+      } else {
+        c.strokeStyle = '#2f6fd6'; c.lineWidth = 4; scribble(c, x + 66, y, len, rnd);
+      }
+    });
+    if (list.length > BOARD_ROWS) {
+      c.fillStyle = '#8a7f70'; c.font = '600 34px -apple-system, system-ui, sans-serif';
+      c.fillText(`+${list.length - BOARD_ROWS}`, w - 110, h - 30);
+    }
+    if (!list.length) { // boş tahta: ekleme ipucu
+      c.strokeStyle = '#c4beb4'; c.lineWidth = 5; c.setLineDash([14, 12]);
+      c.beginPath(); c.roundRect(60, 160, 74, 74, 10); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(97, 178); c.lineTo(97, 216); c.moveTo(78, 197); c.lineTo(116, 197); c.stroke();
+    }
+  });
+  Z.board.mat.map?.dispose(); Z.board.mat.map = tex; Z.board.mat.needsUpdate = true;
 }
 
 // ---------- machines (düz terminaller) ----------
@@ -479,14 +570,33 @@ function renderPanel() {
       (r.state === 'waiting' ? `<div class="ask">${t('{0} — cmux\'ta yanıtla', waitText(r))}</div>` : '') + `</div>`).join('') +
     (hist ? `<h4>${t('SON İŞLER')}</h4><ul class="hist">${hist}</ul>` : '') +
     (machs ? `<h4>${t('TERMİNALLER')}</h4>${machs}` : '') +
-    (z.todos.length ? `<h4>${t('YAPILACAKLAR')}</h4><ul class="todo">${z.todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+    todoHtml(z) +
     (z.pinned ? `<span class="unpin" id="unpin">${t('sabitlemeyi kaldır')}</span>` : '');
   if (html === panel._last) return;
+  // Yazılmakta olan madde yeniden çizimde kaybolmasın.
+  const oldIn = document.getElementById('todoIn');
+  const keep = oldIn && { v: oldIn.value, f: document.activeElement === oldIn, a: oldIn.selectionStart, b: oldIn.selectionEnd };
   panel._last = html; panel.innerHTML = html; panel.style.display = 'block';
+  const inp = document.getElementById('todoIn');
+  if (keep && inp) { inp.value = keep.v; if (keep.f) { inp.focus(); inp.setSelectionRange(keep.a, keep.b); } }
+  panel.querySelectorAll('.todo li').forEach((el) => el.onclick = () =>
+    post({ type: 'todoToggle', root: z.id, line: Number(el.dataset.line), text: el.dataset.text }));
+  document.getElementById('todoForm').onsubmit = (e) => {
+    e.preventDefault();
+    const v = inp.value.trim(); if (!v) return;
+    post({ type: 'todoAdd', root: z.id, text: v }); inp.value = '';
+  };
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
   panel.querySelectorAll('.mach').forEach((el) => el.onclick = () => post({ type: 'openTerminal', id: el.dataset.term }));
   panel.querySelectorAll('.newrow .enter').forEach((el) => el.onclick = () => post({ type: 'newWindow', root: z.id, kind: el.dataset.kind }));
   const un = document.getElementById('unpin'); if (un) un.onclick = () => post({ type: 'unpin', id: z.id });
+}
+function todoHtml(z) {
+  const list = z.todos || [], done = list.filter((t) => t.done).length;
+  return `<h4 id="todoHead">${t('YAPILACAKLAR')}${list.length ? `<span class="cnt">${done}/${list.length}</span>` : ''}</h4>` +
+    (list.length ? `<ul class="todo">${list.map((it) =>
+      `<li class="${it.done ? 'done' : ''}" data-line="${it.line}" data-text="${esc(it.text)}"><span class="cb">${it.done ? '✓' : ''}</span><span>${esc(it.text)}</span></li>`).join('')}</ul>` : '') +
+    `<form id="todoForm"><input id="todoIn" maxlength="300" autocomplete="off" spellcheck="false" placeholder="${esc(t('＋ yeni madde, Enter ile ekle'))}"></form>`;
 }
 function select(Z) {
   selected = Z.id;
@@ -506,6 +616,16 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (rh) { const r = rh.object.userData.robot; post({ type: 'focus', id: r.parent ? r.parent.id : r.id }); return; }
   const mh = ray.intersectObjects(machHits)[0];
   if (mh) { post({ type: 'openTerminal', id: mh.object.userData.machine }); return; }
+  const bh = ray.intersectObjects(boardHits)[0];
+  if (bh) {
+    const Z = zones.get(bh.object.userData.zoneId);
+    if (Z && !Z.leaving) {
+      post({ type: 'sceneTap' }); select(Z);
+      const inp = document.getElementById('todoIn');
+      if (inp) { document.getElementById('todoHead').scrollIntoView({ block: 'nearest' }); inp.focus(); }
+      return;
+    }
+  }
   post({ type: 'sceneTap' }); // boşluğa ya da bölgeye dokunuş: pencereler sol panele çekilir
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) select([...zones.values()].find((z) => z.hit === zh.object));
@@ -560,6 +680,7 @@ function apply(s) {
     const shown = info.robots.slice(0, MAX_SLOTS);
     setSlots(Z, shown.length);
     setMachines(Z, info.machines || []);
+    setBoard(Z, info.todos);
     applyGit(Z, (prev.zones.find((z) => z.id === info.id) || {}).git, info.git);
     Z.more.visible = info.robots.length > MAX_SLOTS;
     Z.more.element.textContent = `+${info.robots.length - MAX_SLOTS}`;
@@ -653,7 +774,7 @@ function tick() {
   for (const Z of [...zones.values()]) {
     const target = Z.leaving ? 0.001 : 1;
     const s = THREE.MathUtils.damp(Z.g.scale.x, target, 4, dt); Z.g.scale.setScalar(s);
-    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
+    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } { const i = boardHits.indexOf(Z.board.hit); if (i >= 0) boardHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
     Z.g.position.lerp(Z.target, Math.min(1, dt * 3));
     const waiting = Z.info.robots.some((r) => r.state === 'waiting');
     Z.frame.visible = waiting && !Z.leaving;

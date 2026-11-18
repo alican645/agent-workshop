@@ -120,7 +120,7 @@
  "bilinmeyen hata": "unknown error",
  "bitti": "done",
  "boşta": "idle",
- "bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · sürükle: döndür": "double-click a zone: the project's windows · click a robot: bring its terminal to front · drag: rotate",
+ "bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · tahtaya tıkla: yapılacaklar · sürükle: döndür": "double-click a zone: the project's windows · click a robot: bring its terminal to front · click the board: to-dos · drag: rotate",
  "dal değişti: {0} → {1}": "branch changed: {0} → {1}",
  "dal {0} · {1} değişen dosya · {2} itilmemiş · {3} gelen commit": "branch {0} · {1} changed files · {2} unpushed · {3} incoming commits",
  "giriş yok": "not logged in",
@@ -183,5 +183,7 @@
  "← atölyeye dön": "← back to workshop",
  "↑{0} itilmemiş": "↑{0} unpushed",
  "↓{0} gelen": "↓{0} incoming",
- "⚠︎ limite yakın": "⚠︎ near limit"
+ "⚠︎ limite yakın": "⚠︎ near limit",
+ "＋ yeni madde, Enter ile ekle": "＋ new item, press Enter to add",
+ "TODO.local.md yazılamadı": "Couldn't write TODO.local.md"
 }

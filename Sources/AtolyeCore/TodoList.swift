@@ -94,6 +94,29 @@ public enum TodoList {
     }
 }
 
+/// Projenin `TODO.local.md` dosyasını okuyup yazar (atölyedeki beyaz tahta için).
+public enum TodoFile {
+    /// Yeni maddeyi ekler; dosya yoksa oluşturur. Boş metin bir şey yapmaz.
+    public static func add(_ item: String, root: String) throws {
+        let path = ProjectRoot.todoPath(root: root)
+        let old = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        let new = TodoList.append(old, item: item)
+        guard new != old else { return }
+        try new.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    /// `line` satırındaki madde hâlâ `text` ise kutusunu çevirir. Dosya o arada değiştiyse dokunmaz, false döner.
+    @discardableResult
+    public static func toggle(line: Int, text: String, root: String) throws -> Bool {
+        let path = ProjectRoot.todoPath(root: root)
+        guard let old = try? String(contentsOfFile: path, encoding: .utf8),
+              let item = TodoList.parse(old).first(where: { $0.line == line }), item.text == text,
+              let new = TodoList.toggle(old, item: item) else { return false }
+        try new.write(toFile: path, atomically: true, encoding: .utf8)
+        return true
+    }
+}
+
 public enum ProjectRoot {
     /// cwd'den yukarı doğru `.git` arar; bulamazsa cwd'nin kendisi.
     public static func find(cwd: String, exists: (String) -> Bool) -> String {

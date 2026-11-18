@@ -74,10 +74,18 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
         #expect(Workshop.toolText(ToolUse(name: "TodoWrite", target: "")) == "🔧 TodoWrite")
     }
 
-    @Test func todosAreOpenItemsOnly() {
-        let items = TodoList.parse("- [ ] bir\n- [x] iki\n- [ ] üç\n")
+    @Test func todosKeepDoneItemsAndLines() {
+        let items = TodoList.parse("# başlık\n- [ ] bir\n- [x] iki\n- [ ] üç\n")
         let snap = Workshop.build(sessions: [sess("a", cwd: "/p/erp")], details: [:], todos: ["/p/erp": items], fileExists: exists)
-        #expect(snap.zones[0].todos == ["bir", "üç"])
+        #expect(snap.zones[0].todos == [ZoneTodo(line: 1, text: "bir", done: false),
+                                        ZoneTodo(line: 2, text: "iki", done: true),
+                                        ZoneTodo(line: 3, text: "üç", done: false)])
+    }
+
+    @Test func todosAreCapped() {
+        let items = TodoList.parse((0..<60).map { "- [ ] m\($0)" }.joined(separator: "\n"))
+        let snap = Workshop.build(sessions: [sess("a", cwd: "/p/erp")], details: [:], todos: ["/p/erp": items], fileExists: exists)
+        #expect(snap.zones[0].todos.count == Workshop.todoLimit)
     }
 
     @Test func sessionWithoutCwdIsSkipped() {

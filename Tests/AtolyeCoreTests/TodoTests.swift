@@ -100,3 +100,47 @@ import Testing
         #expect(ProjectRoot.todoPath(root: "/p/app") == "/p/app/TODO.local.md")
     }
 }
+
+@Suite struct TodoFileTests {
+    func tempRoot() -> String {
+        let d = FileManager.default.temporaryDirectory.appendingPathComponent("todo-\(UUID().uuidString)").path
+        try! FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true)
+        return d
+    }
+    func read(_ root: String) -> String? { try? String(contentsOfFile: ProjectRoot.todoPath(root: root), encoding: .utf8) }
+
+    @Test func addCreatesMissingFile() throws {
+        let root = tempRoot()
+        try TodoFile.add("  ilk iş  ", root: root)
+        #expect(read(root) == "- [ ] ilk iş\n")
+    }
+
+    @Test func addAppendsAfterLastItem() throws {
+        let root = tempRoot()
+        try "# Notlar\n- [ ] bir\n\nson söz\n".write(toFile: ProjectRoot.todoPath(root: root), atomically: true, encoding: .utf8)
+        try TodoFile.add("iki", root: root)
+        #expect(read(root) == "# Notlar\n- [ ] bir\n- [ ] iki\n\nson söz\n")
+    }
+
+    @Test func addIgnoresBlankText() throws {
+        let root = tempRoot()
+        try TodoFile.add("   ", root: root)
+        #expect(read(root) == nil)
+    }
+
+    @Test func toggleFlipsMatchingLine() throws {
+        let root = tempRoot()
+        try "- [ ] bir\n- [x] iki\n".write(toFile: ProjectRoot.todoPath(root: root), atomically: true, encoding: .utf8)
+        #expect(try TodoFile.toggle(line: 0, text: "bir", root: root))
+        #expect(try TodoFile.toggle(line: 1, text: "iki", root: root))
+        #expect(read(root) == "- [x] bir\n- [ ] iki\n")
+    }
+
+    @Test func toggleRefusesWhenLineChanged() throws {
+        let root = tempRoot()
+        try "- [ ] başka\n".write(toFile: ProjectRoot.todoPath(root: root), atomically: true, encoding: .utf8)
+        #expect(try TodoFile.toggle(line: 0, text: "bir", root: root) == false)
+        #expect(try TodoFile.toggle(line: 5, text: "bir", root: root) == false)
+        #expect(read(root) == "- [ ] başka\n")
+    }
+}
