@@ -1,14 +1,16 @@
 import Foundation
 
 /// Kullanıcının balonda verdiği cevap. Tek seçimde `option`, çoklu seçimde `checks` (istenen işaretli küme).
-/// `text` yalnız serbest metin seçeneği içindir. `labels`: balonun gösterdiği etiketler.
+/// `text` yalnız serbest metin seçeneği içindir. `labels`: balonun gösterdiği etiketler;
+/// `menuId`: balonun gösterdiği menünün kimliği (`ScreenPrompt.menuId`).
 public struct PromptAnswer: Equatable, Sendable {
     public var option: Int?
     public var checks: [Int]
     public var text: String?
     public var labels: [String]
-    public init(option: Int? = nil, checks: [Int] = [], text: String? = nil, labels: [String]) {
-        self.option = option; self.checks = checks; self.text = text; self.labels = labels
+    public var menuId: String
+    public init(option: Int? = nil, checks: [Int] = [], text: String? = nil, labels: [String], menuId: String) {
+        self.option = option; self.checks = checks; self.text = text; self.labels = labels; self.menuId = menuId
     }
 }
 
@@ -19,7 +21,7 @@ public enum PromptKeys {
     static let up = "\u{1b}[A", down = "\u{1b}[B", enter = "\r", space = " "
 
     public static func keys(for answer: PromptAnswer, on screen: ScreenPrompt?) -> Data? {
-        guard let screen, answer.labels == screen.options.map(\.label),
+        guard let screen, answer.menuId == screen.menuId, answer.labels == screen.options.map(\.label),
               screen.options.indices.contains(screen.selected) else { return nil }
         let opts = screen.options
         var out = ""
@@ -31,6 +33,9 @@ public enum PromptKeys {
         // text verilmişse yalnız serbest metin seçeneğinde, temizlenince boş kalmayan metin geçerli.
         func typed(for i: Int) -> String?? {
             guard let raw = answer.text else { return .some(nil) }
+            // Metin yalnız AskUserQuestion'da doğrulandı. Plan onayının "Tell Claude what to change"i ve
+            // eski izinlerin "No, and tell Claude …"u sıradan seçenektir: harfler o menünün kısayollarına gidebilir.
+            guard screen.kind == .question else { return nil }
             // Satırda önceden yazılmış metin varsa (etiket artık yer tutucu değil) terminal üstüne ekler
             // ("hello"+"world"); silme tuşu doğrulanmadığı için cevap verilmez.
             guard opts[i].freeText,
@@ -46,16 +51,23 @@ public enum PromptKeys {
             if let text { out += text }
             out += enter
         } else {
+            // Yalnız kutulu satırlar işaretlenebilir: kutusuz "Chat about this" satırında Boşluk/Enter menüden çıkar.
             guard answer.option == nil, let submit = screen.submitStop,
-                  answer.checks.allSatisfy(opts.indices.contains) else { return nil }
+                  answer.checks.allSatisfy({ opts.indices.contains($0) && opts[$0].checked != nil }) else { return nil }
             var want = Set(answer.checks)
             var freeIndex: Int?
             var freeText: String?
             if answer.text != nil {
-                guard let i = opts.indices.first(where: { opts[$0].freeText }),
+                guard let i = opts.indices.first(where: { opts[$0].freeText && opts[$0].checked != nil }),
                       let t = typed(for: i) else { return nil }
                 freeIndex = i; freeText = t
                 want.remove(i)   // yazmak satırı kendiliğinden işaretler; ayrıca Boşluk basılmaz
+            }
+            // Metinsiz işaretlenmek istenen boş serbest satır ("Type something"): Boşluk'un orada ne yaptığı
+            // doğrulanmadı (yazı moduna geçebilir); gönderilmez.
+            for i in want where opts[i].freeText && opts[i].checked != true
+                && PromptParser.freeTextPrefixes.contains(where: { opts[i].label.hasPrefix($0) }) {
+                return nil
             }
             // Yalnız işareti istenenden farklı satırlara dokun; durak sırasıyla.
             var visits: [Int] = opts.indices.filter { (opts[$0].checked ?? false) != want.contains($0) && $0 != freeIndex }
@@ -65,7 +77,10 @@ public enum PromptKeys {
                 out += (i == freeIndex) ? (freeText ?? "") : space
             }
             move(to: submit)
-            out += enter + enter   // Submit, sonra "Review your answers" sayfasında Enter
+            out += enter
+            // "Review your answers" sayfası yalnız son cevapsız sorudan sonra gelir; daha önceki bir sayfada
+            // Submit o soruyu bitirip sonraki soruya geçer ve ikinci Enter onu körlemesine cevaplardı.
+            if screen.finalPage { out += enter }
         }
         return out.data(using: .utf8)
     }

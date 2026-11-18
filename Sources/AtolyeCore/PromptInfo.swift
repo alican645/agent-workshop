@@ -91,10 +91,13 @@ public struct PromptInfo: Codable, Equatable, Sendable {
     public var failed: Bool
     /// Plan onayında Markdown okuyucuda açılacak dosya.
     public var planPath: String?
+    /// Ham ekranın kimliği (`ScreenPrompt.menuId`; birleştirilmiş detaydan değil). Web cevapta geri yollar;
+    /// tazelenen ekranınkiyle tutmazsa hiçbir şey gönderilmez. Cevaplanamaz balonda boş.
+    public var menuId: String
 
     public init(kind: PromptKind, question: String, detail: String? = nil, options: [PromptOptionInfo], multi: Bool,
                 page: Int? = nil, pages: Int? = nil, answerable: Bool, sent: Bool = false, failed: Bool = false,
-                planPath: String? = nil) {
+                planPath: String? = nil, menuId: String = "") {
         self.kind = kind
         self.question = question
         self.detail = detail
@@ -106,21 +109,25 @@ public struct PromptInfo: Codable, Equatable, Sendable {
         self.sent = sent
         self.failed = failed
         self.planPath = planPath
+        self.menuId = menuId
     }
 }
 
 /// Ekrandan okunan menüyü sohbet kaydındaki bekleyen çağrıyla birleştirir. Ekran esastır: kayıt yalnız
 /// soru metnini ve seçenek açıklamalarını ekler; etiketlere, sıraya, sayıya dokunmaz.
 public enum PromptMerge {
+    /// `screenRead`: terminalin ekranı okundu (ama `screen` nil ise menü tanınmadı). Henüz okunmadıysa
+    /// balon yok (ilk okuma gelene kadar titremesin); okundu ve tanınmadıysa cevaplanamaz balon
+    /// ("terminalinden cevapla · terminali aç"). `failed` iken `sent` hiç true dönmez.
     public static func info(screen: ScreenPrompt?, pending: PendingTool?, hasTerminal: Bool,
-                            sent: Bool, failed: Bool) -> PromptInfo? {
+                            screenRead: Bool = false, sent: Bool, failed: Bool) -> PromptInfo? {
         guard hasTerminal else { return outside(pending: pending) }
-        guard let screen else { return nil }
+        guard let screen else { return screenRead ? unrecognised(pending: pending) : nil }
         var info = PromptInfo(
             kind: screen.kind, question: screen.title ?? "", detail: screen.detail,
             options: screen.options.map { PromptOptionInfo(label: $0.label, freeText: $0.freeText, checked: $0.checked) },
             multi: screen.multi, page: screen.page?.index, pages: screen.page?.count,
-            answerable: true, sent: sent, failed: failed)
+            answerable: true, sent: sent && !failed, failed: failed, menuId: screen.menuId)
         switch screen.kind {
         case .permission:
             // Alt ajanın izinleri ana kayıtta yoktur; kayıttaki komut ancak ekrandaki komutun kendisiyse kullanılır.
@@ -131,19 +138,31 @@ public enum PromptMerge {
         case .question:
             guard pending?.name == "AskUserQuestion", let qs = questions(pending) else { break }
             let labels = screen.options.map(\.label)
+            // Ekran uzun sorunun yalnız son satırını gösterir; kayıttaki soru (boşluklar sadeleştirilerek)
+            // ekrandaki başlıkla bitmeli. Aynı etiketli başka bir soru ekrandakinin yerine geçmesin.
+            let shown = flat(screen.title ?? "")
+            guard !shown.isEmpty else { break }
             // Önce ayrıştırıcının sandığı sayfa, sonra diğerleri; etiketleri ekranın başıyla aynı olan ilk soru.
             var order = Array(qs.indices)
             if let p = screen.page?.index, qs.indices.contains(p) { order.removeAll { $0 == p }; order.insert(p, at: 0) }
             guard let q = order.map({ qs[$0] }).first(where: { q in
                 !q.options.isEmpty && q.options.count <= labels.count
                     && Array(labels.prefix(q.options.count)) == q.options.map(\.label)
+                    && flat(q.question).hasSuffix(shown)
             }) else { break }
-            if !q.question.isEmpty { info.question = q.question }
+            info.question = q.question
             for (i, o) in q.options.enumerated() { info.options[i].description = o.description }
         case .plan:
             break   // planPath'i model doldurur
         }
         return info
+    }
+
+    /// Ekranı okundu ama menüsü tanınmadı: kayıttan çizilebiliyorsa o, yoksa türü kayıttan tahmin edilen
+    /// boş balon (web varsayılan başlığı koyar). Her durumda cevaplanamaz.
+    private static func unrecognised(pending: PendingTool?) -> PromptInfo {
+        if let info = outside(pending: pending) { return info }
+        return PromptInfo(kind: .permission, question: "", options: [], multi: false, answerable: false)
     }
 
     /// Terminali Atölye'de olmayan (ya da ekranı okunamayan) oturum: yalnız kayıttan, cevaplanamaz.
@@ -187,7 +206,6 @@ public enum PromptMerge {
     /// `╌╌╌` çizgileri arasındaki satırlardır (kırılmış komut tek satıra birleştirilir); çizgi yoksa tek tek
     /// satırlar. Alt dize ya da baş kısım eşleşmesi yetmez: başka bir komut (alt ajanın `… --force`'u) gizlenmesin.
     static func sameCommand(_ command: String, onScreen detail: String) -> Bool {
-        func flat(_ s: String) -> String { s.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
         let c = flat(command)
         guard !c.isEmpty else { return false }
         let lines = detail.components(separatedBy: "\n")
@@ -195,8 +213,12 @@ public enum PromptMerge {
             let t = lines[i].trimmingCharacters(in: .whitespaces)
             return !t.isEmpty && t.allSatisfy { $0 == "╌" }
         }
-        var candidates = lines.map(flat)
-        if rules.count >= 2 { candidates.append(flat(lines[(rules[0] + 1)..<rules[1]].joined(separator: " "))) }
-        return candidates.contains(c)
+        // Çizgiler varsa komut yalnız aralarındaki birleşik metindir: tek tek satırlar aday olsaydı kırılmış
+        // `git push origin main` / `--force` komutunun ilk satırı kayıttaki zayıf komutla eşleşirdi.
+        if rules.count >= 2 { return flat(lines[(rules[0] + 1)..<rules[1]].joined(separator: " ")) == c }
+        return lines.map(flat).contains(c)
     }
+
+    /// Boşlukları (satır sonları dahil) tek boşluğa indirir.
+    static func flat(_ s: String) -> String { s.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
 }

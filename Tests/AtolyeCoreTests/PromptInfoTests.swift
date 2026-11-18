@@ -77,9 +77,11 @@ private let colorScreen = ScreenPrompt(
     }
 
     @Test func transcriptEnrichesQuestion() {
-        let pending = ask([(q: "Hangi renk? (uzun soru metni)", multi: false, opts: [("Red", "sıcak"), ("Blue", "soğuk")])])
+        // Ekran uzun sorunun yalnız son satırını gösterir; kayıttaki tam metin onunla bitiyorsa kullanılır.
+        let long = "Uzun bir giriş cümlesi, ardından asıl soru:  Which color do you\n prefer?"
+        let pending = ask([(q: long, multi: false, opts: [("Red", "sıcak"), ("Blue", "soğuk")])])
         let info = PromptMerge.info(screen: colorScreen, pending: pending, hasTerminal: true, sent: true, failed: false)
-        #expect(info?.question == "Hangi renk? (uzun soru metni)")
+        #expect(info?.question == long)
         #expect(info?.options.map(\.label) == ["Red", "Blue", "Type something.", "Chat about this"])
         #expect(info?.options.map(\.description) == ["sıcak", "soğuk", nil, nil])
         #expect(info?.options.map(\.freeText) == [false, false, true, false])
@@ -100,9 +102,9 @@ private let colorScreen = ScreenPrompt(
         screen.options = [ScreenOption(label: "Small", stop: 0), ScreenOption(label: "Large", stop: 1)]
         screen.page = (index: 1, count: 2)
         let pending = ask([(q: "Renk?", multi: false, opts: [("Red", "r"), ("Blue", "b")]),
-                           (q: "Boy?", multi: false, opts: [("Small", "küçük"), ("Large", "büyük")])])
+                           (q: "Which size?", multi: false, opts: [("Small", "küçük"), ("Large", "büyük")])])
         let info = PromptMerge.info(screen: screen, pending: pending, hasTerminal: true, sent: false, failed: false)
-        #expect(info?.question == "Boy?")
+        #expect(info?.question == "Which size?")
         #expect(info?.options.map(\.description) == ["küçük", "büyük"])
         #expect(info?.page == 1 && info?.pages == 2)
     }
@@ -170,5 +172,64 @@ private let colorScreen = ScreenPrompt(
         #expect(obj["kind"] as? String == "question")
         #expect(obj["failed"] as? Bool == true)
         #expect(obj["multi"] as? Bool == false)
+    }
+
+    // Bulgu 5: gitmeyen cevap "gönderildi…" değil "gitmedi" gösterir.
+    @Test func failedIsNotSent() {
+        let info = PromptMerge.info(screen: colorScreen, pending: nil, hasTerminal: true, sent: true, failed: true)
+        #expect(info?.sent == false && info?.failed == true)
+        #expect(PromptMerge.info(screen: colorScreen, pending: nil, hasTerminal: true, sent: true, failed: false)?.sent == true)
+    }
+
+    // Bulgu 6: ekran okundu ama menü tanınmadı → cevaplanamaz balon ("terminalinden cevapla · terminali aç").
+    @Test func unparsedScreenGivesOffBalloon() {
+        let generic = PromptMerge.info(screen: nil, pending: nil, hasTerminal: true, screenRead: true, sent: false, failed: false)
+        #expect(generic?.answerable == false)
+        #expect(generic?.options.isEmpty == true && generic?.question == "")
+        #expect(generic?.kind == .permission)
+        let bash = PendingTool(id: "x", name: "Bash", input: ["command": .string("ls")])
+        #expect(PromptMerge.info(screen: nil, pending: bash, hasTerminal: true, screenRead: true, sent: false, failed: false)?
+            .answerable == false)
+        let q = ask([(q: "Hangi meyve?", multi: true, opts: [("Elma", "a"), ("Muz", "b")])])
+        let fromLog = PromptMerge.info(screen: nil, pending: q, hasTerminal: true, screenRead: true, sent: false, failed: false)
+        #expect(fromLog?.kind == .question && fromLog?.question == "Hangi meyve?" && fromLog?.answerable == false)
+        let plan = PendingTool(id: "p", name: "ExitPlanMode", input: ["plan": .string("# P")])
+        #expect(PromptMerge.info(screen: nil, pending: plan, hasTerminal: true, screenRead: true, sent: false, failed: false)?
+            .kind == .plan)
+        // Ekran henüz okunmadıysa hâlâ balon yok (titreme olmasın).
+        #expect(PromptMerge.info(screen: nil, pending: q, hasTerminal: true, screenRead: false, sent: false, failed: false) == nil)
+    }
+
+    // Bulgu 7: çizgiler varsa yalnız aralarındaki birleşik komut karşılaştırılır; kırılmış komutun ilk satırı yetmez.
+    @Test func wrappedCommandFirstLineDoesNotMatch() {
+        let detail = "Bash command\n╌╌╌╌\n git push origin main\n --force\n╌╌╌╌\nPush"
+        #expect(permission(detail, pending: "git push origin main")?.detail == detail)
+        #expect(permission(detail, pending: "git push origin main --force")?.detail == "git push origin main --force")
+    }
+
+    // Bulgu 8: aynı etiketli başka bir soru ekrandaki sorunun yerine geçmez.
+    @Test func transcriptQuestionMustMatchScreenTitle() {
+        let pending = ask([(q: "Başka bir soru?", multi: false, opts: [("Red", "r"), ("Blue", "b")])])
+        let info = PromptMerge.info(screen: colorScreen, pending: pending, hasTerminal: true, sent: false, failed: false)
+        #expect(info?.question == "Which color do you prefer?")
+        #expect(info?.options.allSatisfy { $0.description == nil } == true)
+        // Aynı etiketli iki sayfa: başlığı tutan seçilir.
+        let two = ask([(q: "Favourite?", multi: false, opts: [("Red", "x"), ("Blue", "y")]),
+                       (q: "Which color do you prefer?", multi: false, opts: [("Red", "r"), ("Blue", "b")])])
+        let picked = PromptMerge.info(screen: colorScreen, pending: two, hasTerminal: true, sent: false, failed: false)
+        #expect(picked?.options.prefix(2).map(\.description) == ["r", "b"])
+    }
+
+    // Bulgu 4: balon ham ekranın kimliğini taşır (birleştirilmiş/zenginleştirilmiş detay değil).
+    @Test func menuIdFromRawScreen() {
+        let screen = ScreenPrompt(kind: .permission, title: "Do you want to proceed?", detail: "Bash command\n  touch out.txt",
+                                  options: [ScreenOption(label: "Yes", stop: 0), ScreenOption(label: "No", stop: 1)],
+                                  selected: 0, multi: false, page: nil)
+        let pending = PendingTool(id: "x", name: "Bash", input: ["command": .string("touch out.txt")])
+        let info = PromptMerge.info(screen: screen, pending: pending, hasTerminal: true, sent: false, failed: false)
+        #expect(info?.detail == "touch out.txt")
+        #expect(info?.menuId == screen.menuId)
+        #expect(PromptMerge.info(screen: nil, pending: ask([(q: "Q", multi: false, opts: [("A", "")])]),
+                                 hasTerminal: false, sent: false, failed: false)?.menuId == "")
     }
 }

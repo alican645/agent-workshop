@@ -4,7 +4,7 @@ import Testing
 
 @Suite struct PromptAnswerDecodingTests {
     private func body(_ extra: [String: Any] = [:]) -> [String: Any] {
-        var b: [String: Any] = ["type": "answer", "robot": "r1", "labels": ["A", "B"]]
+        var b: [String: Any] = ["type": "answer", "robot": "r1", "labels": ["A", "B"], "menuId": "m1"]
         for (k, v) in extra { b[k] = v }
         return b
     }
@@ -12,14 +12,14 @@ import Testing
     @Test func valid() {
         let d = PromptAnswer.decode(body(["option": NSNumber(value: 1), "checks": [0, 2], "text": "x"]))
         #expect(d?.robot == "r1")
-        #expect(d?.answer == PromptAnswer(option: 1, checks: [0, 2], text: "x", labels: ["A", "B"]))
-        #expect(PromptAnswer.decode(body())?.answer == PromptAnswer(labels: ["A", "B"]))
+        #expect(d?.answer == PromptAnswer(option: 1, checks: [0, 2], text: "x", labels: ["A", "B"], menuId: "m1"))
+        #expect(PromptAnswer.decode(body())?.answer == PromptAnswer(labels: ["A", "B"], menuId: "m1"))
     }
 
     @Test func rejects() {
-        #expect(PromptAnswer.decode(["labels": ["A"]]) == nil)
-        #expect(PromptAnswer.decode(["robot": "r"]) == nil)
-        #expect(PromptAnswer.decode(["robot": 1, "labels": []]) == nil)
+        #expect(PromptAnswer.decode(["labels": ["A"], "menuId": "m"]) == nil)
+        #expect(PromptAnswer.decode(["robot": "r", "menuId": "m"]) == nil)
+        #expect(PromptAnswer.decode(["robot": 1, "labels": [], "menuId": "m"]) == nil)
         #expect(PromptAnswer.decode(body(["labels": ["A", 2]])) == nil)
         #expect(PromptAnswer.decode(body(["labels": "A"])) == nil)
         #expect(PromptAnswer.decode(body(["checks": [0, "x", 2]])) == nil)
@@ -31,5 +31,10 @@ import Testing
         #expect(PromptAnswer.decode(body(["option": 1.5])) == nil)
         #expect(PromptAnswer.decode(body(["text": 5])) == nil)
         #expect(PromptAnswer.decode(body(["text": NSNull()])) == nil)
+        // Bulgu 4: menuId zorunlu ve metin.
+        var noId = body(); noId["menuId"] = nil
+        #expect(PromptAnswer.decode(noId) == nil)
+        #expect(PromptAnswer.decode(body(["menuId": 5])) == nil)
+        #expect(PromptAnswer.decode(body(["menuId": NSNull()])) == nil)
     }
 }

@@ -24,17 +24,33 @@ public struct ScreenPrompt: Equatable, Sendable {
     public var page: (index: Int, count: Int)?
     /// Çoklu seçimde numarasız "Submit" satırının ok tuşu durağı; başka durumda nil.
     public var submitStop: Int?
+    /// Sekme şeridinde açık sayfadan başka cevapsız (☐) sekme yok: çoklu seçimde Submit'ten sonra
+    /// "Review your answers" sayfası gelir. Şeritsiz ya da tek sekmeli menü de son sayfadır.
+    /// Verilmezse yalnız sayfasız menü son sayfa sayılır (emin olunmayan durumda ikinci Enter basılmasın).
+    public var finalPage: Bool
 
     public init(kind: PromptKind, title: String?, detail: String?, options: [ScreenOption], selected: Int,
-                multi: Bool, page: (index: Int, count: Int)?, submitStop: Int? = nil) {
+                multi: Bool, page: (index: Int, count: Int)?, submitStop: Int? = nil, finalPage: Bool? = nil) {
         self.kind = kind; self.title = title; self.detail = detail; self.options = options
         self.selected = selected; self.multi = multi; self.page = page; self.submitStop = submitStop
+        self.finalPage = finalPage ?? (page == nil)
+    }
+
+    /// Menünün kimliği (ham ekrandan): tür, başlık, detay, sayfa ve etiketler. İmleç ve işaretler dahil değil
+    /// (kullanıcı terminalde oynatsa da aynı menüdür). Balon bunu geri yollar; tazelenen ekranınkiyle aynı
+    /// değilse cevap gönderilmez — art arda gelen aynı etiketli iki izin ancak böyle ayrılır.
+    public var menuId: String {
+        let parts: [Any] = [kind.rawValue, title ?? NSNull(), detail ?? NSNull(),
+                            page.map { [$0.index, $0.count] } ?? NSNull(), options.map(\.label)]
+        guard let data = try? JSONSerialization.data(withJSONObject: parts, options: [.sortedKeys]),
+              let s = String(data: data, encoding: .utf8) else { return "" }
+        return s
     }
 
     public static func == (a: ScreenPrompt, b: ScreenPrompt) -> Bool {
         a.kind == b.kind && a.title == b.title && a.detail == b.detail && a.options == b.options
             && a.selected == b.selected && a.multi == b.multi && a.submitStop == b.submitStop
-            && a.page?.index == b.page?.index && a.page?.count == b.page?.count
+            && a.page?.index == b.page?.index && a.page?.count == b.page?.count && a.finalPage == b.finalPage
     }
 }
 
@@ -170,12 +186,14 @@ public enum PromptParser {
         }
 
         var page: (index: Int, count: Int)?
+        var finalPage = true
         if let strip {
             let marks = strip.filter { $0 == tabOpen || $0 == tabDone }
             if marks.count > 1 {
                 // Açık sekme yalnız renkle belli; ilk cevapsız sekme sayılır. Hepsi cevaplıysa emin değiliz.
                 guard let open = marks.firstIndex(of: tabOpen) else { return nil }
                 page = (marks.distance(from: marks.startIndex, to: open), marks.count)
+                finalPage = marks.filter { $0 == tabOpen }.count == 1
             }
         }
 
@@ -189,7 +207,7 @@ public enum PromptParser {
         }
 
         return ScreenPrompt(kind: kind, title: title, detail: detail, options: options, selected: selected,
-                            multi: multi, page: page, submitStop: submitStop)
+                            multi: multi, page: page, submitStop: submitStop, finalPage: finalPage)
     }
 
     /// "  ❯ 3. Etiket" → (3, imleç var, rakamın sütunu, "Etiket").

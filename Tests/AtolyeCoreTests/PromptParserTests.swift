@@ -210,4 +210,27 @@ import Testing
     @Test func emptyIsNil() {
         #expect(PromptParser.parse(lines: [], cursorRow: 0) == nil)
     }
+
+    // Bulgu 3: son sayfa = başka cevapsız (☐) sekme yok; şeritsiz/tek sekmeli menü de son sayfadır.
+    @Test func finalPage() throws {
+        #expect(try #require(try parse("ask-pages-q3")).finalPage)
+        #expect(try #require(try parse("ask-multi")).finalPage)
+        #expect(try #require(try parse("ask-single")).finalPage)
+        #expect(try #require(try parse("ask-pages")).finalPage == false)
+        #expect(try #require(try parse("ask-pages-q2")).finalPage == false)
+    }
+
+    // Bulgu 4: menü kimliği ham ekrandan; aynı ekran aynı kimlik, başka komut başka kimlik.
+    @Test func menuIdStableAndDistinct() throws {
+        let a = try #require(try parse("bash-permission"))
+        let b = try #require(try parse("bash-permission"))
+        #expect(!a.menuId.isEmpty && a.menuId == b.menuId)
+        let down = try #require(try parse("bash-permission-down"))   // yalnız imleç farklı
+        #expect(down.menuId == a.menuId)
+        var other = a; other.detail = (a.detail ?? "") + " --force"
+        #expect(other.menuId != a.menuId)
+        var page = a; page.page = (index: 1, count: 3)
+        #expect(page.menuId != a.menuId)
+        #expect(try #require(try parse("ask-pages")).menuId != (try #require(try parse("ask-pages-q2"))).menuId)
+    }
 }

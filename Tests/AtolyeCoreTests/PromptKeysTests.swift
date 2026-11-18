@@ -13,10 +13,20 @@ import Testing
         return try #require(PromptParser.parse(lines: l, cursorRow: l.count - 1))
     }
 
+    /// Fikstürün satırlarında `from` → `to` değiştirilip ayrıştırılır (ör. sekme şeridini oynatmak için).
+    private func screen(_ name: String, replacing from: String, with to: String) throws -> ScreenPrompt {
+        let url = try #require(Bundle.module.url(forResource: name, withExtension: "txt",
+                                                 subdirectory: "Fixtures/prompts"))
+        var l = try String(contentsOf: url, encoding: .utf8).replacingOccurrences(of: from, with: to)
+            .components(separatedBy: "\n")
+        if l.last == "" { l.removeLast() }
+        return try #require(PromptParser.parse(lines: l, cursorRow: l.count - 1))
+    }
+
     private func str(_ d: Data?) -> String? { d.flatMap { String(data: $0, encoding: .utf8) } }
 
     private func ans(_ s: ScreenPrompt, option: Int? = nil, checks: [Int] = [], text: String? = nil) -> PromptAnswer {
-        PromptAnswer(option: option, checks: checks, text: text, labels: s.options.map(\.label))
+        PromptAnswer(option: option, checks: checks, text: text, labels: s.options.map(\.label), menuId: s.menuId)
     }
 
     @Test func downTwiceThenEnter() throws {
@@ -148,5 +158,67 @@ import Testing
         let i = try #require(s.options.firstIndex(where: { $0.freeText }))
         s.options[i].label = "kiwi"; s.options[i].checked = true
         #expect(PromptKeys.keys(for: ans(s, checks: [i], text: "x"), on: s) == nil)
+    }
+
+    // Bulgu 1: plan menüsünde "Tell Claude what to change" sıradan seçenektir; metin yazmak doğrulanmadı
+    // (harfler plan menüsünün kısayollarına gidebilir). Metinli cevap reddedilir, metinsiz seçim + Enter.
+    @Test func planFreeTextRowAcceptsNoText() throws {
+        let s = try screen("plan-approval")
+        let i = try #require(s.options.firstIndex(where: { $0.label == "Tell Claude what to change" }))
+        #expect(PromptKeys.keys(for: ans(s, option: i, text: "daha kısa"), on: s) == nil)
+        let n = s.options[i].stop - s.options[s.selected].stop
+        #expect(str(PromptKeys.keys(for: ans(s, option: i), on: s)) == String(repeating: down, count: n) + "\r")
+    }
+
+    @Test func permissionFreeTextRowAcceptsNoText() {
+        // Eski sürümlerin "No, and tell Claude …" seçeneği: izinlerde metin yazma doğrulanmadı.
+        let s = ScreenPrompt(kind: .permission, title: "Do you want to proceed?", detail: "ls",
+                             options: [ScreenOption(label: "Yes", stop: 0),
+                                       ScreenOption(label: "No, and tell Claude what to do differently", freeText: true, stop: 1)],
+                             selected: 0, multi: false, page: nil)
+        #expect(PromptKeys.keys(for: ans(s, option: 1, text: "x"), on: s) == nil)
+    }
+
+    // Bulgu 2: çoklu seçimde kutusuz satır ("Chat about this") işaretlenemez; boş serbest satır metinsiz işaretlenemez.
+    @Test func multiRejectsRowWithoutCheckbox() throws {
+        let s = try screen("ask-multi")
+        let chat = try #require(s.options.firstIndex(where: { $0.label == "Chat about this" }))
+        #expect(s.options[chat].checked == nil)
+        #expect(PromptKeys.keys(for: ans(s, checks: [chat]), on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s, checks: [0, chat]), on: s) == nil)
+    }
+
+    @Test func multiRejectsPlaceholderFreeRowWithoutText() throws {
+        let s = try screen("ask-multi")
+        let i = try #require(s.options.firstIndex(where: { $0.freeText }))
+        #expect(PromptKeys.keys(for: ans(s, checks: [i]), on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s, checks: [0, i]), on: s) == nil)
+    }
+
+    // Bulgu 3: çok sorulu çağrıda inceleme sayfası yalnız son cevapsız sorudan sonra gelir.
+    @Test func multiOnLastPageSubmitsAndConfirms() throws {
+        let s = try screen("ask-pages-q3")   // ☒ Color ☒ Size ☐ Fruits
+        #expect(s.finalPage)
+        let submit = try #require(s.submitStop)
+        #expect(str(PromptKeys.keys(for: ans(s, checks: [0]), on: s))
+                == " " + String(repeating: down, count: submit - s.options[0].stop) + "\r\r")
+    }
+
+    @Test func multiOnEarlierPageSubmitsOnce() throws {
+        // Başka cevapsız sekme var: Submit sonraki soruya geçer; ikinci Enter onu körlemesine cevaplardı.
+        let s = try screen("ask-pages-q3", replacing: "☒", with: "☐")
+        #expect(!s.finalPage && s.page?.index == 0)
+        let submit = try #require(s.submitStop)
+        #expect(str(PromptKeys.keys(for: ans(s, checks: [0]), on: s))
+                == " " + String(repeating: down, count: submit - s.options[0].stop) + "\r")
+    }
+
+    // Bulgu 4: cevap gösterilen menünün kimliğini taşır; aynı etiketli başka bir menüye gitmez.
+    @Test func nilWhenMenuIdDiffers() throws {
+        let s = try screen("bash-permission")
+        var a = ans(s, option: 0); a.menuId = "başka"
+        #expect(PromptKeys.keys(for: a, on: s) == nil)
+        var other = s; other.detail = (s.detail ?? "") + " --force"
+        #expect(PromptKeys.keys(for: ans(s, option: 0), on: other) == nil)
     }
 }

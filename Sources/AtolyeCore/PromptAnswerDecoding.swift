@@ -2,9 +2,9 @@ import Foundation
 
 extension PromptAnswer {
     /// Sahneden gelen `answer` mesajını çözer. Emin olunmayan her durumda nil (hiçbir şey gönderilmez):
-    /// zorunlu alan eksik/yanlış tipte, ya da var olan bir alan yanlış tipte ise mesaj tümden reddedilir.
+    /// zorunlu alan (robot, labels, menuId) eksik/yanlış tipte, ya da var olan bir alan yanlış tipte ise mesaj tümden reddedilir.
     public static func decode(_ body: [String: Any]) -> (robot: String, answer: PromptAnswer)? {
-        guard let robot = body["robot"] as? String,
+        guard let robot = body["robot"] as? String, let menuId = body["menuId"] as? String,
               let rawLabels = body["labels"] as? [Any] else { return nil }
         var labels: [String] = []
         for l in rawLabels {
@@ -29,7 +29,7 @@ extension PromptAnswer {
             guard let s = v as? String else { return nil }
             text = s
         }
-        return (robot, PromptAnswer(option: option, checks: checks, text: text, labels: labels))
+        return (robot, PromptAnswer(option: option, checks: checks, text: text, labels: labels, menuId: menuId))
     }
 
     /// Yalnız tam sayı olan, boolean olmayan sayıyı Int'e çevirir (true→1, 1.5→1 kabul edilmez).
