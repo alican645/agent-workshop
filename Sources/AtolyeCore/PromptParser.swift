@@ -6,8 +6,11 @@ public struct ScreenOption: Equatable, Sendable {
     public var label: String
     public var freeText: Bool
     public var checked: Bool?
-    public init(label: String, freeText: Bool = false, checked: Bool? = nil) {
-        self.label = label; self.freeText = freeText; self.checked = checked
+    /// Menüdeki ok tuşu durağı (0 tabanlı); seçenek olmayan durağı (çoklu seçimdeki "Submit" satırı) da sayar.
+    /// İmleci seçili seçenekten buraya götürmek: `|stop - options[selected].stop|` kez ↑/↓.
+    public var stop: Int
+    public init(label: String, freeText: Bool = false, checked: Bool? = nil, stop: Int = 0) {
+        self.label = label; self.freeText = freeText; self.checked = checked; self.stop = stop
     }
 }
 
@@ -19,16 +22,18 @@ public struct ScreenPrompt: Equatable, Sendable {
     public var selected: Int
     public var multi: Bool
     public var page: (index: Int, count: Int)?
+    /// Çoklu seçimde numarasız "Submit" satırının ok tuşu durağı; başka durumda nil.
+    public var submitStop: Int?
 
     public init(kind: PromptKind, title: String?, detail: String?, options: [ScreenOption], selected: Int,
-                multi: Bool, page: (index: Int, count: Int)?) {
+                multi: Bool, page: (index: Int, count: Int)?, submitStop: Int? = nil) {
         self.kind = kind; self.title = title; self.detail = detail; self.options = options
-        self.selected = selected; self.multi = multi; self.page = page
+        self.selected = selected; self.multi = multi; self.page = page; self.submitStop = submitStop
     }
 
     public static func == (a: ScreenPrompt, b: ScreenPrompt) -> Bool {
         a.kind == b.kind && a.title == b.title && a.detail == b.detail && a.options == b.options
-            && a.selected == b.selected && a.multi == b.multi
+            && a.selected == b.selected && a.multi == b.multi && a.submitStop == b.submitStop
             && a.page?.index == b.page?.index && a.page?.count == b.page?.count
     }
 }
@@ -77,6 +82,7 @@ public enum PromptParser {
         var options: [ScreenOption] = []
         var beforeRule: Set<Int> = []
         var selected: Int?
+        var submitRows: [Int] = []   // "Submit" satırlarının ardından gelen seçeneğin sırası
         var lastLabelLine = ""
         for i in start...bottom {
             let line = lines[i]
@@ -101,6 +107,13 @@ public enum PromptParser {
                 let indent = line.prefix { $0 == " " }.count
                 guard indent >= first.column + 2, !line.contains(cursor) else { return nil }
                 let text = line.trimmingCharacters(in: .whitespaces)
+                // Çoklu seçimde "Type something" altındaki numarasız "     Submit" satırı: etiket sütununda
+                // (çoklu seçimin açıklamaları daha içeride). Ok tuşları burada da durur.
+                if text == "Submit" && indent == first.column + 3 {
+                    submitRows.append(options.count)
+                    lastLabelLine = ""
+                    continue
+                }
                 let firstWord = text.prefix { $0 != " " }
                 if !lastLabelLine.isEmpty && lastLabelLine.count + 1 + firstWord.count > width {
                     // Satır sığmadığı için kırılmış (ör. uzun klasör yolu); "-" ya da "/" ile bittiyse boşluksuz.
@@ -121,18 +134,33 @@ public enum PromptParser {
         let panel = Array(lines[(panelTop + 1)..<titleRow])
         let strip = panel.first { $0.contains(tabOpen) || $0.contains(tabDone) }
 
+        // Sekme şeridi önce: AskUserQuestion başlığı da "Do you want to …" ile başlayabilir.
         let kind: PromptKind
-        if title.hasPrefix(permissionTitlePrefix) {
+        if strip != nil {
+            kind = .question
+        } else if title.hasPrefix(permissionTitlePrefix) {
             kind = .permission
         } else if planTitleMarks.contains(where: { title.contains($0) }) {
             kind = .plan
-        } else if strip != nil {
-            kind = .question
         } else {
             return nil
         }
         let multi = options.contains { $0.checked != nil }
         guard !multi || kind == .question else { return nil }
+
+        // Ok tuşu durakları. Çoklu seçimde tam bir "Submit" satırı olmalı (yoksa düzeni tanımıyoruz);
+        // ondan sonraki seçenekler bir durak kayar. Tek seçimde Submit satırı yoktur; bu sözcük orada bir
+        // açıklama olabilir, durak sayılmaz. "────" ayracı durak değildir: tek seçimde "Type something."
+        // satırından bir ↓ doğrudan "Chat about this"e gider (ask-single-below), çoklu seçimde Submit'ten
+        // bir ↓ öyle (README).
+        var submitStop: Int?
+        if multi {
+            guard submitRows.count == 1 else { return nil }
+            submitStop = submitRows[0]
+        }
+        for i in options.indices {
+            options[i].stop = i + ((submitStop.map { i >= $0 } ?? false) ? 1 : 0)
+        }
 
         for i in options.indices {
             // Soruda serbest metin satırı "Chat about this" ayracının hemen üstündedir; yazı yazılınca
@@ -161,7 +189,7 @@ public enum PromptParser {
         }
 
         return ScreenPrompt(kind: kind, title: title, detail: detail, options: options, selected: selected,
-                            multi: multi, page: page)
+                            multi: multi, page: page, submitStop: submitStop)
     }
 
     /// "  ❯ 3. Etiket" → (3, imleç var, rakamın sütunu, "Etiket").

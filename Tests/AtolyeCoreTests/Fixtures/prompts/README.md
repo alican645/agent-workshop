@@ -17,11 +17,13 @@ bozulmasın diye), profil klasörü `~/.claude/` yazıldı. E-posta ekranda yokt
 | `read-outside-permission.txt` | çalışma klasörü dışını okuma izni (kendiliğinden çıktı) | permission |
 | `ask-single.txt` | AskUserQuestion, tek soru, tek seçim | question |
 | `ask-single-typed.txt` | aynısı; "Type something." satırına gidilip `hello` yazılmış | question, freeText etiketi `hello` |
+| `ask-single-below.txt` | aynısından bir ↓: imleç ayracı atlayıp `5. Chat about this`'te | question, selected 4 |
 | `ask-multi.txt` | tek soru, multiSelect | question, multi |
 | `ask-multi-checked.txt` | Boşluk ile 1., ↓↓ Enter ile 3. işaretlenmiş; ❯ 3.'te | question, checked |
 | `ask-multi-submit-row.txt` | ❯ numarasız "Submit" satırında | nil |
 | `ask-pages.txt` | tek çağrıda 3 soru, ilk sayfa | question, page 0/3 |
 | `ask-pages-q2.txt` | 1. soru serbest metinle cevaplanmış, 2. sayfa | question, page 1/3 |
+| `ask-pages-q3.txt` | 3. sayfa, çoklu seçim (Apple, Banana, Type something, Submit, Chat) | question, page 2/3, multi |
 | `ask-pages-review.txt` | son "Review your answers" sayfası (alt ipucu satırı yok) | nil |
 | `plan-approval.txt` | ExitPlanMode onayı; plan gövdesinde de `1.` `2.` satırları var | plan |
 | `idle-input.txt` | menü yok, boş giriş kutusu | nil |
@@ -61,6 +63,15 @@ sayfası (`❯ 1. Submit answers` / `2. Cancel`, imleç 1'de) → **Enter** gön
 bu inceleme sayfası çıkar (`←  ☐ Fruits  ✔ Submit  →` şeridi). Tab ve → "Chat about this" üzerindeyken
 hiçbir şey yapmadı. Doğrulanmış tam dizi (tek soru, 1. seçeneği işaretle, gönder):
 `" "` (Boşluk) + `ESC[B` ×4 (Apple→Banana→Cherry→Type something→Submit) + `\r` + `\r`.
+
+**Ok tuşu durakları (ayrıştırıcının sözleşmesi):** `ScreenOption.stop` seçeneğin ↑/↓ durağıdır;
+`ScreenPrompt.submitStop` çoklu seçimdeki numarasız `Submit` satırının durağı (başka türlerde nil);
+`selected` her zaman `options` içindeki sıradır. Hedefe gitmek: `|hedef.stop − options[selected].stop|` kez ↑/↓.
+`────` ayracı durak değildir. Gözlenen: tek seçimde "Type something." → bir ↓ → "Chat about this"
+(`ask-single-below.txt`); çoklu seçimde Apple→Banana→Cherry→Type something→Submit 4 ↓, Submit'ten bir ↓
+"Chat about this" (`ask-multi` durakları `[0,1,2,3,5]`, Submit 4). Çoklu seçimde tam bir Submit satırı
+bulunmazsa ayrıştırıcı nil döner. Bir sınırdaki sarma (en üstte ↑ / en altta ↓) denenmedi; tuş üretici
+sınır dışına basmamalı.
 
 **Sayfalar (çok sorulu):** üstte sekme şeridi `←  ☐ Color  ☐ Size  ☐ Fruits  ✔ Submit  →`; `☐` cevapsız,
 `☒` cevaplı. Hangi sekmenin açık olduğu yalnız renkle belli (metinde yok); ayrıştırıcı açık sayfayı

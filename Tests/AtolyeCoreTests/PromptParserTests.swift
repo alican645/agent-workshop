@@ -101,6 +101,47 @@ import Testing
         #expect(p.selected == 2)
     }
 
+    @Test func multiStopsCountSubmitRow() throws {
+        // Gerçek: Apple→Banana→Cherry→Type something→Submit = 4 kez ↓, bir ↓ daha "Chat about this".
+        let p = try #require(try parse("ask-multi"))
+        #expect(p.options.map(\.stop) == [0, 1, 2, 3, 5])
+        #expect(p.submitStop == 4)
+        // Çok sorulu çağrının 3. sayfası (çoklu): Apple, Banana, Type something, Submit, Chat about this.
+        let q3 = try #require(try parse("ask-pages-q3"))
+        #expect(q3.page?.index == 2 && q3.page?.count == 3)
+        #expect(q3.options.map(\.stop) == [0, 1, 2, 4])
+        #expect(q3.submitStop == 3)
+    }
+
+    @Test func singleStopsAreConsecutive() throws {
+        // Gerçek: "Type something." satırından bir ↓ ayracı atlayıp "Chat about this"e gider (ask-single-below).
+        let p = try #require(try parse("ask-single"))
+        #expect(p.options.map(\.stop) == [0, 1, 2, 3, 4])
+        #expect(p.submitStop == nil)
+        let below = try #require(try parse("ask-single-below"))
+        #expect(below.selected == 4 && below.options[4].label == "Chat about this")
+        #expect(try parse("bash-permission")?.options.map(\.stop) == [0, 1, 2, 3])
+        #expect(try parse("bash-permission")?.submitStop == nil)
+    }
+
+    @Test func multiWithoutSubmitRowIsNil() throws {
+        var l = try lines("ask-multi")
+        let i = try #require(l.firstIndex { $0.trimmingCharacters(in: .whitespaces) == "Submit" })
+        l.remove(at: i)
+        #expect(PromptParser.parse(lines: l, cursorRow: 0) == nil)
+    }
+
+    @Test func questionTitledLikePermissionIsQuestion() throws {
+        var l = try lines("ask-single")
+        let i = try #require(l.firstIndex { $0 == "Which color do you prefer?" })
+        l[i] = "Do you want to use Redis?"
+        let p = try #require(PromptParser.parse(lines: l, cursorRow: 0))
+        #expect(p.kind == .question)
+        #expect(p.title == "Do you want to use Redis?")
+        #expect(p.detail == nil)
+        #expect(p.options[3].freeText)
+    }
+
     @Test func cursorOnSubmitRowIsNil() throws {
         #expect(try parse("ask-multi-submit-row") == nil)
     }
