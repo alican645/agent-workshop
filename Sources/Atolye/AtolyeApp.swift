@@ -63,6 +63,13 @@ struct AtolyeApp: App {
         }
         .defaultSize(width: 520, height: 560)
         .defaultLaunchBehavior(.suppressed)
+        // Projelerin TODO.local.md maddeleri.
+        Window(L("Yapılacaklar"), id: "todos") {
+            TodoWindow(model: model)
+                .environment(\.locale, L10n.locale)
+        }
+        .defaultSize(width: 820, height: 560)
+        .defaultLaunchBehavior(.suppressed)
     }
 }
 

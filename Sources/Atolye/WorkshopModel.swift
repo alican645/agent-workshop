@@ -19,6 +19,7 @@ final class WorkshopModel {
     let profiles = Profiles()
     /// GitHub girişi ve kişisel pano.
     let github = GitHubModel()
+    let todos = Todos()
     /// Kendi robotlarının klasörü (`<id>.glb` ve `robots.json`).
     nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
     /// Robot havuzu: hazır robotların aç-kapası ve kendi `.glb` robotları.
@@ -82,6 +83,7 @@ final class WorkshopModel {
             saveDesk()
         }
         host.start()
+        todos.onChange = { [weak self] in self?.tick(initial: false) }
         notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
         notifier.start()
         let mainDir = profiles.main.configDir
@@ -266,24 +268,11 @@ final class WorkshopModel {
         tick(initial: false)
     }
 
-    // MARK: Beyaz tahta (TODO.local.md)
+    // MARK: Yapılacaklar
 
-    func addTodo(_ text: String, root: String) {
-        writeTodo { try TodoFile.add(text, root: root) }
-    }
-
-    func toggleTodo(line: Int, text: String, root: String) {
-        writeTodo { try TodoFile.toggle(line: line, text: text, root: root) }
-    }
-
-    private func writeTodo(_ write: () throws -> Void) {
-        do { try write() } catch {
-            let a = NSAlert()
-            a.messageText = L("TODO.local.md yazılamadı")
-            a.informativeText = error.localizedDescription
-            a.runModal()
-        }
-        tick(initial: false)
+    /// Tahtaya ya da panele tıklanınca: pencerede o proje seçili açılsın.
+    func showTodos(_ root: String) {
+        todos.select(root)
     }
 
     private func saveDesk() { try? desk.save(to: Self.deskURL) }

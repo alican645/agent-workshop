@@ -94,6 +94,77 @@ public enum TodoList {
     }
 }
 
+// MARK: Düzenleme (Yapılacaklar penceresi). Hepsi madde satırı değiştiyse nil döner.
+
+extension TodoList {
+    /// Maddenin satırı hâlâ aynıysa satırlar.
+    private static func checked(_ text: String, _ item: TodoItem) -> [Substring]? {
+        let ls = lines(text)
+        guard item.line < ls.count, ls[item.line] == item.raw else { return nil }
+        return ls
+    }
+
+    /// Madde ve altındaki daha girintili maddeler: satır aralığı.
+    private static func block(_ text: String, _ item: TodoItem) -> ClosedRange<Int> {
+        let items = parse(text)
+        var end = item.line
+        if let i = items.firstIndex(where: { $0.line == item.line }) {
+            for child in items[(i + 1)...] {
+                guard child.indent > item.indent else { break }
+                end = child.line
+            }
+        }
+        return item.line...end
+    }
+
+    public static func delete(_ text: String, item: TodoItem) -> String? {
+        guard var ls = checked(text, item) else { return nil }
+        ls.removeSubrange(block(text, item))
+        return ls.joined(separator: "\n")
+    }
+
+    /// Metni değiştirir; işaret, kutu ve girinti kalır. Boş metin reddedilir.
+    public static func edit(_ text: String, item: TodoItem, to newText: String) -> String? {
+        let clean = newText.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }.joined(separator: " ")
+        guard !clean.isEmpty, var ls = checked(text, item), let m = match(ls[item.line]) else { return nil }
+        let raw = ls[item.line]
+        let close = raw.index(m.box, offsetBy: 2) // "]"den sonrası
+        ls[item.line] = Substring(String(raw[..<close]) + " " + clean + (raw.hasSuffix("\r") ? "\r" : ""))
+        return ls.joined(separator: "\n")
+    }
+
+    /// Girintiyi `by` düzey (2 boşluk) değiştirir; sıfırın altına inmez.
+    public static func indent(_ text: String, item: TodoItem, by: Int) -> String? {
+        guard var ls = checked(text, item), item.indent + by >= 0, by != 0 else { return nil }
+        let raw = ls[item.line]
+        let body = raw.drop { $0 == " " || $0 == "\t" }
+        ls[item.line] = Substring(String(repeating: "  ", count: item.indent + by) + body)
+        return ls.joined(separator: "\n")
+    }
+
+    /// Maddeyi (alt maddeleriyle) `before` maddesinin önüne taşır; `before` nil ise son maddenin arkasına.
+    public static func move(_ text: String, item: TodoItem, before: TodoItem?) -> String? {
+        guard var ls = checked(text, item) else { return nil }
+        let range = block(text, item)
+        if let before {
+            guard before.line < ls.count, ls[before.line] == before.raw, !range.contains(before.line) else { return nil }
+        }
+        let moved = Array(ls[range])
+        ls.removeSubrange(range)
+        var at: Int
+        if let before {
+            at = before.line > range.upperBound ? before.line - moved.count : before.line
+        } else {
+            let rest = ls.joined(separator: "\n")
+            at = parse(rest).last.map { block(rest, $0).upperBound + 1 } ?? ls.count
+        }
+        at = min(max(0, at), ls.count)
+        ls.insert(contentsOf: moved, at: at)
+        return ls.joined(separator: "\n")
+    }
+}
+
 /// Projenin `TODO.local.md` dosyasını okuyup yazar (atölyedeki beyaz tahta için).
 public enum TodoFile {
     /// Yeni maddeyi ekler; dosya yoksa oluşturur. Boş metin bir şey yapmaz.
@@ -108,12 +179,24 @@ public enum TodoFile {
     /// `line` satırındaki madde hâlâ `text` ise kutusunu çevirir. Dosya o arada değiştiyse dokunmaz, false döner.
     @discardableResult
     public static func toggle(line: Int, text: String, root: String) throws -> Bool {
+        try change(line: line, text: text, root: root) { TodoList.toggle($0, item: $1) }
+    }
+
+    /// `line` satırındaki madde hâlâ `text` ise `edit` ile değiştirir; dosya değiştiyse ya da `edit` nil verirse false.
+    @discardableResult
+    public static func change(line: Int, text: String, root: String,
+                              _ edit: (String, TodoItem) -> String?) throws -> Bool {
         let path = ProjectRoot.todoPath(root: root)
         guard let old = try? String(contentsOfFile: path, encoding: .utf8),
               let item = TodoList.parse(old).first(where: { $0.line == line }), item.text == text,
-              let new = TodoList.toggle(old, item: item) else { return false }
+              let new = edit(old, item), new != old else { return false }
         try new.write(toFile: path, atomically: true, encoding: .utf8)
         return true
+    }
+
+    /// Dosyadaki bütün maddeler (yoksa boş).
+    public static func items(root: String) -> [TodoItem] {
+        (try? String(contentsOfFile: ProjectRoot.todoPath(root: root), encoding: .utf8)).map(TodoList.parse) ?? []
     }
 }
 

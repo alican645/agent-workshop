@@ -12,6 +12,7 @@ struct WorkshopToolbar: View {
             // Pencereler
             GitHubButton(github: model.github)
             RobotsButton()
+            TodosButton(model: model)
             BarSeparator()
             // Hesap ve harcama
             ProfileMenu(model: model)
@@ -47,6 +48,21 @@ private struct GitHubButton: View {
         .buttonStyle(.plain)
         .help(L("GitHub katkıların"))
         .task { github.refreshIfStale() }
+    }
+}
+
+/// Üst çubukta Yapılacaklar penceresini açan düğme; açık madde sayısıyla.
+private struct TodosButton: View {
+    let model: WorkshopModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        let open = (model.snapshot?.zones ?? []).reduce(0) { $0 + $1.todos.filter { !$0.done }.count }
+        Button { openWindow(id: "todos") } label: {
+            BarChip(icon: "checklist", title: L("Yapılacaklar"), detail: open > 0 ? "\(open)" : nil)
+        }
+        .buttonStyle(.plain)
+        .help(L("Projelerin TODO.local.md maddeleri"))
     }
 }
 

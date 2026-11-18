@@ -28,15 +28,10 @@
   .sess .ag{font-size:12px;color:#6f5fb0;margin:3px 0 0 16px}
   .sess .ask{margin:6px 0 0 16px;padding:6px 8px;border-radius:8px;background:#fff2e4;border:1px solid #f0b37a;font-size:12px;color:#9a5a1c}
   .hist{font-size:12px;color:#5c554b;line-height:1.7;margin:0;padding-left:16px}
-  .todo{font-size:12px;color:#5c554b;line-height:1.5;margin:0;padding:0;list-style:none}
-  .todo li{display:flex;gap:8px;align-items:flex-start;padding:3px 6px;margin:0 -6px;border-radius:6px;cursor:pointer}
-  .todo li:hover{background:rgba(90,70,40,.06)}
-  .todo li .cb{flex:none;width:12px;height:12px;margin-top:2px;border:1.5px solid #8a7f70;border-radius:3px;font-size:10px;line-height:12px;text-align:center;color:#fff}
-  .todo li.done{color:#a09583;text-decoration:line-through}
-  .todo li.done .cb{background:#3aa57a;border-color:#3aa57a}
-  #todoForm{margin:6px 0 2px}
-  #todoIn{width:100%;box-sizing:border-box;font:inherit;font-size:12px;padding:6px 9px;border-radius:8px;border:1px solid rgba(90,70,40,.2);background:#fff;color:#2c2a26;-webkit-user-select:text;user-select:text;outline:none}
-  #todoIn:focus{border-color:#ff8c2e;box-shadow:0 0 0 3px rgba(255,140,46,.18)}
+  .todosum{display:flex;align-items:center;gap:10px;font-size:12px;color:#5c554b}
+  .todosum .bar{flex:1;height:6px;border-radius:3px;background:rgba(90,70,40,.12);overflow:hidden}
+  .todosum .bar i{display:block;height:100%;background:#3aa57a;border-radius:3px}
+  .todosum button{padding:4px 10px}
   #panel h4 .cnt{letter-spacing:0;font-weight:600;color:#b8ad9c;margin-left:4px}
   button{font:inherit;font-size:12px;border-radius:8px;padding:6px 11px;cursor:pointer;border:1px solid rgba(90,70,40,.2);background:#fff;color:#2c2a26}
   #home{position:fixed;right:16px;bottom:16px;z-index:5;display:none;box-shadow:0 4px 14px rgba(80,60,30,.15)}
@@ -573,19 +568,8 @@ function renderPanel() {
     todoHtml(z) +
     (z.pinned ? `<span class="unpin" id="unpin">${t('sabitlemeyi kaldır')}</span>` : '');
   if (html === panel._last) return;
-  // Yazılmakta olan madde yeniden çizimde kaybolmasın.
-  const oldIn = document.getElementById('todoIn');
-  const keep = oldIn && { v: oldIn.value, f: document.activeElement === oldIn, a: oldIn.selectionStart, b: oldIn.selectionEnd };
   panel._last = html; panel.innerHTML = html; panel.style.display = 'block';
-  const inp = document.getElementById('todoIn');
-  if (keep && inp) { inp.value = keep.v; if (keep.f) { inp.focus(); inp.setSelectionRange(keep.a, keep.b); } }
-  panel.querySelectorAll('.todo li').forEach((el) => el.onclick = () =>
-    post({ type: 'todoToggle', root: z.id, line: Number(el.dataset.line), text: el.dataset.text }));
-  document.getElementById('todoForm').onsubmit = (e) => {
-    e.preventDefault();
-    const v = inp.value.trim(); if (!v) return;
-    post({ type: 'todoAdd', root: z.id, text: v }); inp.value = '';
-  };
+  const to = document.getElementById('todoOpen'); if (to) to.onclick = () => post({ type: 'todoOpen', root: z.id });
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
   panel.querySelectorAll('.mach').forEach((el) => el.onclick = () => post({ type: 'openTerminal', id: el.dataset.term }));
   panel.querySelectorAll('.newrow .enter').forEach((el) => el.onclick = () => post({ type: 'newWindow', root: z.id, kind: el.dataset.kind }));
@@ -593,10 +577,10 @@ function renderPanel() {
 }
 function todoHtml(z) {
   const list = z.todos || [], done = list.filter((t) => t.done).length;
-  return `<h4 id="todoHead">${t('YAPILACAKLAR')}${list.length ? `<span class="cnt">${done}/${list.length}</span>` : ''}</h4>` +
-    (list.length ? `<ul class="todo">${list.map((it) =>
-      `<li class="${it.done ? 'done' : ''}" data-line="${it.line}" data-text="${esc(it.text)}"><span class="cb">${it.done ? '✓' : ''}</span><span>${esc(it.text)}</span></li>`).join('')}</ul>` : '') +
-    `<form id="todoForm"><input id="todoIn" maxlength="300" autocomplete="off" spellcheck="false" placeholder="${esc(t('＋ yeni madde, Enter ile ekle'))}"></form>`;
+  const pct = list.length ? Math.round((done / list.length) * 100) : 0;
+  return `<h4>${t('YAPILACAKLAR')}${list.length ? `<span class="cnt">${done}/${list.length}</span>` : ''}</h4>` +
+    `<div class="todosum">${list.length ? `<span class="bar"><i style="width:${pct}%"></i></span>` : `<span style="flex:1;color:#a09583">${t('henüz madde yok')}</span>`}` +
+    `<button id="todoOpen">${t('Aç')}</button></div>`;
 }
 function select(Z) {
   selected = Z.id;
@@ -619,12 +603,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const bh = ray.intersectObjects(boardHits)[0];
   if (bh) {
     const Z = zones.get(bh.object.userData.zoneId);
-    if (Z && !Z.leaving) {
-      post({ type: 'sceneTap' }); select(Z);
-      const inp = document.getElementById('todoIn');
-      if (inp) { document.getElementById('todoHead').scrollIntoView({ block: 'nearest' }); inp.focus(); }
-      return;
-    }
+    if (Z && !Z.leaving) { post({ type: 'todoOpen', root: Z.id }); return; }
   }
   post({ type: 'sceneTap' }); // boşluğa ya da bölgeye dokunuş: pencereler sol panele çekilir
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
