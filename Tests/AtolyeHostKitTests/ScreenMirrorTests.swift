@@ -23,6 +23,22 @@ import Testing
         #expect(m.lines()[1] == "")
     }
 
+    @Test func skippedCellsBecomeSpaces() {
+        // Claude kelimeleri imleç atlamasıyla yerleştirir; aradaki hücreler hiç yazılmaz.
+        // Sondaki boyalı boşluklar da kırpılır.
+        #expect(mirror("Do\u{1b}[4Gyou\u{1b}[44m   \u{1b}[0m").lines()[0] == "Do you")
+        #expect(mirror("❯\u{1b}[3G1. Yes").lines()[0] == "❯ 1. Yes")
+        #expect(mirror("界\u{1b}[4Gx").lines()[0] == "界 x")
+    }
+
+    @Test func repliesGoToCallbackWhenGiven() {
+        var got: [UInt8] = []
+        let m = ScreenMirror(cols: 80, rows: 24, onReply: { got += $0 })
+        m.feed(Data("ab\u{1b}[6n".utf8))   // imleç konumu sorusu
+        #expect(String(decoding: got, as: UTF8.self) == "\u{1b}[1;3R")
+        ScreenMirror(cols: 80, rows: 24).feed(Data("\u{1b}[6n".utf8))   // cevapsız: çökmez
+    }
+
     @Test func linesCoverVisibleRowsAndCursor() {
         let m = mirror("a\r\nb")
         #expect(m.lines().count == 24)

@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Haiku 5.5 · Claude Pro
+ ▝▝   ▝▝   /…/-Users-exampleuser-Downloads-Projeler-AjanTakip/68319abe-69fe-4efd-beff-a339819227c9/scratchpad/demo
+
+
+❯ Use the AskUserQuestion tool ONCE with exactly three questions: 1) "Which color do you prefer?" header "Color",
+  options Red, Blue, Green; 2) "Which size?" header "Size", options Small, Large; 3) "Which fruits do you like?" header
+  "Fruits", multiSelect true, options Apple, Banana. Do nothing else.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+←  ☐ Color  ☐ Size  ☐ Fruits  ✔ Submit  →
+
+Which color do you prefer?
+
+❯ 1. Red
+     Red
+  2. Blue
+     Blue
+  3. Green
+     Green
+  4. Type something.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

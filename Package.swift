@@ -15,7 +15,7 @@ let package = Package(
         .executableTarget(name: "atolye-host", dependencies: ["AtolyeHostKit"]),
         // Geliştirici aracı: gerçek Claude ekranlarını ayrıştırıcı testleri için dosyaya yakalar.
         .executableTarget(name: "prompt-capture", dependencies: ["AtolyeHostKit", .product(name: "SwiftTerm", package: "SwiftTerm")]),
-        .testTarget(name: "AtolyeCoreTests", dependencies: ["AtolyeCore"]),
+        .testTarget(name: "AtolyeCoreTests", dependencies: ["AtolyeCore"], resources: [.copy("Fixtures")]),
         .testTarget(name: "AtolyeHostKitTests", dependencies: ["AtolyeHostKit"]),
     ]
 )

@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Haiku 5.5 · Claude Pro
+ ▝▝   ▝▝   /…/-Users-exampleuser-Downloads-Projeler-AjanTakip/68319abe-69fe-4efd-beff-a339819227c9/scratchpad/demo
+
+
+❯ Use the AskUserQuestion tool to ask me exactly one single-select question, "Which color do you prefer?", header
+  "Color", with the options Red, Blue and Green. Do nothing else.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Color
+
+Which color do you prefer?
+
+  1. Red
+     Red
+  2. Blue
+     Blue
+  3. Green
+     Green
+❯ 4. hello
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · ↑/↓ to navigate · ctrl+g to edit in Vim · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
