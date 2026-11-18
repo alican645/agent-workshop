@@ -233,6 +233,14 @@ final class WorkshopModel {
         changeDesk { $0.open(.markdown(url.path), root: root) }
     }
 
+    /// Bekleyen ajanın plan dosyasını, robotun bölgesinde yüzen Markdown penceresi olarak açar.
+    /// Plan yolu ya da bölge yoksa hiçbir şey yapmaz.
+    func openPlan(robot id: String) {
+        guard let zone = snapshot?.zones.first(where: { $0.robots.contains { $0.id == id } }),
+              let path = zone.robots.first(where: { $0.id == id })?.prompt?.planPath else { return }
+        changeDesk { $0.open(.markdown(path), root: zone.id) }
+    }
+
     /// Pencereyi kapatır; çalışan terminalse önce sorar.
     func closeWindow(_ id: String) {
         guard let w = desk.window(id) else { return }
