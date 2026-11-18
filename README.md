@@ -40,6 +40,9 @@ MCP'ler ve hafızayla kullanırsın.
 - Bekleyen Claude'un penceresi ve sol paneldeki etiketi yanıp söner, sesli uyarı çalar.
 - Agent Workshop arka plandayken macOS bildirimi; bildirime tıklayınca doğrudan o terminale gidersin.
 - Dock simgesinde bekleyen ajan sayısı.
+- Bekleyen Claude'un seçenekleri (izin, seçenekli soru, plan onayı) projenin platformu üstündeki balonda çıkar; tıklayınca cevap terminale girmeden ajana gider.
+  Balon odaktayken 1–9 tuşları da seçer; plan onayında "Planı aç" planı Markdown okuyucuda açar. Yalnız Agent Workshop'un kendi terminallerindeki oturumlar için; cmux gibi dış oturumlarda seçenekler soluk görünür, cevap o terminalde verilir.
+  Bu özellik yeni `atolye-host` gerektirir; güncellemeden sonra helper yeniden başlatılmalı (açık terminaller kapanır).
 
 ### 💰 Token ve maliyet
 - Her oturumun kullandığı token ve Anthropic API liste fiyatıyla karşılığı (yardımcı ajanlar dahil).
