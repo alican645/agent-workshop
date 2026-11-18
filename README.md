@@ -1,4 +1,4 @@
-# Atölye — Agent Workshop
+# Agent Workshop
 
 **Claude Code oturumlarını bir robot atölyesi olarak gösteren, terminalleri de içinde barındıran macOS uygulaması.**
 
@@ -22,6 +22,11 @@ MCP'ler ve hafızayla kullanırsın.
   **bitti**, **boşta**. Yardımcı ajanlar (subagent) robotun yanında küçük yardımcılar olarak çıkar.
 - Bölge panelinde son araç çağrıları, açık `TODO.local.md` maddeleri ve git durumu.
 - Akış: commit, push, pull ve dal değişikliği olayları sahnede ve olay akışında görünür.
+- **6 farklı robot:** ana ajanlar için George, Mike, Stan; alt ajanlar için Leela, Android, Bolt.
+  Her yeni oturum rolündeki robotlardan rastgele birini alır, o an atölyede olmayanlar önce gelir.
+- **Kendi robotun:** üst çubuktaki **Robotlar** penceresinden bir `.glb` dosyası (en fazla 30 MB) ekle.
+  Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot
+  kendisi sallanır, zıplar ya da eğilir. Hazır robotları aynı pencereden kapatabilirsin.
 
 ### 🪟 Yüzen terminal pencereleri
 - Terminaller uygulamanın içinde, atölyenin üstünde: sürükle, kenarlardan/köşelerden boyutlandır,
@@ -29,11 +34,11 @@ MCP'ler ve hafızayla kullanırsın.
 - Sahneye tıklayınca pencereler sol paneldeki kendi projelerine animasyonla çekilir; projeye tıklayınca geri gelir.
 - Aynı projede istediğin kadar Claude oturumu, kabuk, salt okunur **Git** görünümü (değişen dosyalar,
   commit'ler, diff) ve **Markdown** okuyucu.
-- Terminaller ayrı bir yardımcı süreçte (`atolye-host`) yaşar: Atölye'yi kapatıp açsan da oturumların sürer.
+- Terminaller ayrı bir yardımcı süreçte (`atolye-host`) yaşar: Agent Workshop'u kapatıp açsan da oturumların sürer.
 
 ### 🔔 Seni bekleyen ajanı kaçırma
 - Bekleyen Claude'un penceresi ve sol paneldeki etiketi yanıp söner, sesli uyarı çalar.
-- Atölye arka plandayken macOS bildirimi; bildirime tıklayınca doğrudan o terminale gidersin.
+- Agent Workshop arka plandayken macOS bildirimi; bildirime tıklayınca doğrudan o terminale gidersin.
 - Dock simgesinde bekleyen ajan sayısı.
 
 ### 💰 Token ve maliyet
@@ -47,15 +52,15 @@ MCP'ler ve hafızayla kullanırsın.
 - Bütün profiller **aynı** skill'leri, plugin'leri, ayarları, hafızayı, komut geçmişini ve dosya geçmişini kullanır.
 - MCP sunucuları ve proje izinleri profiller arasında otomatik eşitlenir: bir hesapta eklediğin MCP
   diğerinde de olur. Hesabın kimlik bilgilerine dokunulmaz.
-- Her profilin 5 saatlik ve haftalık limiti görünür; %90'ı geçince Atölye uyarır.
+- Her profilin 5 saatlik ve haftalık limiti görünür; %90'ı geçince Agent Workshop uyarır.
 - Profile beklenen hesabı yazarsan, yanlış hesapla girişliyse uyarır; "Giriş yap" giriş sayfasını o e-postayla açar.
 
 ### 🟩 GitHub panosu
 - Üst çubuktaki **GitHub** düğmesiyle açılan kişisel pano: son bir yılın katkı ısı haritası, bugün,
   son 7 gün, kesintisiz seri ve en uzun seri; commit / PR / inceleme toplamları.
 - Son 30 günde çalıştığın depolar, gizli depolar dahil.
-- Giriş GitHub'ın cihaz akışıyla: Atölye bir kod gösterir, tarayıcıda onaylarsın. Şifre girilmez;
-  anahtar Mac'in Anahtar Zinciri'nde durur ve Atölye GitHub'a yalnız okuma isteği gönderir.
+- Giriş GitHub'ın cihaz akışıyla: Agent Workshop bir kod gösterir, tarayıcıda onaylarsın. Şifre girilmez;
+  anahtar Mac'in Anahtar Zinciri'nde durur ve Agent Workshop GitHub'a yalnız okuma isteği gönderir.
 
 ---
 
@@ -67,9 +72,13 @@ MCP'ler ve hafızayla kullanırsın.
 ```sh
 git clone https://github.com/alican645/agent-workshop.git
 cd agent-workshop
-./scripts/build-atolye.sh --install   # build/Atölye.app oluşturur ve ~/Applications'a kopyalar
-open ~/Applications/Atölye.app
+./scripts/build-atolye.sh --install   # "build/Agent Workshop.app" oluşturur ve ~/Applications'a kopyalar
+open ~/Applications/"Agent Workshop.app"
 ```
+
+Arayüz Türkçe ve İngilizce: uygulama menüsündeki **Dil** ile Sistem / English / Türkçe seçilir (sistem dili
+Türkçe değilse İngilizce açılır). Çeviriler `Sources/Atolye/Web/i18n/en.json` dosyasında; anahtar Türkçe metindir
+ve hem Swift arayüzü (`L("…")`) hem sahne (`t('…')`) aynı dosyayı kullanır. Eksik çeviriyi testler yakalar.
 
 Uygulama Apple geliştirici imzası taşımaz (yerelde ad-hoc imzalanır). Kaynaktan derleyince sorun
 olmaz; derlenmiş bir `.app` indirip açarsan macOS uyarı verir — sağ tık → **Aç** ile açabilirsin.
@@ -78,6 +87,7 @@ Testler:
 
 ```sh
 swift test
+node --test Tests/web/*.test.mjs   # sahne mantığı (robot seçimi, animasyon eşleme)
 ```
 
 ## Kısayollar
@@ -93,7 +103,7 @@ swift test
 
 ## Nasıl çalışıyor?
 
-Atölye hiçbir yere veri göndermez; her şeyi Claude Code'un kendi yerel dosyalarından okur. Tek istisna,
+Agent Workshop hiçbir yere veri göndermez; her şeyi Claude Code'un kendi yerel dosyalarından okur. Tek istisna,
 giriş yaparsan GitHub panosunun GitHub'dan kendi katkılarını okumasıdır.
 
 - **Oturum durumu:** Claude Code'un oturum kayıtları (`<profil>/sessions/<pid>.json`) saniyede bir taranır.
@@ -104,7 +114,7 @@ giriş yaparsan GitHub panosunun GitHub'dan kendi katkılarını okumasıdır.
 - **Limitler:** Claude Code'un durum satırı betiğine eklenen küçük bir blok, `rate_limits` bilgisini profil
   başına bir dosyaya yazar.
 
-Atölye'nin bilgisayarında değiştirdikleri (değişen her dosyanın aslı önce
+Agent Workshop'un bilgisayarında değiştirdikleri (değişen her dosyanın aslı önce
 `~/Library/Application Support/Atolye/yedek/` altına kopyalanır):
 
 - `~/.claude/statusline-command.sh` sonuna limit bloğu.
@@ -119,16 +129,16 @@ Atölye'nin bilgisayarında değiştirdikleri (değişen her dosyanın aslı ön
 | `Atolye` | SwiftUI uygulaması; sahne `WKWebView` içinde three.js ile çizilir (`Sources/Atolye/Web`) |
 | `atolye-host` | Terminalleri barındıran arka plan yardımcısı (Unix soketi üzerinden) |
 | `AtolyeHostKit` | Yardımcının sunucu/istemci kodu, [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) ile |
-| `AjanTakipCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
-| `AjanTakip` | Projenin ilk hâli olan menü çubuğu uygulaması (artık kullanılmıyor; Swift paketi ve
-çekirdek modül adını oradan alıyor) |
+| `AtolyeCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
 
 Tasarım notları ve uygulama planları `docs/superpowers/` altında.
 
 ## Teşekkürler
 
-- [three.js](https://threejs.org) (MIT) ve robot modeli *RobotExpressive* — Tomás Laulhé, düzenleme
+- [three.js](https://threejs.org) (MIT) ve robot modeli *RobotExpressive* — Tomás Laulhé (Quaternius), düzenleme
   Don McCurdy (CC0).
+- Robot modelleri George, Leela, Mike, Stan (*Animated Mech Pack*) ve Android (*Cyberpunk Game Kit*) —
+  [Quaternius](https://quaternius.com) (CC0). Ayrıntı: `Sources/Atolye/Web/models/LICENSE.txt`.
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT), [marked](https://marked.js.org) (MIT).
 - Bazı fikirler (token/maliyet takibi gibi) Orbiterm'den esinlendi; kod paylaşılmadı.
 

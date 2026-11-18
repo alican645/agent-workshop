@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import AppKit
 import AtolyeHostKit
 import Observation
@@ -19,6 +19,17 @@ final class WorkshopModel {
     let profiles = Profiles()
     /// GitHub girişi ve kişisel pano.
     let github = GitHubModel()
+    let todos = Todos()
+    /// Kendi robotlarının klasörü (`<id>.glb` ve `robots.json`).
+    nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
+    /// Robot havuzu: hazır robotların aç-kapası ve kendi `.glb` robotları.
+    let robotPool: RobotPoolStore = { let s = RobotPoolStore(dir: WorkshopModel.robotsDir); s.load(); return s }()
+    /// Robotlar penceresindeki robot resimleri.
+    let robotPreviews = RobotPreviews(dir: WorkshopModel.robotsDir)
+    /// Sahnenin yükleyemediği kendi robotları (id → hata).
+    var robotFailures: [String: String] = [:]
+    /// Robotlar penceresi her değişiklikte artırır; görünümler yeniden çizilsin.
+    var robotsVersion = 0
     @ObservationIgnored private var lastProfilesRefresh = Date.distantPast
     static let profilesInterval: TimeInterval = 5
 
@@ -26,6 +37,13 @@ final class WorkshopModel {
     @ObservationIgnored private var scanner = RegistryScanner()
     @ObservationIgnored private var transcripts: [String: Transcript] = [:]
     @ObservationIgnored private var terminalOfPid: [Int32: String?] = [:]
+    /// Son taramada oturum → profil ve oturum → Atölye terminali (profil değişince taşımak için).
+    @ObservationIgnored private var sessionProfile: [String: String] = [:]
+    @ObservationIgnored private var sessionTerminal: [String: String] = [:]
+    /// Profil değişince taşınmayı bekleyen (o an çalışan) oturumlar ve hedef profil.
+    @ObservationIgnored private var pendingMoves: Set<String> = []
+    @ObservationIgnored private var moveTarget: String?
+    @ObservationIgnored private var moving: Set<String> = []
     /// Son anlık görüntü (sol paneldeki oturum listesi için).
     private(set) var snapshot: WorkshopSnapshot?
     @ObservationIgnored private var timer: Timer?
@@ -65,13 +83,14 @@ final class WorkshopModel {
             saveDesk()
         }
         host.start()
+        todos.onChange = { [weak self] in self?.tick(initial: false) }
         notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
         notifier.start()
         let mainDir = profiles.main.configDir
         DispatchQueue.global(qos: .utility).async { Profiles.installIntegration(mainDir: mainDir) }
         profiles.onWarning = { [weak self] p, text in
-            self?.notifier.postLimit(id: p.id, title: "\(p.name) limitine yaklaştı",
-                                     body: text + ". Yeni oturumları başka bir profille açabilirsin.")
+            self?.notifier.postLimit(id: p.id, title: L("{0} limitine yaklaştı", p.displayName),
+                                     body: L("{0}. Yeni oturumları başka bir profille açabilirsin.", text))
         }
         tick(initial: true)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -191,10 +210,10 @@ final class WorkshopModel {
         guard let w = desk.window(id) else { return }
         if case let .terminal(tid) = w.tab, host.terminals[tid]?.running == true {
             let a = NSAlert()
-            a.messageText = "\(host.title(tid)) hâlâ çalışıyor"
-            a.informativeText = "Pencereyi kapatmak içinde çalışan programı da durdurur."
-            a.addButton(withTitle: "Kapat")
-            a.addButton(withTitle: "Vazgeç")
+            a.messageText = L("{0} hâlâ çalışıyor", host.title(tid))
+            a.informativeText = L("Pencereyi kapatmak içinde çalışan programı da durdurur.")
+            a.addButton(withTitle: L("Kapat"))
+            a.addButton(withTitle: L("Vazgeç"))
             guard a.runModal() == .alertFirstButtonReturn else { return }
         }
         if case let .terminal(tid) = w.tab { host.kill(tid) }
@@ -214,10 +233,10 @@ final class WorkshopModel {
 
     func killAllTerminals() {
         let a = NSAlert()
-        a.messageText = "Tüm terminaller kapatılsın mı?"
-        a.informativeText = "Atölye'de açılmış bütün terminaller ve içlerinde çalışan Claude oturumları durdurulur."
-        a.addButton(withTitle: "Hepsini kapat")
-        a.addButton(withTitle: "Vazgeç")
+        a.messageText = L("Tüm terminaller kapatılsın mı?")
+        a.informativeText = L("Agent Workshop'ta açılmış bütün terminaller ve içlerinde çalışan Claude oturumları durdurulur.")
+        a.addButton(withTitle: L("Hepsini kapat"))
+        a.addButton(withTitle: L("Vazgeç"))
         guard a.runModal() == .alertFirstButtonReturn else { return }
         host.killAll()
         changeDesk { $0.prune(liveTerminals: []) }
@@ -227,16 +246,33 @@ final class WorkshopModel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.prompt = "Atölyeye ekle"
+        panel.prompt = L("Atölyeye ekle")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let root = Workshop.projectRoot(cwd: url.path, fileExists: FileManager.default.fileExists(atPath:))
         if !desk.pinned.contains(root) { changeDesk { $0.pinned.append(root) } }
         tick(initial: false)
     }
 
+    /// Havuz değişti: sahneye yeni havuzu hemen gönder.
+    func robotsChanged() {
+        robotsVersion += 1
+        tick(initial: false)
+    }
+
+    func robotFailed(_ id: String, _ error: String) {
+        robotFailures[id] = error
+    }
+
     func unpin(_ root: String) {
         changeDesk { $0.pinned.removeAll { $0 == root } }
         tick(initial: false)
+    }
+
+    // MARK: Yapılacaklar
+
+    /// Tahtaya ya da panele tıklanınca: pencerede o proje seçili açılsın.
+    func showTodos(_ root: String) {
+        todos.select(root)
     }
 
     private func saveDesk() { try? desk.save(to: Self.deskURL) }
@@ -255,6 +291,64 @@ final class WorkshopModel {
         return id
     }
 
+    // MARK: Profil değişimi
+
+    /// Etkin profili değiştirir; Atölye'de açılmış Claude oturumları yeni profille kaldıkları yerden sürer.
+    /// Çalışan oturumlar işleri bitince taşınır. cmux gibi dışarıda açılanlara dokunulmaz.
+    func switchProfile(to id: String) {
+        profiles.setActive(id)
+        moveTarget = id
+        pendingMoves = []
+        moveSessions(onlyPending: false)
+    }
+
+    private func moveSessions(onlyPending: Bool) {
+        guard let target = moveTarget else { return }
+        let candidates = store.sessions.compactMap { s -> ProfileMove.Candidate? in
+            guard !moving.contains(s.id), !onlyPending || pendingMoves.contains(s.id),
+                  let profile = sessionProfile[s.id] else { return nil }
+            let t = sessionTerminal[s.id]
+            return ProfileMove.Candidate(sessionID: s.id, profileID: profile, terminal: t,
+                                         terminalKind: t.flatMap { host.terminals[$0]?.kind },
+                                         working: s.state == .working, cwd: s.cwd)
+        }
+        let plan = ProfileMove.plan(candidates, to: target)
+        pendingMoves = onlyPending ? pendingMoves.intersection(plan.later) : Set(plan.later)
+        // Eski yardımcı `--resume` bilmez: oturumu kapatıp boş bir Claude açmak yerine uyar, dokunma.
+        if plan.now.contains(where: { host.terminals[$0.terminal]?.args == nil }) {
+            pendingMoves = []
+            moveTarget = nil
+            Self.alertOutdatedHost()
+            return
+        }
+        for m in plan.now { move(m, to: target) }
+    }
+
+    /// Eski terminali kapatır, aynı pencerede yeni profille `claude --resume <oturum>` açar.
+    private func move(_ m: ProfileMove.Move, to profile: String) {
+        moving.insert(m.sessionID)
+        host.kill(m.terminal)
+        // Eski Claude'un kapanıp kaydını bitirmesi için kısa bir an.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self else { return }
+            self.host.create(.claude, cwd: m.cwd, env: self.profiles.environment(profile),
+                             args: ProfileMove.resumeArgs(m.sessionID)) { [weak self] info in
+                guard let self else { return }
+                self.moving.remove(m.sessionID)
+                self.changeDesk { d in
+                    if !d.retarget(.terminal(m.terminal), to: .terminal(info.id)) { d.open(.terminal(info.id), root: m.cwd) }
+                }
+            }
+        }
+    }
+
+    private static func alertOutdatedHost() {
+        let a = NSAlert()
+        a.messageText = L("Açık Claude oturumları yeni profile taşınamadı")
+        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç; bundan sonra profil değiştirince oturumlar kaldıkları yerden sürer. Yeni profil yine de seçildi: yeni oturumlar onunla açılır.")
+        a.runModal()
+    }
+
     // MARK: Tarama
 
     private func tick(initial: Bool) {
@@ -268,7 +362,7 @@ final class WorkshopModel {
         let profiles = self.profiles.profiles
         let entries = scanner.scan(dirs: profiles.map { ($0.id, $0.configDir) }, isAlive: Self.isProcessAlive)
         // Birden çok profil varsa her robotun profili görünsün.
-        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, profiles.count > 1 ? $0.name : "") })
+        let names = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, profiles.count > 1 ? $0.displayName : "") })
         let alerts = store.applyRegistry(entries, profileNames: names, now: now, initial: initial)
         for a in alerts { Self.play(a) }
 
@@ -296,6 +390,9 @@ final class WorkshopModel {
         }
         let live = Set(store.sessions.map(\.id))
         transcripts = transcripts.filter { live.contains($0.key) }
+        sessionProfile = byID.mapValues(\.profileID)
+        sessionTerminal = terminalOf
+        if !pendingMoves.isEmpty { pendingMoves.formIntersection(live); moveSessions(onlyPending: true) }
         let livePids = Set(store.sessions.compactMap(\.pid))
         terminalOfPid = terminalOfPid.filter { livePids.contains($0.key) }
 
@@ -308,10 +405,11 @@ final class WorkshopModel {
                 todos[root] = TodoList.parse(text)
             }
         }
-        let snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
+        var snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
                                   terminalOf: terminalOf, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
                                   now: now, fileExists: fm.fileExists(atPath:))
+        snap.robots = RobotPool.sceneRobots(robotPool.config)
         refreshGit(roots: snap.zones.map(\.id), now: now)
         refreshUsage(configDirs: profiles.map(\.configDir), now: now)
         guard snap != snapshot, let data = try? JSONEncoder().encode(snap) else { return }

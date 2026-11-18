@@ -2,14 +2,32 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>com.ajantakip.atolye</string>
-    <key>CFBundleName</key><string>Atölye</string>
-    <key>CFBundleDisplayName</key><string>Atölye</string>
-    <key>CFBundleExecutable</key><string>Atolye</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
-    <key>LSMinimumSystemVersion</key><string>26.0</string>
-    <key>NSHighResolutionCapable</key><true/>
+	<key>CFBundleDisplayName</key>
+	<string>Agent Workshop</string>
+	<key>CFBundleExecutable</key>
+	<string>Atolye</string>
+	<key>CFBundleIconFile</key>
+	<string>Atolye</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>tr</string>
+	</array>
+	<key>CFBundleIdentifier</key>
+	<string>com.ajantakip.atolye</string>
+	<key>CFBundleName</key>
+	<string>Agent Workshop</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
 </dict>
 </plist>

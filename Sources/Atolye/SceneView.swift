@@ -1,3 +1,4 @@
+import AtolyeCore
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -12,7 +13,8 @@ struct SceneView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.setURLSchemeHandler(WebFiles(root: Self.webRoot()), forURLScheme: "atolye")
+        config.setURLSchemeHandler(WebFiles(root: Self.webRoot(), robotsRoot: WorkshopModel.robotsDir), forURLScheme: "atolye")
+        config.userContentController.addUserScript(AppLanguage.webScript)
         config.userContentController.add(context.coordinator, name: "atolye")
         let web = WKWebView(frame: .zero, configuration: config)
         web.setValue(false, forKey: "drawsBackground")
@@ -25,6 +27,7 @@ struct SceneView: NSViewRepresentable {
     }
 
     func updateNSView(_ web: WKWebView, context: Context) {
+        context.coordinator.openWindow = context.environment.openWindow
         context.coordinator.push(model.snapshotJSON)
     }
 
@@ -43,6 +46,7 @@ struct SceneView: NSViewRepresentable {
         weak var web: WKWebView? {
             didSet { observeWindow() }
         }
+        var openWindow: OpenWindowAction?
         private var ready = false
         private var pending: String?
         private var lastSent: String?
@@ -86,6 +90,13 @@ struct SceneView: NSViewRepresentable {
                 }
             case "addProject":
                 model.addProject()
+            case "robotFailed":
+                if let id = body["id"] as? String { model.robotFailed(id, body["error"] as? String ?? L("bilinmeyen hata")) }
+            case "todoOpen":
+                if let root = body["root"] as? String {
+                    model.showTodos(root)
+                    openWindow?(id: "todos")
+                }
             case "unpin":
                 if let id = body["id"] as? String { model.unpin(id) }
             default:
@@ -113,17 +124,17 @@ struct SceneView: NSViewRepresentable {
     }
 }
 
-/// `atolye://app/<yol>` isteklerini Web klasöründen karşılar.
+/// `atolye://app/<yol>` isteklerini Web klasöründen, `robots/…` isteklerini kendi robot klasöründen karşılar.
 final class WebFiles: NSObject, WKURLSchemeHandler {
     let root: URL
+    let robotsRoot: URL
 
-    init(root: URL) { self.root = root.standardizedFileURL }
+    init(root: URL, robotsRoot: URL) { self.root = root; self.robotsRoot = robotsRoot }
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
         guard let url = task.request.url else { return }
         let rel = url.path.hasPrefix("/") ? String(url.path.dropFirst()) : url.path
-        let file = root.appendingPathComponent(rel.isEmpty ? "index.html" : rel).standardizedFileURL
-        guard file.path.hasPrefix(root.path + "/"), let data = try? Data(contentsOf: file) else {
+        guard let file = WebPath.resolve(rel, webRoot: root, robotsRoot: robotsRoot), let data = try? Data(contentsOf: file) else {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
         }

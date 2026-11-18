@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import Darwin
 import Foundation
 import Testing
@@ -100,6 +100,23 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(cmd.contains("-il") && cmd.last?.contains("exec zsh -il") == true)
     }
 
+    /// Profil değişince oturum `claude --resume <id>` ile sürer; argümanlar kabuğa tırnaklı gider.
+    @Test func claudeArgsAreQuoted() {
+        let cmd = HostServer.command(for: .claude, args: ["--resume", "abc-1", "it's"])
+        #expect(cmd.last == "claude '--resume' 'abc-1' 'it'\\''s'; exec zsh -il")
+        #expect(HostServer.command(for: .claude, args: []) == HostServer.command(for: .claude))
+    }
+
+    /// Yeni yardımcı argümanları geri bildirir: eski yardımcı (bildirmeyen) uygulamada tanınır.
+    @Test func createEchoesArgs() throws {
+        let (s, path) = try makeServer(["/bin/sh", "-c", "sleep 5"])
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .claude, cwd: "/tmp", cols: 80, rows: 24, args: ["--resume", "x"]))
+        let t = try #require(c.created())
+        #expect(t.args == ["--resume", "x"])
+    }
+
     @Test func createPassesEnvironment() throws {
         let (s, path) = try makeServer(["/bin/sh", "-c", "echo profil=$CLAUDE_CONFIG_DIR; sleep 5"])
         defer { s.stop() }
@@ -174,6 +191,23 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         c.send(.list)
         let e = c.next { if case .terminals = $0 { true } else { false } }
         #expect(e == .terminals([]))
+    }
+
+    /// Kabuk iş denetimiyle çocuğu ayrı süreç grubuna koyar ve çocuk SIGHUP'ı yok sayar (Claude Code gibi);
+    /// terminal kapanınca yine de ölmeli, yoksa terminalsiz "bekliyor" durumunda asılı kalır.
+    @Test func killEndsChildrenInOtherProcessGroups() throws {
+        let (s, path) = try makeServer(["/bin/zsh", "-f", "-i", "-c", "trap '' HUP; sleep 300; :"])
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
+        let t = try #require(c.created())
+        Thread.sleep(forTimeInterval: 0.5)
+        let kids = ProcessTree.descendants(of: t.pid)
+        #expect(!kids.isEmpty)
+        #expect(kids.allSatisfy { getpgid($0) != t.pid }) // gerçekten başka grupta
+        c.send(.kill(id: t.id))
+        Thread.sleep(forTimeInterval: 1.5)
+        #expect(kids.allSatisfy { Darwin.kill($0, 0) != 0 })
     }
 
     @Test func envHasTerminalID() throws {

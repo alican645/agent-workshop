@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import AppKit
 import AtolyeHostKit
 import Observation
@@ -76,9 +76,10 @@ final class HostConnection {
     /// Yardımcının listesini tazeler (makine ışıkları için çıktı zamanları).
     func refresh() { client?.send(.list) }
 
-    func create(_ kind: TerminalKind, cwd: String, env: [String: String] = [:], then: @escaping (TerminalInfo) -> Void) {
+    func create(_ kind: TerminalKind, cwd: String, env: [String: String] = [:], args: [String]? = nil,
+                then: @escaping (TerminalInfo) -> Void) {
         pendingCreates.append(then)
-        client?.send(.create(kind: kind, cwd: cwd, cols: 120, rows: 32, env: env.isEmpty ? nil : env))
+        client?.send(.create(kind: kind, cwd: cwd, cols: 120, rows: 32, env: env.isEmpty ? nil : env, args: args))
     }
 
     func kill(_ id: String) {

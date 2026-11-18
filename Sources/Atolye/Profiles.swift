@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import AppKit
 import Foundation
 
@@ -60,7 +60,7 @@ final class Profiles {
     /// Profilin beklenen hesabı dışında bir hesaba girişliyse açıklaması.
     func mismatch(_ p: AccountProfile) -> String? {
         guard let want = p.email, let have = loggedIn[p.id], want.lowercased() != have.lowercased() else { return nil }
-        return "\(have) ile girişli, \(want) bekleniyor"
+        return L("{0} ile girişli, {1} bekleniyor", have, want)
     }
 
     func needsWarning(_ p: AccountProfile, now: Date = Date()) -> Bool {
@@ -75,18 +75,23 @@ final class Profiles {
         let store = self.store
         queue.async {
             let mainDir = store.profiles.first { $0.id == AccountStore.defaultID }?.configDir ?? ""
-            var limits: [String: AccountUsage] = [:]
+            var reports: [String: AccountUsage] = [:]   // klasör → rapor
+            var logins: [String: String] = [:]          // klasör → girişli hesap
             var emails: [String: String] = [:]
             var files: [String] = []
             for p in store.profiles {
                 if p.id != AccountStore.defaultID { try? ProfileLinker.link(profileDir: p.configDir, mainDir: mainDir) }
                 let lf = Self.limitsDir + "/" + AtolyeIntegration.limitFileName(configDir: p.configDir)
-                limits[p.id] = AtolyeIntegration.readLimits(path: lf)
+                reports[p.configDir] = AtolyeIntegration.readLimits(path: lf)
                 if let g = store.globalConfigPath(p.id), FileManager.default.fileExists(atPath: g) {
                     files.append(g)
                     emails[p.id] = AtolyeIntegration.loggedInEmail(globalConfig: g)
+                    logins[p.configDir] = emails[p.id]
                 }
             }
+            // Limitler hesaba bağlı: aynı hesaba girişli klasörlerin en taze raporu.
+            let limits = AccountLimits.byProfile(profiles: store.profiles.map { ($0.id, $0.configDir) },
+                                                 reports: reports, logins: logins)
             _ = ConfigSync.run(files: files, baseFile: Self.syncBase, backupDir: Self.backupDir)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -103,30 +108,23 @@ final class Profiles {
         let now = Date()
         for p in profiles {
             guard let u = limits[p.id] else { continue }
-            for (name, v, reset) in [("5 saatlik", u.effectiveFiveHour(now: now), u.fiveHourResetsAt),
-                                     ("haftalık", u.effectiveSevenDay(now: now), u.sevenDayResetsAt)] {
+            for (name, v, reset) in [(L("5 saatlik"), u.effectiveFiveHour(now: now), u.fiveHourResetsAt),
+                                     (L("haftalık"), u.effectiveSevenDay(now: now), u.sevenDayResetsAt)] {
                 guard let v, v >= AccountStore.warningThreshold else { continue }
                 let key = "\(p.id)|\(name)|\(reset?.timeIntervalSince1970 ?? 0)"
                 guard !warned.contains(key) else { continue }
                 warned.insert(key)
-                onWarning?(p, "\(name) limit %\(Int((v * 100).rounded())) dolu")
+                onWarning?(p, L("{0} limit %{1} dolu", name, "\(Int((v * 100).rounded()))"))
             }
         }
     }
 
     // MARK: Kalıcılık
 
-    private struct Legacy: Decodable { var store: AccountStore }
-
     private static func load(home: String) -> AccountStore {
         if let d = try? Data(contentsOf: storeURL), let s = try? JSONDecoder().decode(AccountStore.self, from: d) { return s }
-        // İlk açılış: AjanTakip'teki profilleri al, adları sıra numarasına çevir.
+        // İlk açılış: adları sıra numarasına çevir.
         var s = AccountStore(home: home)
-        let legacy = URL(fileURLWithPath: home + "/.config/ajantakip/accounts.json")
-        if let d = try? Data(contentsOf: legacy), let l = try? JSONDecoder().decode(Legacy.self, from: d) {
-            s.profiles = l.store.profiles
-            s.activeID = AccountStore.defaultID
-        }
         for i in s.profiles.indices {
             let id = s.profiles[i].id
             s.profiles[i].name = id == AccountStore.defaultID ? "Profil 1"
@@ -142,10 +140,8 @@ final class Profiles {
 
     // MARK: Kurulum (her açılışta, değişiklik yoksa dokunmaz)
 
-    /// statusline'a limit bloğunu ekler; AjanTakip'ten kalan kancaları, .zshrc ve statusline bloklarını kaldırır.
-    /// Değişen her dosyanın aslı önce `yedek/` klasörüne kopyalanır.
+    /// statusline'a limit bloğunu ekler. Değişen dosyanın aslı önce `yedek/` klasörüne kopyalanır.
     nonisolated static func installIntegration(mainDir: String) {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
         func rewrite(_ path: String, _ change: (String) -> String?) {
             let real = (path as NSString).resolvingSymlinksInPath
             guard let old = try? String(contentsOfFile: real, encoding: .utf8), let new = change(old), new != old else { return }
@@ -153,12 +149,6 @@ final class Profiles {
             try? new.write(toFile: real, atomically: true, encoding: .utf8)
         }
         rewrite(mainDir + "/statusline-command.sh") { AtolyeIntegration.installStatusline(into: $0) }
-        rewrite(home + "/.zshrc") { AtolyeIntegration.removingAjanTakipZsh($0) }
-        let settings = (mainDir + "/settings.json" as NSString).resolvingSymlinksInPath
-        if let d = FileManager.default.contents(atPath: settings), let new = AtolyeIntegration.removingAjanTakipHooks(d) {
-            backup(settings)
-            try? new.write(to: URL(fileURLWithPath: settings), options: .atomic)
-        }
     }
 
     nonisolated private static func backup(_ path: String) {

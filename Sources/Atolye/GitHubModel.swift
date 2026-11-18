@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import AppKit
 import Foundation
 import Security
@@ -35,8 +35,14 @@ final class GitHubModel {
     var configured: Bool { !GitHubConfig.clientID.isEmpty }
 
     init() {
-        token = Keychain.load()
-        if token != nil { phase = .signedIn }
+        // Anahtar Zinciri şifre sorabilir: arka planda oku ki açılış (ve arayüz) o soruyu beklemesin.
+        Task { [weak self] in
+            let saved = await Task.detached { Keychain.load() }.value
+            guard let self, self.token == nil, let saved else { return }
+            self.token = saved
+            self.phase = .signedIn
+            self.refreshIfStale()
+        }
     }
 
     var stats: ContributionStats? {
@@ -64,7 +70,7 @@ final class GitHubModel {
         Task {
             let token = await Task.detached { Self.run(gh, ["auth", "token"]) }.value
             guard let token, !token.isEmpty else {
-                error = "GitHub CLI'da giriş bulunamadı. Terminalde `gh auth login` ile giriş yapıp tekrar dene."
+                error = L("GitHub CLI'da giriş bulunamadı. Terminalde `gh auth login` ile giriş yapıp tekrar dene.")
                 return
             }
             Keychain.save(token)
@@ -107,7 +113,7 @@ final class GitHubModel {
         do {
             let (data, _) = try await URLSession.shared.data(for: GitHubAPI.deviceCodeRequest(clientID: GitHubConfig.clientID))
             guard let code = GitHubDeviceCode.parse(data) else {
-                if case let .failed(msg) = GitHubTokenPoll.parse(data) { error = msg } else { error = "Giriş başlatılamadı." }
+                if case let .failed(msg) = GitHubTokenPoll.parse(data) { error = msg } else { error = L("Giriş başlatılamadı.") }
                 return
             }
             phase = .waiting(code)
@@ -136,11 +142,11 @@ final class GitHubModel {
                     return
                 }
             }
-            error = "Kodun süresi doldu, yeniden dene."
+            error = L("Kodun süresi doldu, yeniden dene.")
             phase = .signedOut
         } catch is CancellationError {
         } catch {
-            self.error = "GitHub'a ulaşılamadı: \(error.localizedDescription)"
+            self.error = L("GitHub'a ulaşılamadı: {0}", error.localizedDescription)
             phase = .signedOut
         }
     }
@@ -166,10 +172,10 @@ final class GitHubModel {
             let (pd, resp) = try await URLSession.shared.data(for: GitHubAPI.profileRequest(token: token))
             if (resp as? HTTPURLResponse)?.statusCode == 401 {
                 signOut()
-                error = "GitHub oturumu geçersiz, yeniden giriş yap."
+                error = L("GitHub oturumu geçersiz, yeniden giriş yap.")
                 return
             }
-            guard let p = GitHubProfile.parse(pd) else { error = "Katkılar okunamadı."; return }
+            guard let p = GitHubProfile.parse(pd) else { error = L("Katkılar okunamadı."); return }
             profile = p
             error = nil
 
@@ -185,7 +191,7 @@ final class GitHubModel {
             repos = RepoActivity.count(searchPages: pages)
             lastUpdated = Date()
         } catch {
-            self.error = "GitHub'a ulaşılamadı: \(error.localizedDescription)"
+            self.error = L("GitHub'a ulaşılamadı: {0}", error.localizedDescription)
         }
     }
 }

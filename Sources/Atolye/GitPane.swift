@@ -1,4 +1,4 @@
-import AjanTakipCore
+import AtolyeCore
 import SwiftUI
 
 /// Salt okunur git görünümü: solda değişen dosyalar ve son commit'ler, sağda seçilenin diff'i.
@@ -17,7 +17,7 @@ struct GitPane: View {
     var body: some View {
         Group {
             if loaded && status == nil {
-                Text("Bu proje bir git deposu değil.").foregroundStyle(Theme.muted)
+                Text(L("Bu proje bir git deposu değil.")).foregroundStyle(Theme.muted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HSplitView {
@@ -39,12 +39,12 @@ struct GitPane: View {
             LazyVStack(alignment: .leading, spacing: 2) {
                 if let s = status {
                     header(s)
-                    section("HAZIRLANMIŞ", s.staged) { .staged($0) }
-                    section("DEĞİŞMİŞ", s.unstaged) { .unstaged($0) }
-                    section("YENİ", s.untracked) { .untracked($0) }
-                    if s.changedCount == 0 { note("Çalışma alanı temiz") }
+                    section(L("HAZIRLANMIŞ"), s.staged) { .staged($0) }
+                    section(L("DEĞİŞMİŞ"), s.unstaged) { .unstaged($0) }
+                    section(L("YENİ"), s.untracked) { .untracked($0) }
+                    if s.changedCount == 0 { note(L("Çalışma alanı temiz")) }
                 }
-                title("SON COMMIT'LER")
+                title(L("SON COMMIT'LER"))
                 ForEach(log, id: \.hash) { c in commitRow(c) }
             }
             .padding(.vertical, 8)
@@ -57,9 +57,9 @@ struct GitPane: View {
             Text("⎇ " + (s.branch ?? "?")).font(.system(size: 13, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Theme.text)
             HStack(spacing: 8) {
-                if let u = s.upstream { Text(u) } else { Text("uzak dal yok") }
-                if s.ahead > 0 { Text("↑\(s.ahead) itilmemiş").foregroundStyle(Theme.ok) }
-                if s.behind > 0 { Text("↓\(s.behind) gelen").foregroundStyle(GitColors.hunk) }
+                if let u = s.upstream { Text(u) } else { Text(L("uzak dal yok")) }
+                if s.ahead > 0 { Text(L("↑{0} itilmemiş", "\(s.ahead)")).foregroundStyle(Theme.ok) }
+                if s.behind > 0 { Text(L("↓{0} gelen", "\(s.behind)")).foregroundStyle(GitColors.hunk) }
             }
             .font(.system(size: 11)).foregroundStyle(Theme.muted)
         }
@@ -124,10 +124,10 @@ struct GitPane: View {
     private var diffView: some View {
         Group {
             if selection == nil {
-                Text("Soldan bir dosya ya da commit seç").foregroundStyle(Theme.muted)
+                Text(L("Soldan bir dosya ya da commit seç")).foregroundStyle(Theme.muted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if diff.isEmpty && !loadingDiff {
-                Text("Gösterilecek fark yok").foregroundStyle(Theme.muted)
+                Text(L("Gösterilecek fark yok")).foregroundStyle(Theme.muted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView([.vertical, .horizontal]) {

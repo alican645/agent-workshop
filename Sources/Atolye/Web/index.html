@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<title>Atölye</title>
+<title>Agent Workshop</title>
 <style>
   html,body{margin:0;height:100%;background:#f3e9da;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:#2c2a26;-webkit-user-select:none;user-select:none;cursor:default}
   #stage{position:fixed;inset:0}
@@ -27,11 +27,14 @@
   .sess .s{font-size:12px;color:#8a7f70;margin:2px 0 0 16px}
   .sess .ag{font-size:12px;color:#6f5fb0;margin:3px 0 0 16px}
   .sess .ask{margin:6px 0 0 16px;padding:6px 8px;border-radius:8px;background:#fff2e4;border:1px solid #f0b37a;font-size:12px;color:#9a5a1c}
-  .hist,.todo{font-size:12px;color:#5c554b;line-height:1.7;margin:0;padding-left:16px}
-  .todo li::marker{content:"☐  "}
+  .hist{font-size:12px;color:#5c554b;line-height:1.7;margin:0;padding-left:16px}
+  .todosum{display:flex;align-items:center;gap:10px;font-size:12px;color:#5c554b}
+  .todosum .bar{flex:1;height:6px;border-radius:3px;background:rgba(90,70,40,.12);overflow:hidden}
+  .todosum .bar i{display:block;height:100%;background:#3aa57a;border-radius:3px}
+  .todosum button{padding:4px 10px}
+  #panel h4 .cnt{letter-spacing:0;font-weight:600;color:#b8ad9c;margin-left:4px}
   button{font:inherit;font-size:12px;border-radius:8px;padding:6px 11px;cursor:pointer;border:1px solid rgba(90,70,40,.2);background:#fff;color:#2c2a26}
   #home{position:fixed;right:16px;bottom:16px;z-index:5;display:none;box-shadow:0 4px 14px rgba(80,60,30,.15)}
-  #hint{right:16px;bottom:16px;font-size:12px;color:#8a7f70}
   .tag{font-size:11px;font-weight:600;color:#3a352d;background:rgba(255,255,255,.92);padding:2px 7px;border-radius:7px;box-shadow:0 2px 6px rgba(60,40,20,.15);white-space:nowrap;transition:opacity .3s}
   .tag.ag{font-weight:500;color:#5b4c9c;font-size:10px}
   .tag .p{font-weight:500;color:#8a7f70}
@@ -62,17 +65,20 @@
 </script>
 </head>
 <body>
-<div id="loading">robotlar uyanıyor…</div>
+<div id="loading" data-i18n>robotlar uyanıyor…</div>
 <div id="stage"></div>
-<div id="empty">Atölye sessiz — açık bir oturum yok. Üstteki “Proje ekle” ile bir proje ekleyebilirsin.</div>
+<div id="empty" data-i18n>Atölye sessiz — açık bir oturum yok. Üstteki “Proje ekle” ile bir proje ekleyebilirsin.</div>
 <div id="top" class="hud"><h1 id="hello">Günaydın 👋</h1><div class="sub" id="clock"></div><div class="row" id="counts"></div></div>
 <div id="panel" class="hud"></div>
-<button id="home">← atölyeye dön</button>
-<div id="feed" class="hud"><h2>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty">henüz bir şey olmadı</div></div></div>
-<div id="hint" class="hud">bölgeye çift tıkla: projenin pencereleri · robota tıkla: terminalini öne getir · sürükle: döndür</div>
+<button id="home" data-i18n>← atölyeye dön</button>
+<div id="feed" class="hud"><h2 data-i18n>ATÖLYEDE NELER OLUYOR</h2><div id="lines"><div class="empty" data-i18n>henüz bir şey olmadı</div></div></div>
 
 <script>
-  window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = 'Hata: ' + e.message; });
+  // Durağan metinler: İngilizce seçiliyse sözlükten (sözlüğü uygulama sayfa açılmadan verir).
+  { const t = (k) => (window.I18N && window.I18N[k]) || k;
+    document.documentElement.lang = window.LANG || 'tr';
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.textContent); });
+    window.addEventListener('error', (e) => { const l = document.getElementById('loading'); if (l) l.textContent = t('Hata: ') + e.message; }); }
   // Sahne yüklenmeden gelen çağrıları sakla.
   window.atolye = { _q: null, _active: true, update(s) { this._q = s; }, setActive(v) { this._active = v; } };
   window.post = (m) => { try { webkit.messageHandlers.atolye.postMessage(m); } catch (e) { console.log('post', m); } };
@@ -81,19 +87,22 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
+import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
+import { t, LOCALE } from './i18n.mjs';
+import { homeDistance, homePosition } from './view.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
-const ST = { busy: { c: '#2fa7d6', t: 'çalışıyor' }, waiting: { c: '#ff8c2e', t: 'seni bekliyor' }, done: { c: '#3aa57a', t: 'bitti' }, idle: { c: '#b3a998', t: 'boşta' } };
+const ST = { busy: { c: '#2fa7d6', t: t('çalışıyor') }, waiting: { c: '#ff8c2e', t: t('seni bekliyor') }, done: { c: '#3aa57a', t: t('bitti') }, idle: { c: '#b3a998', t: t('boşta') } };
 const SLOTS = { 1: [0], 2: [-2.4, 2.4], 3: [-3, 0, 3], 4: [-3.6, -1.2, 1.2, 3.6] };
 const MAX_SLOTS = 4, GAP_X = 16, GAP_Z = 14, LABEL_FAR = 34;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function clockText() {
   const n = new Date(), h = n.getHours();
-  document.getElementById('hello').textContent = (h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar') + ' 👋';
-  document.getElementById('clock').textContent = n.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + n.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('hello').textContent = (h < 12 ? t('Günaydın') : h < 18 ? t('İyi günler') : t('İyi akşamlar')) + ' 👋';
+  document.getElementById('clock').textContent = n.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + n.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
 }
 clockText(); setInterval(clockText, 30000);
 
@@ -218,10 +227,12 @@ function buildZone(info) {
   const lamp = new THREE.PointLight(0xff8c2e, 0, 14, 1.5); lamp.position.set(0, 4, -2); frame.add(lamp);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(12, 4, 9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   hit.position.y = 2; g.add(hit);
+  const board = buildBoard(); board.g.position.set(-4.25, 0.16, -3.75); g.add(board.g);
+  board.hit.userData.zoneId = info.id; boardHits.push(board.hit);
   const slots = new THREE.Group(); bench.add(slots);
   const machGroup = new THREE.Group(); g.add(machGroup);
   g.scale.setScalar(0.001);
-  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag };
+  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag, board };
   zones.set(info.id, Z);
   return Z;
 }
@@ -237,6 +248,86 @@ function setSlots(Z, n) {
     scr.position.set(x, 1.75, -0.39); Z.slots.add(scr);
     return scr;
   });
+}
+
+// ---------- beyaz tahta (TODO.local.md) ----------
+// Maddeler okunmaz: kutucuk + karalama. Bitenlerin kutusu işaretli, karalaması çizili.
+const BOARD_ROWS = 6;
+const boardHits = [];
+function buildBoard() {
+  const g = new THREE.Group();
+  for (const x of [-1.05, 1.05]) { const leg = box(0.07, 3.05, 0.07, metal); leg.position.set(x, 1.52, -0.06); g.add(leg); }
+  for (const x of [-1.05, 1.05]) { const foot = box(0.07, 0.05, 0.7, metal); foot.position.set(x, 0.03, -0.06); g.add(foot); }
+  const frame = box(2.5, 1.72, 0.07, 0xc9c6c0, { roughness: 0.4, metalness: 0.3 }); frame.position.y = 2.35; g.add(frame);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 });
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(2.38, 1.6), mat); face.position.set(0, 2.35, 0.037); g.add(face);
+  const tray = box(1.6, 0.05, 0.14, 0xc9c6c0, { roughness: 0.4, metalness: 0.3 }); tray.position.set(0, 1.49, 0.08); g.add(tray);
+  [0xd9534f, 0x2f6fd6, 0x2c2a26].forEach((c, i) => {
+    const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.26, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
+    pen.rotation.z = Math.PI / 2; pen.position.set(-0.45 + i * 0.32, 1.54, 0.09); g.add(pen);
+  });
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.9, 0.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  hit.position.y = 2.3; g.add(hit);
+  return { g, mat, hit, key: null };
+}
+/** Metinden sabit sözde rastgele sayılar: karalama her çizimde aynı görünsün. */
+function seeded(str) {
+  let h = 2166136261; for (const ch of str) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+  return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 10000) / 10000; };
+}
+function scribble(c, x, y, len, rnd) {
+  c.beginPath(); c.moveTo(x, y);
+  // kelime kelime: dalgalı çizgi parçaları, aralarında boşluk
+  let cx = x;
+  while (cx < x + len) {
+    const w = Math.min(x + len - cx, 30 + rnd() * 60);
+    c.moveTo(cx, y + (rnd() - 0.5) * 4);
+    for (let i = 1; i <= 12; i++) {
+      const px = cx + (w * i) / 12;
+      c.lineTo(px, y + Math.sin(i * 1.9 + rnd() * 2) * (5 + rnd() * 4) + (rnd() - 0.5) * 3);
+    }
+    cx += w + 14 + rnd() * 10;
+  }
+  c.stroke();
+}
+function setBoard(Z, todos) {
+  const list = todos || [];
+  const key = list.map((t) => (t.done ? '1' : '0') + t.text).join('\n');
+  if (key === Z.board.key) return;
+  Z.board.key = key;
+  const tex = canvasTex(768, 512, (c, w, h) => {
+    c.fillStyle = '#fbfcfd'; c.fillRect(0, 0, w, h);
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    // başlık
+    c.fillStyle = '#d9534f'; c.font = '700 64px "Marker Felt", "Chalkboard SE", "Comic Sans MS", sans-serif';
+    c.textBaseline = 'alphabetic'; c.fillText('TODO', 44, 86);
+    c.strokeStyle = '#d9534f'; c.lineWidth = 5; c.beginPath(); c.moveTo(42, 104); c.quadraticCurveTo(140, 98, 230, 106); c.stroke();
+    const rows = list.slice(0, BOARD_ROWS), rowH = 62, top = 160;
+    rows.forEach((t, i) => {
+      const rnd = seeded(t.text + i), y = top + i * rowH, x = 60;
+      c.strokeStyle = '#2c2a26'; c.lineWidth = 5;
+      c.beginPath(); c.roundRect(x + (rnd() - 0.5) * 3, y - 20, 38, 38, 5); c.stroke();
+      const len = Math.min(560, 120 + t.text.length * 9);
+      if (t.done) {
+        c.strokeStyle = '#3aa57a'; c.lineWidth = 7;
+        c.beginPath(); c.moveTo(x + 6, y); c.lineTo(x + 17, y + 12); c.lineTo(x + 40, y - 22); c.stroke();
+        c.strokeStyle = '#a6a29b'; c.lineWidth = 4; scribble(c, x + 66, y, len, rnd);
+        c.strokeStyle = '#7d7a74'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + 60, y + 2); c.lineTo(x + 72 + len, y - 2); c.stroke();
+      } else {
+        c.strokeStyle = '#2f6fd6'; c.lineWidth = 4; scribble(c, x + 66, y, len, rnd);
+      }
+    });
+    if (list.length > BOARD_ROWS) {
+      c.fillStyle = '#8a7f70'; c.font = '600 34px -apple-system, system-ui, sans-serif';
+      c.fillText(`+${list.length - BOARD_ROWS}`, w - 110, h - 30);
+    }
+    if (!list.length) { // boş tahta: ekleme ipucu
+      c.strokeStyle = '#c4beb4'; c.lineWidth = 5; c.setLineDash([14, 12]);
+      c.beginPath(); c.roundRect(60, 160, 74, 74, 10); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(97, 178); c.lineTo(97, 216); c.moveTo(78, 197); c.lineTo(116, 197); c.stroke();
+    }
+  });
+  Z.board.mat.map?.dispose(); Z.board.mat.map = tex; Z.board.mat.needsUpdate = true;
 }
 
 // ---------- machines (düz terminaller) ----------
@@ -267,31 +358,105 @@ function setMachines(Z, list) {
 }
 
 // ---------- robots ----------
-let proto, clips, H0 = 1, K = 1;
+let started = false;             // hazır robotlar yüklendi, sahne güncellenebilir
+const kinds = new Map();         // kostüm id → { template, clips, H, ... } (hazır ve yüklenmiş kendi robotları)
+const kindState = new Map();     // kendi robotu id → 'loading' | 'failed' | 'ok'
+let pool = [];                   // açık robotlar (snapshot.robots)
 const robots = new Map(); // id → robot (ana robotlar ve yardımcılar)
 const hitBoxes = [];
+const ROBOT_H = { main: 2.1, sub: 1.25 };
+
+/** Yeni robot için kostüm: rolünün havuzundan, atölyede en az kullanılanı. */
+function chooseKind(role, sessionId) {
+  const inUse = new Map();
+  for (const r of robots.values()) if (!r.leaving) inUse.set(r.kindId, (inUse.get(r.kindId) || 0) + 1);
+  const avail = pool.map((p) => ({ ...p, failed: !kinds.has(p.id) }));
+  return pick(avail, role, inUse, sessionId);
+}
+
+// Kendi robotlarını yükle; yüklenemeyeni bildir (havuzda atlanır).
+const loader = new GLTFLoader();
+function syncPool(list) {
+  pool = list || BUILTINS.map((b) => ({ id: b.id, role: b.role, builtin: true }));
+  for (const p of pool) {
+    if (p.builtin || kindState.has(p.id)) {
+      const k = kinds.get(p.id);
+      if (k && !p.builtin && k.flipped !== !!p.flipped) { // "Çevir": atölyedekiler de hemen dönsün
+        k.flipped = !!p.flipped;
+        for (const r of robots.values()) if (r.kindId === p.id) r.inner.rotation.y = k.flipped ? Math.PI : 0;
+      }
+      continue;
+    }
+    kindState.set(p.id, 'loading');
+    const timer = setTimeout(() => { if (kindState.get(p.id) === 'loading') fail(new Error(t('yükleme 30 sn içinde bitmedi'))); }, 30000);
+    function fail(e) { clearTimeout(timer); if (kindState.get(p.id) === 'failed') return; markFailed(p.id, e); settle(); }
+    loader.load(p.url, (g) => {
+      if (kindState.get(p.id) !== 'loading') return;
+      clearTimeout(timer);
+      try { kinds.set(p.id, customKind(p.id, g, !!p.flipped)); kindState.set(p.id, 'ok'); settle(); }
+      catch (e) { fail(e); }
+    }, undefined, fail);
+  }
+}
+function markFailed(id, e) {
+  kindState.set(id, 'failed'); kinds.delete(id);
+  post({ type: 'robotFailed', id, error: String(e?.message || e) });
+}
+/** O rol için hâlâ yüklenen kendi robotu var mı (yoksa robot geçici sayılmaz). */
+const loadingPool = (role) => pool.some((p) => !p.builtin && kindState.get(p.id) === 'loading' && (!role || p.role === role || p.role === 'both'));
+// Kendi robotları yüklenirken oluşan robotlar geçicidir; yüklemeler bitince havuzdan yeniden seçilir.
+function settle() {
+  if (loadingPool()) return;
+  for (const r of robots.values()) {
+    if (!r.provisional || r.leaving) continue;
+    r.provisional = false;
+    const was = r.kindId; r.kindId = null;
+    const k = chooseKind(r.agent ? 'sub' : 'main', r.id);
+    if (k !== was) reskin(r, k); else r.kindId = was;
+  }
+}
+/** Robotun kostümünü yerinde değiştir (konum, durum, etiket korunur). */
+function reskin(r, kindId) {
+  const kind = kinds.get(kindId); if (!kind) return;
+  const h = ROBOT_H[r.agent ? 'sub' : 'main'] * 1;
+  let inst;
+  try { inst = instantiate(kind, h); } catch (e) { markFailed(kindId, e); return; }
+  r.g.remove(r.root); r.mixer.stopAllAction(); r.mixer.uncacheRoot(r.root);
+  r.root.traverse((o) => { if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); });
+  r.g.add(inst.root);
+  r.hit.scale.setScalar(h / r.h); r.hit.position.y = h / 2;
+  Object.assign(r, { root: inst.root, mixer: inst.mixer, actions: inst.actions, inner: inst.inner, kindH: kind.H, kindId, cur: null, fb: null });
+  r.tag.position.y = h * 1.12; r.bub.position.y = h * 1.42;
+  if (kind.flipped) inst.inner.rotation.y = Math.PI;
+  const m = r.mode; if (m === 'walk') play(r, 'walk'); else if (m) enter(r, m);
+}
+
 function makeRobot(zone, opts) {
-  const model = SkeletonUtils.clone(proto);
-  const tint = new THREE.Color(opts.tint);
-  model.traverse((o) => {
-    if (!o.isMesh) return;
-    o.castShadow = true; o.receiveShadow = true;
-    o.material = o.material.clone();
-    const hsl = {}; o.material.color.getHSL(hsl);
-    if (hsl.s > 0.35 && hsl.l > 0.25) o.material.color.copy(tint);
-  });
-  const g = new THREE.Group(); g.add(model);
+  const role = opts.agent ? 'sub' : 'main';
+  let kindId = kinds.has(opts.kindId) ? opts.kindId : DEFAULTS[role];
+  let kind = kinds.get(kindId), inst, h;
+  try { h = ROBOT_H[role] * 1; inst = instantiate(kind, h); }
+  catch (e) { // bozuk model atölyeyi durdurmasın: varsayılan robotla devam
+    markFailed(kindId, e);
+    kindId = DEFAULTS[role]; kind = kinds.get(kindId);
+    h = ROBOT_H[role] * 1; inst = instantiate(kind, h);
+  }
+  const g = new THREE.Group(); g.add(inst.root);
   zone.g.add(g);
-  const mixer = new THREE.AnimationMixer(model);
-  const actions = {}; for (const c of clips) actions[c.name] = mixer.clipAction(c);
+  if (!opts.agent) { // proje rengi ayağın altındaki halkada
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.56, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(opts.ring).offsetHSL(0, 0.1, 0.22), transparent: true, opacity: 0.9, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; g.add(ring);
+  }
   const tagEl = css(opts.agent ? 'tag ag' : 'tag', '');
-  const tag = new CSS2DObject(tagEl); tag.position.y = H0 * 1.12; g.add(tag);
+  const tag = new CSS2DObject(tagEl); tag.position.y = h * 1.12; g.add(tag);
   const bubEl = css('bub', ''); bubEl.style.opacity = '0';
-  const bub = new CSS2DObject(bubEl); bub.position.y = H0 * 1.42; g.add(bub);
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(H0 * 0.6, H0, H0 * 0.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-  hit.position.y = H0 / 2; g.add(hit);
-  const r = { id: opts.id, zone, g, mixer, actions, cur: null, home: opts.home.clone(), dest: null, after: null, mode: null, face: 0,
-              timer: 3 + Math.random() * 6, agent: !!opts.agent, tagEl, bubEl, bubT: 0, bubSticky: false, scale: opts.scale,
+  const bub = new CSS2DObject(bubEl); bub.position.y = h * 1.42; g.add(bub);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(h * 0.6, h, h * 0.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  hit.position.y = h / 2; g.add(hit);
+  const r = { id: opts.id, zone, g, root: inst.root, tag, bub, h, provisional: loadingPool(role),
+              mixer: inst.mixer, actions: inst.actions, inner: inst.inner, kindH: kind.H, kindId, fb: null, fbT: 0,
+              cur: null, home: opts.home.clone(), dest: null, after: null, mode: null, face: 0,
+              timer: 3 + Math.random() * 6, agent: !!opts.agent, tagEl, bubEl, bubT: 0, bubSticky: false, scale: 1,
               leaving: false, hit, parent: opts.parent || null, want: null, info: null, lastTool: null };
   hit.userData.robot = r; hitBoxes.push(hit);
   g.position.copy(opts.start || r.home);
@@ -303,22 +468,33 @@ function removeRobot(r) {
   r.leaving = true;
   const i = hitBoxes.indexOf(r.hit); if (i >= 0) hitBoxes.splice(i, 1);
 }
-function play(r, name, loop = true) {
-  const a = r.actions[name]; if (!a || r.cur === a) return;
+/** Hareketi oynat: modelde klibi yoksa yedek hareket (robotkit.fallbackPose). */
+function play(r, motion, loop = true) {
+  const a = r.actions[motion];
+  if (!a) {
+    if (r.fb === motion) return;
+    // Klibi olmayan hareket: Idle varsa onun üstüne yedek hareket (yoksa iskelet T duruşuna döner).
+    const base = motion !== 'idle' ? r.actions.idle : null;
+    if (base && r.cur !== base) { base.reset().setLoop(THREE.LoopRepeat, Infinity).play(); if (r.cur) base.crossFadeFrom(r.cur, 0.3, false); r.cur = base; }
+    else if (!base && r.cur) { r.cur.fadeOut(0.3); r.cur = null; }
+    r.fb = motion; r.fbT = 0; return;
+  }
+  if (r.fb) { r.fb = null; fallbackPose(r.inner, null, 0, r.kindH); }
+  if (r.cur === a) return;
   a.reset(); a.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity); a.clampWhenFinished = !loop; a.enabled = true;
   a.setEffectiveWeight(1); a.play();
   if (r.cur) a.crossFadeFrom(r.cur, 0.3, false);
   r.cur = a;
 }
-function goTo(r, dest, after) { r.dest = dest.clone(); r.after = after; r.mode = 'walk'; play(r, 'Walking'); }
+function goTo(r, dest, after) { r.dest = dest.clone(); r.after = after; r.mode = 'walk'; play(r, 'walk'); }
 function enter(r, mode) {
   r.mode = mode; r.modeT = 0;
-  if (mode === 'work') { r.face = Math.PI; play(r, 'Punch'); }
-  if (mode === 'wave') { r.face = 0; play(r, 'Wave'); }
-  if (mode === 'thumbs') { r.face = 0; play(r, 'ThumbsUp', false); }
-  if (mode === 'sit') { r.face = 0; play(r, 'Sitting', false); }
-  if (mode === 'pick') { r.face = Math.PI * 0.5 * Math.sign(r.g.position.x || 1); play(r, 'Yes', false); }
-  if (mode === 'idle') { r.face = 0; play(r, 'Idle'); }
+  if (mode === 'work') { r.face = Math.PI; play(r, 'work'); }
+  if (mode === 'wave') { r.face = 0; play(r, 'wave'); }
+  if (mode === 'thumbs') { r.face = 0; play(r, 'thumbs', false); }
+  if (mode === 'sit') { r.face = 0; play(r, 'sit', false); }
+  if (mode === 'pick') { r.face = Math.PI * 0.5 * Math.sign(r.g.position.x || 1); play(r, 'yes', false); }
+  if (mode === 'idle') { r.face = 0; play(r, 'idle'); }
 }
 function bubble(r, html, secs, cls = '') {
   const key = cls + '|' + html;
@@ -328,7 +504,7 @@ function bubble(r, html, secs, cls = '') {
   r.bubT = secs; r.bubSticky = secs === Infinity;
 }
 function clearBubble(r) { r.bubEl.style.opacity = '0'; r.bubT = 0; r.bubSticky = false; r.bubKey = null; }
-function waitText(info) { return info.waitingFor ? `⚠ izin: ${esc(info.waitingFor)}` : '⚠ seni bekliyor'; }
+function waitText(info) { return info.waitingFor ? '⚠ ' + t('izin: {0}', esc(info.waitingFor)) : '⚠ ' + t('seni bekliyor'); }
 function behave(r) {
   const st = r.info.state;
   if (st === r.want) {
@@ -338,7 +514,7 @@ function behave(r) {
   r.want = st;
   if (st === 'waiting') { goTo(r, new V(r.home.x, 0.16, 3.4), 'wave'); bubble(r, `<span>${waitText(r.info)}</span>`, Infinity, 'wait'); }
   if (st === 'busy') { goTo(r, r.home, 'work'); clearBubble(r); }
-  if (st === 'done') { goTo(r, r.home, 'thumbs'); bubble(r, '✓ bitti', Infinity, 'done'); }
+  if (st === 'done') { goTo(r, r.home, 'thumbs'); bubble(r, '✓ ' + t('bitti'), Infinity, 'done'); }
   if (st === 'idle') { goTo(r, r.home, 'sit'); clearBubble(r); }
 }
 
@@ -368,42 +544,50 @@ function counts() {
   for (const z of snapshot.zones) for (const r of z.robots) { c[r.state]++; ag += r.helpers.length; }
   document.getElementById('counts').innerHTML = ['busy', 'waiting', 'done', 'idle'].map((k) =>
     `<span class="pill"><span class="d" style="background:${ST[k].c}"></span>${c[k]} ${ST[k].t}</span>`).join('') +
-    `<span class="pill"><span class="d" style="background:#8f7be0"></span>${ag} yardımcı</span>`;
+    `<span class="pill"><span class="d" style="background:#8f7be0"></span>${t('{0} yardımcı', ag)}</span>`;
   document.getElementById('empty').style.display = snapshot.zones.length ? 'none' : 'block';
 }
 let selected = null, fly = null;
-const panel = document.getElementById('panel'), homeBtn = document.getElementById('home'), hint = document.getElementById('hint');
+const panel = document.getElementById('panel'), homeBtn = document.getElementById('home');
 function renderPanel() {
   const z = selected && snapshot.zones.find((z) => z.id === selected);
   if (!z) { if (selected) goHome(); panel.style.display = 'none'; return; }
   const hist = z.robots.flatMap((r) => r.history.slice(0, 2).map((h) => `<li>${esc(h)} <span style="color:#a09583">· ${esc(r.label)}</span></li>`)).slice(0, 5).join('');
-  const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ' <span style="color:#3aa57a">· çalışıyor</span>' : ''}</div>`).join('');
+  const machs = (z.machines || []).map((m) => `<div class="mach" data-term="${esc(m.id)}">⚙ ${esc(m.title)}${m.active ? ` <span style="color:#3aa57a">· ${t('çalışıyor')}</span>` : ''}</div>`).join('');
   const html = `<h3><span class="d" style="background:${z.color};width:12px;height:12px"></span>${esc(z.name)}</h3>` +
-    (z.git ? `<div class="gitline">${gitText(z.git)}${z.git.headSubject ? ' · son commit: ' + esc(z.git.headSubject) : ''}</div>` : '') +
+    (z.git ? `<div class="gitline">${gitText(z.git)}${z.git.headSubject ? ' · ' + t('son commit: {0}', esc(z.git.headSubject)) : ''}</div>` : '') +
     `<div class="newrow"><button class="enter" data-kind="claude">＋ Claude</button><button class="enter" data-kind="shell">＋ Terminal</button><button class="enter" data-kind="git">Git</button></div>` +
     z.robots.map((r) => `<div class="sess" data-id="${esc(r.id)}"><div class="n"><span class="d" style="background:${ST[r.state].c}"></span>${esc(r.label)}${r.profile ? ` <span class="p">· ${esc(r.profile)}</span>` : ''}</div>` +
       `<div class="s">${ST[r.state].t}${r.tool ? ' · ' + esc(r.tool) : ''}</div>` +
-      (r.cost > 0 ? `<div class="cost">≈ ${usd(r.cost)} · ${tok(r.tokens || 0)} token</div>` : '') +
+      (r.cost > 0 ? `<div class="cost">≈ ${usd(r.cost)} · ${t('{0} token', tok(r.tokens || 0))}</div>` : '') +
       r.helpers.map((h) => `<div class="ag">↳ ${esc(h.task)}${h.tool ? ' · ' + esc(h.tool) : ''}</div>`).join('') +
-      (r.state === 'waiting' ? `<div class="ask">${waitText(r)} — cmux'ta yanıtla</div>` : '') + `</div>`).join('') +
-    (hist ? `<h4>SON İŞLER</h4><ul class="hist">${hist}</ul>` : '') +
-    (machs ? `<h4>TERMİNALLER</h4>${machs}` : '') +
-    (z.todos.length ? `<h4>YAPILACAKLAR</h4><ul class="todo">${z.todos.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
-    (z.pinned ? `<span class="unpin" id="unpin">sabitlemeyi kaldır</span>` : '');
+      (r.state === 'waiting' ? `<div class="ask">${t('{0} — cmux\'ta yanıtla', waitText(r))}</div>` : '') + `</div>`).join('') +
+    (hist ? `<h4>${t('SON İŞLER')}</h4><ul class="hist">${hist}</ul>` : '') +
+    (machs ? `<h4>${t('TERMİNALLER')}</h4>${machs}` : '') +
+    todoHtml(z) +
+    (z.pinned ? `<span class="unpin" id="unpin">${t('sabitlemeyi kaldır')}</span>` : '');
   if (html === panel._last) return;
   panel._last = html; panel.innerHTML = html; panel.style.display = 'block';
+  const to = document.getElementById('todoOpen'); if (to) to.onclick = () => post({ type: 'todoOpen', root: z.id });
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
   panel.querySelectorAll('.mach').forEach((el) => el.onclick = () => post({ type: 'openTerminal', id: el.dataset.term }));
   panel.querySelectorAll('.newrow .enter').forEach((el) => el.onclick = () => post({ type: 'newWindow', root: z.id, kind: el.dataset.kind }));
   const un = document.getElementById('unpin'); if (un) un.onclick = () => post({ type: 'unpin', id: z.id });
 }
+function todoHtml(z) {
+  const list = z.todos || [], done = list.filter((t) => t.done).length;
+  const pct = list.length ? Math.round((done / list.length) * 100) : 0;
+  return `<h4>${t('YAPILACAKLAR')}${list.length ? `<span class="cnt">${done}/${list.length}</span>` : ''}</h4>` +
+    `<div class="todosum">${list.length ? `<span class="bar"><i style="width:${pct}%"></i></span>` : `<span style="flex:1;color:#a09583">${t('henüz madde yok')}</span>`}` +
+    `<button id="todoOpen">${t('Aç')}</button></div>`;
+}
 function select(Z) {
   selected = Z.id;
   const p = Z.target;
   fly = { tgt: new V(p.x, 1.2, p.z), cam: new V(p.x, 9, p.z + 14) };
-  homeBtn.style.display = 'block'; hint.style.display = 'none'; panel._last = null; renderPanel();
+  homeBtn.style.display = 'block'; panel._last = null; renderPanel();
 }
-function goHome() { selected = null; fly = { tgt: homeTgt.clone(), cam: homeCam.clone() }; homeBtn.style.display = 'none'; hint.style.display = ''; panel.style.display = 'none'; }
+function goHome() { selected = null; fly = { tgt: homeTgt.clone(), cam: homeCam.clone() }; homeBtn.style.display = 'none'; panel.style.display = 'none'; }
 homeBtn.onclick = goHome;
 controls.addEventListener('start', () => { fly = null; });
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null;
@@ -415,9 +599,15 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (rh) { const r = rh.object.userData.robot; post({ type: 'focus', id: r.parent ? r.parent.id : r.id }); return; }
   const mh = ray.intersectObjects(machHits)[0];
   if (mh) { post({ type: 'openTerminal', id: mh.object.userData.machine }); return; }
+  const bh = ray.intersectObjects(boardHits)[0];
+  if (bh) {
+    const Z = zones.get(bh.object.userData.zoneId);
+    if (Z && !Z.leaving) { post({ type: 'todoOpen', root: Z.id }); return; }
+  }
   post({ type: 'sceneTap' }); // boşluğa ya da bölgeye dokunuş: pencereler sol panele çekilir
   const zh = ray.intersectObjects([...zones.values()].filter((z) => !z.leaving).map((z) => z.hit))[0];
   if (zh) select([...zones.values()].find((z) => z.hit === zh.object));
+  else if (selected) goHome(); // bölge dışına dokunuş: odaktan çık
 });
 
 renderer.domElement.addEventListener('dblclick', (e) => {
@@ -435,10 +625,18 @@ function layout() {
     const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols), col = i % cols;
     Z.target.set((col - (inRow - 1) / 2) * GAP_X, 0, (row - (rows - 1) / 2) * GAP_Z);
   });
-  const span = Math.max(24, cols * GAP_X, rows * GAP_Z * 1.4);
-  homeTgt = new V(0, 0, 0);
-  homeCam = new V(0, span * 0.36, span * 0.5);
+  zoneGrid = { cols, rows };
+  fitHome();
   if (!selected) fly = { tgt: homeTgt.clone(), cam: homeCam.clone() };
+}
+/** Genel görünüm: bütün platformlar ekrana sığacak kadar uzak (proje sayısına ve pencere oranına göre). */
+let zoneGrid = { cols: 1, rows: 1 };
+function fitHome() {
+  const d = homeDistance({ ...zoneGrid, gapX: GAP_X, gapZ: GAP_Z, fov: camera.fov, aspect: camera.aspect });
+  homeTgt = new V(0, 0, 0);
+  homeCam = new V(...homePosition(d));
+  controls.maxDistance = Math.max(120, d * 1.6);
+  scene.fog.near = Math.max(70, d + 15); scene.fog.far = Math.max(160, d * 2.5);
 }
 function usd(v) { return v < 0.01 ? '<$0.01' : '$' + (v < 100 ? v.toFixed(2) : v.toFixed(0)); }
 function tok(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n); }
@@ -452,13 +650,14 @@ function applyGit(Z, pg, ng) {
   Z.gitEl.innerHTML = ng ? gitText(ng) : '';
   if (!pg || !ng) return;
   const n = `<b>${esc(Z.info.name)}</b>`;
-  if (pg.branch !== ng.branch) feed(`${n} · dal değişti: ${esc(pg.branch)} → <b>${esc(ng.branch)}</b>`);
-  else if (ng.head && pg.head !== ng.head && ng.behind < pg.behind) feed(`${n} · <span style="color:#4a7fd0">⇣ ${pg.behind - ng.behind} commit çekildi</span>`);
+  if (pg.branch !== ng.branch) feed(`${n} · ${t('dal değişti: {0} → {1}', esc(pg.branch), `<b>${esc(ng.branch)}</b>`)}`);
+  else if (ng.head && pg.head !== ng.head && ng.behind < pg.behind) feed(`${n} · <span style="color:#4a7fd0">⇣ ${t('{0} commit çekildi', pg.behind - ng.behind)}</span>`);
   else if (ng.head && pg.head !== ng.head) feed(`${n} · <span style="color:#3aa57a">✔ commit</span>: “${esc(ng.headSubject || '')}”`);
-  else if (ng.ahead < pg.ahead && ng.behind === pg.behind) feed(`${n} · <span style="color:#3aa57a">⇡ ${pg.ahead - ng.ahead} commit itildi</span>`);
+  else if (ng.ahead < pg.ahead && ng.behind === pg.behind) feed(`${n} · <span style="color:#3aa57a">⇡ ${t('{0} commit itildi', pg.ahead - ng.ahead)}</span>`);
 }
 function apply(s) {
   const prev = snapshot; snapshot = s;
+  syncPool(s.robots);
   const prevRobots = new Map(prev.zones.flatMap((z) => z.robots.map((r) => [r.id, r])));
   const zonesChanged = prev.zones.map((z) => z.id).join('|') !== s.zones.map((z) => z.id).join('|');
   const seen = new Set();
@@ -468,6 +667,7 @@ function apply(s) {
     const shown = info.robots.slice(0, MAX_SLOTS);
     setSlots(Z, shown.length);
     setMachines(Z, info.machines || []);
+    setBoard(Z, info.todos);
     applyGit(Z, (prev.zones.find((z) => z.id === info.id) || {}).git, info.git);
     Z.more.visible = info.robots.length > MAX_SLOTS;
     Z.more.element.textContent = `+${info.robots.length - MAX_SLOTS}`;
@@ -476,18 +676,18 @@ function apply(s) {
       const home = new V(Z.xs[i], 0.16, -1.55);
       let r = robots.get(ri.id);
       if (!r) {
-        r = makeRobot(Z, { id: ri.id, tint: new THREE.Color(info.color).offsetHSL(0, 0.15, -0.18).getStyle(), scale: 2.1 * K, home });
+        r = makeRobot(Z, { id: ri.id, kindId: chooseKind('main', ri.id), ring: info.color, home });
         r.g.rotation.y = Math.PI;
-        if (prev.zones.length || prevRobots.size) feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} atölyeye geldi`);
+        if (prev.zones.length || prevRobots.size) feed(`<b>${esc(info.name)}</b> · ${t('{0} atölyeye geldi', esc(ri.label))}`);
       }
       if (!r.home.equals(home)) { r.home.copy(home); r.want = null; }
       const old = prevRobots.get(ri.id);
       r.info = ri;
       r.tagEl.innerHTML = esc(ri.label) + (ri.profile ? ` <span class="p">· ${esc(ri.profile)}</span>` : '');
       if (old && old.state !== ri.state) {
-        if (ri.state === 'waiting') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#ff8c2e">seni çağırıyor</span>${ri.waitingFor ? ': ' + esc(ri.waitingFor) : ''}`);
-        if (ri.state === 'done') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#3aa57a">işini bitirdi</span> 👍`);
-        if (ri.state === 'busy' && old.state !== 'waiting') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} işe başladı`);
+        if (ri.state === 'waiting') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#ff8c2e">${t('seni çağırıyor')}</span>${ri.waitingFor ? ': ' + esc(ri.waitingFor) : ''}`);
+        if (ri.state === 'done') feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} <span style="color:#3aa57a">${t('işini bitirdi')}</span> 👍`);
+        if (ri.state === 'busy' && old.state !== 'waiting') feed(`<b>${esc(info.name)}</b> · ${t('{0} işe başladı', esc(ri.label))}`);
       }
       if (ri.tool && ri.tool !== r.lastTool && ri.state === 'busy') {
         if (!r.bubSticky) bubble(r, esc(ri.tool), 2.4);
@@ -501,10 +701,10 @@ function apply(s) {
         let h = robots.get(hi.id);
         const hhome = new V(home.x + (k % 2 ? 1.5 : -1.5), 0.16, 0.9 + Math.floor(k / 2) * 1.4);
         if (!h) {
-          h = makeRobot(Z, { id: hi.id, tint: '#8f7be0', scale: 1.25 * K, home: hhome, start: r.g.position, agent: true, parent: r });
+          h = makeRobot(Z, { id: hi.id, kindId: chooseKind('sub', hi.id), home: hhome, start: r.g.position, agent: true, parent: r });
           h.info = { state: 'busy' };
           goTo(h, hhome, 'work');
-          feed(`<b>${esc(info.name)}</b> · ${esc(ri.label)} yardımcı gönderdi: <span style="color:#6f5fb0">“${esc(hi.task)}”</span>`);
+          feed(`<b>${esc(info.name)}</b> · ${t('{0} yardımcı gönderdi: {1}', esc(ri.label), `<span style="color:#6f5fb0">“${esc(hi.task)}”</span>`)}`);
         }
         if (!h.home.equals(hhome)) { h.home.copy(hhome); goTo(h, hhome, 'work'); }
         h.tagEl.textContent = `↳ ${hi.task}`;
@@ -515,14 +715,14 @@ function apply(s) {
   }
   for (const r of robots.values()) if (!seen.has(r.id) && !r.leaving) {
     removeRobot(r);
-    if (r.agent) feed(`<b>${esc(r.zone.info.name)}</b> · yardımcı “${esc(r.tagEl.textContent.slice(2))}” işini bitirip döndü`);
+    if (r.agent) feed(`<b>${esc(r.zone.info.name)}</b> · ${t('yardımcı “{0}” işini bitirip döndü', esc(r.tagEl.textContent.slice(2)))}`);
   }
   const live = new Set(s.zones.map((z) => z.id));
   for (const Z of zones.values()) if (!live.has(Z.id)) Z.leaving = true;
   if (zonesChanged) layout();
   counts(); renderPanel();
 }
-window.atolye.update = (s) => { if (proto) apply(s); else window.atolye._q = s; };
+window.atolye.update = (s) => { if (started) apply(s); else window.atolye._q = s; };
 
 // ---------- frame loop ----------
 const clock = new THREE.Clock();
@@ -555,12 +755,13 @@ function tick() {
     r.g.rotation.y += ang(r.face - r.g.rotation.y) * Math.min(1, dt * 8);
     if (!r.bubSticky && r.bubT > 0) { r.bubT -= dt; if (r.bubT <= 0) r.bubEl.style.opacity = '0'; }
     r.mixer.update(dt);
+    if (r.fb) { r.fbT += dt; fallbackPose(r.inner, r.fb, r.fbT, r.kindH); }
   }
 
   for (const Z of [...zones.values()]) {
     const target = Z.leaving ? 0.001 : 1;
     const s = THREE.MathUtils.damp(Z.g.scale.x, target, 4, dt); Z.g.scale.setScalar(s);
-    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
+    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } { const i = boardHits.indexOf(Z.board.hit); if (i >= 0) boardHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
     Z.g.position.lerp(Z.target, Math.min(1, dt * 3));
     const waiting = Z.info.robots.some((r) => r.state === 'waiting');
     Z.frame.visible = waiting && !Z.leaving;
@@ -614,20 +815,24 @@ document.addEventListener('visibilitychange', () => setActive(document.visibilit
 addEventListener('resize', () => {
   camera.aspect = W() / H(); camera.updateProjectionMatrix();
   renderer.setSize(W(), H()); labels.setSize(W(), H());
+  fitHome(); // odakta değilken bir sonraki "atölyeye dön" yeni orana göre
 });
 
-new GLTFLoader().load('./models/RobotExpressive.glb', (gltf) => {
-  proto = gltf.scene; clips = gltf.animations;
-  // Animasyonlar iskeletin kendi ölçeğini sıfırlıyor: boyu animasyon oynarken ölç.
-  const pm = new THREE.AnimationMixer(proto); pm.clipAction(clips.find((c) => c.name === 'Idle')).play(); pm.update(0);
-  proto.updateMatrixWorld(true);
-  const bb = new THREE.Box3().setFromObject(proto); H0 = bb.max.y - bb.min.y; K = 1 / H0;
-  pm.stopAllAction(); pm.uncacheRoot(proto);
+// Hazır robotların hepsi yüklenince sahne başlar; yüklenemeyen hazır robot havuzda atlanır.
+Promise.allSettled(BUILTINS.map((def) => loader.loadAsync(def.url).then((g) => {
+  kinds.set(def.id, modelKind(def.id, g, { hide: def.hide, clips: def.clips, builtin: true }));
+}).catch((e) => post({ type: 'robotFailed', id: def.id, error: String(e?.message || e) })))).then(() => {
+  if (!kinds.size) { document.getElementById('loading').textContent = t('Robot modelleri yüklenemedi.'); return; }
+  for (const role of ['main', 'sub']) if (!kinds.has(DEFAULTS[role])) { // varsayılan yoksa rolün yüklenen ilk robotu
+    const alt = BUILTINS.find((b) => b.role === role && kinds.has(b.id)) || BUILTINS.find((b) => kinds.has(b.id));
+    DEFAULTS[role] = alt.id;
+  }
   document.getElementById('loading').remove();
+  started = true;
   const q = window.atolye._q; window.atolye._q = null;
   apply(q || { zones: [] });
   setActive(window.atolye._active);
-}, undefined, (err) => { document.getElementById('loading').textContent = 'Robot modeli yüklenemedi: ' + (err?.message || err); });
+});
 
 post({ type: 'ready' });
 </script>
