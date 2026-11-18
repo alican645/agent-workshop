@@ -625,14 +625,14 @@ function layout() {
     const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols), col = i % cols;
     Z.target.set((col - (inRow - 1) / 2) * GAP_X, 0, (row - (rows - 1) / 2) * GAP_Z);
   });
-  grid = { cols, rows };
+  zoneGrid = { cols, rows };
   fitHome();
   if (!selected) fly = { tgt: homeTgt.clone(), cam: homeCam.clone() };
 }
 /** Genel görünüm: bütün platformlar ekrana sığacak kadar uzak (proje sayısına ve pencere oranına göre). */
-let grid = { cols: 1, rows: 1 };
+let zoneGrid = { cols: 1, rows: 1 };
 function fitHome() {
-  const d = homeDistance({ ...grid, gapX: GAP_X, gapZ: GAP_Z, fov: camera.fov, aspect: camera.aspect });
+  const d = homeDistance({ ...zoneGrid, gapX: GAP_X, gapZ: GAP_Z, fov: camera.fov, aspect: camera.aspect });
   homeTgt = new V(0, 0, 0);
   homeCam = new V(...homePosition(d));
   controls.maxDistance = Math.max(120, d * 1.6);
