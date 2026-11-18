@@ -115,3 +115,20 @@ import Testing
         #expect(tracked(root))
     }
 }
+
+@Suite struct TodoTaskTests {
+    let text = "- [ ] giriş ekranı\n  - [ ] şifre unuttum\n  - [x] logo\n- [ ] başka\n"
+
+    @Test func promptHasIntroItemAndOpenChildren() {
+        let items = TodoList.parse(text)
+        let p = TodoList.taskPrompt(for: items[0], in: items, intro: "Şunu yap:")
+        #expect(p == "Şunu yap:\n\ngiriş ekranı\n- şifre unuttum")
+    }
+
+    @Test func promptNeverStartsWithDash() {
+        // claude komutu "-" ile başlayan argümanı seçenek sanar.
+        let items = TodoList.parse("- [ ] -v bayrağını kaldır\n")
+        #expect(TodoList.taskPrompt(for: items[0], in: items, intro: "").hasPrefix("-") == false)
+        #expect(TodoList.taskPrompt(for: items[0], in: items, intro: "").contains("-v bayrağını kaldır"))
+    }
+}

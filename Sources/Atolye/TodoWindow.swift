@@ -14,7 +14,7 @@ struct TodoWindow: View {
                 .frame(width: 220)
             Divider()
             if let root = todos.root {
-                TodoDetail(todos: todos, name: zoneName(root), root: root)
+                TodoDetail(model: model, todos: todos, name: zoneName(root), root: root)
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: "checklist").font(.system(size: 30)).foregroundStyle(Theme.focus)
@@ -83,6 +83,7 @@ private struct ProjectList: View {
 
 /// Seçili projenin maddeleri.
 private struct TodoDetail: View {
+    let model: WorkshopModel
     let todos: Todos
     let name: String
     let root: String
@@ -211,7 +212,17 @@ private struct TodoDetail: View {
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) { startEdit(item) }
             }
+            TaskStatus(model: model, root: root, item: item)
             RowActions(item: item, todos: todos)
+            Button { model.giveTask(item, items: todos.items, root: root) } label: {
+                Label(L("Robota ver"), systemImage: "figure.walk")
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.focus.opacity(item.done ? 0.08 : 0.18)))
+            }
+            .buttonStyle(.plain)
+            .disabled(item.done)
+            .help(L("Bu projede yeni bir Claude oturumu açılır ve madde ilk mesaj olarak gönderilir"))
         }
         .font(.system(size: 13))
         .padding(.leading, CGFloat(item.indent) * 22)
@@ -254,6 +265,48 @@ private struct TodoDetail: View {
         .font(.system(size: 13))
         .padding(.horizontal, 20).padding(.vertical, 12)
         .onAppear { addFocused = true }
+    }
+}
+
+/// Robota verilmiş maddenin yanında robotun durumu; tıklayınca terminali öne gelir.
+private struct TaskStatus: View {
+    let model: WorkshopModel
+    let root: String
+    let item: TodoItem
+
+    var body: some View {
+        if let tid = model.todoTasks[WorkshopModel.taskKey(root: root, text: item.text)], model.terminalAlive(tid) {
+            let robot = model.robot(onTerminal: tid)
+            Button { model.openTerminal(tid) } label: {
+                HStack(spacing: 5) {
+                    Circle().fill(color(robot?.state)).frame(width: 7, height: 7)
+                    Text(text(robot?.state)).font(.system(size: 11, weight: .medium))
+                }
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(Capsule().fill(Color.black.opacity(0.05)))
+            }
+            .buttonStyle(.plain)
+            .help(L("Terminalini öne getir"))
+        }
+    }
+
+    private func text(_ state: String?) -> String {
+        switch state {
+        case "busy": L("çalışıyor")
+        case "waiting": L("seni bekliyor")
+        case "done": L("bitti")
+        case "idle": L("boşta")
+        default: L("başlıyor…")
+        }
+    }
+
+    private func color(_ state: String?) -> Color {
+        switch state {
+        case "busy": Color(red: 0.18, green: 0.65, blue: 0.84)
+        case "waiting": Color(red: 1, green: 0.55, blue: 0.18)
+        case "done": Theme.ok
+        default: Color(red: 0.7, green: 0.66, blue: 0.6)
+        }
     }
 }
 

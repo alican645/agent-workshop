@@ -78,6 +78,14 @@ public enum TodoList {
         return out.joined(separator: "\n")
     }
 
+    /// Robota verilecek iş: giriş cümlesi, madde ve işaretlenmemiş alt maddeleri. `claude` komutuna argüman
+    /// olarak gider; "-" ile başlarsa seçenek sanılacağı için başına boşluk konur.
+    public static func taskPrompt(for item: TodoItem, in items: [TodoItem], intro: String) -> String {
+        let body = prompt(for: item, in: items)
+        let text = intro.isEmpty ? body : intro + "\n\n" + body
+        return text.hasPrefix("-") ? " " + text : text
+    }
+
     /// Yeni maddeyi son maddenin altına (yoksa dosya sonuna) ekler.
     public static func append(_ text: String, item: String) -> String {
         let clean = item.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }

@@ -495,6 +495,7 @@ function enter(r, mode) {
   if (mode === 'sit') { r.face = 0; play(r, 'sit', false); }
   if (mode === 'pick') { r.face = Math.PI * 0.5 * Math.sign(r.g.position.x || 1); play(r, 'yes', false); }
   if (mode === 'idle') { r.face = 0; play(r, 'idle'); }
+  if (mode === 'board') { r.face = Math.atan2(BOARD_LOOK.x - r.g.position.x, BOARD_LOOK.z - r.g.position.z); play(r, 'yes', false); }
 }
 function bubble(r, html, secs, cls = '') {
   const key = cls + '|' + html;
@@ -505,7 +506,15 @@ function bubble(r, html, secs, cls = '') {
 }
 function clearBubble(r) { r.bubEl.style.opacity = '0'; r.bubT = 0; r.bubSticky = false; r.bubKey = null; }
 function waitText(info) { return info.waitingFor ? '⚠ ' + t('izin: {0}', esc(info.waitingFor)) : '⚠ ' + t('seni bekliyor'); }
+// Yapılacaklardan iş alan yeni robot: önce tahtaya gidip işi alır, sonra durumuna göre davranır.
+const BOARD_SPOT = new V(-5.55, 0.16, -2.95), BOARD_LOOK = new V(-4.6, 0, -3.75);
 function behave(r) {
+  if (r.taskIntro === 'go') {
+    r.taskIntro = 'walking';
+    goTo(r, BOARD_SPOT, 'board');
+    bubble(r, '📋 ' + esc(r.info.task.length > 48 ? r.info.task.slice(0, 47) + '…' : r.info.task), 4.5);
+  }
+  if (r.taskIntro) return;
   const st = r.info.state;
   if (st === r.want) {
     if (st === 'waiting') bubble(r, `<span>${waitText(r.info)}</span>`, Infinity, 'wait');
@@ -678,6 +687,7 @@ function apply(s) {
       if (!r) {
         r = makeRobot(Z, { id: ri.id, kindId: chooseKind('main', ri.id), ring: info.color, home });
         r.g.rotation.y = Math.PI;
+        if (ri.task) r.taskIntro = 'go';
         if (prev.zones.length || prevRobots.size) feed(`<b>${esc(info.name)}</b> · ${t('{0} atölyeye geldi', esc(ri.label))}`);
       }
       if (!r.home.equals(home)) { r.home.copy(home); r.want = null; }
@@ -751,6 +761,7 @@ function tick() {
       }
       if (r.mode === 'pick' && r.modeT > 1.3) goTo(r, r.home, 'work');
       if (r.mode === 'thumbs' && r.modeT > 2.2) enter(r, 'idle');
+      if (r.mode === 'board' && r.modeT > 1.8) { r.taskIntro = null; r.want = null; } // işi aldı: durumuna göre devam
     }
     r.g.rotation.y += ang(r.face - r.g.rotation.y) * Math.min(1, dt * 8);
     if (!r.bubSticky && r.bubT > 0) { r.bubT -= dt; if (r.bubT <= 0) r.bubEl.style.opacity = '0'; }

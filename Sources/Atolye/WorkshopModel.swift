@@ -276,6 +276,40 @@ final class WorkshopModel {
         todos.select(root)
     }
 
+    /// Robota verilen işler: "kök\nmadde metni" → terminal kimliği (Yapılacaklar penceresi için).
+    private(set) var todoTasks: [String: String] = [:]
+    /// Terminal → madde metni (sahnede robot önce tahtaya gitsin diye).
+    @ObservationIgnored private var taskOfTerminal: [String: String] = [:]
+
+    static func taskKey(root: String, text: String) -> String { root + "\n" + text }
+
+    /// Maddeyi bir robota ver: projede yeni Claude oturumu açılır, madde (alt maddeleriyle) ilk mesaj olur.
+    func giveTask(_ item: TodoItem, items: [TodoItem], root: String) {
+        let prompt = TodoList.taskPrompt(for: item, in: items, intro: L("TODO.local.md'deki şu maddeyi yap. Bitince ne yaptığını kısaca anlat; maddeyi işaretlemeyi bana bırak."))
+        host.create(.claude, cwd: root, env: profiles.environment(), args: [prompt]) { [weak self] info in
+            guard let self else { return }
+            self.changeDesk { $0.open(.terminal(info.id), root: root) }
+            if info.args == nil { Self.alertOutdatedHostForTask() }
+            self.taskOfTerminal[info.id] = item.text
+            self.todoTasks[Self.taskKey(root: root, text: item.text)] = info.id
+            self.tick(initial: false)
+        }
+    }
+
+    /// İşi alan robot (Claude oturumu henüz başlamadıysa nil).
+    func robot(onTerminal id: String) -> RobotInfo? {
+        snapshot?.zones.lazy.flatMap(\.robots).first { $0.terminal == id }
+    }
+
+    func terminalAlive(_ id: String) -> Bool { host.terminals[id] != nil }
+
+    private static func alertOutdatedHostForTask() {
+        let a = NSAlert()
+        a.messageText = L("Madde Claude'a iletilemedi")
+        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm; Claude oturumu açıldı ama madde gönderilmedi. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç.")
+        a.runModal()
+    }
+
     private func saveDesk() { try? desk.save(to: Self.deskURL) }
 
     /// Yardımcının listesi geldikten sonra bir kez: artık olmayan terminallerin pencerelerini kaldır.
@@ -408,7 +442,7 @@ final class WorkshopModel {
         }
         var snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
-                                  terminalOf: terminalOf, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
+                                  terminalOf: terminalOf, tasks: taskOfTerminal, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
                                   now: now, fileExists: fm.fileExists(atPath:))
         snap.robots = RobotPool.sceneRobots(robotPool.config)
         refreshGit(roots: snap.zones.map(\.id), now: now)
