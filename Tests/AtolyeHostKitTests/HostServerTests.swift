@@ -210,6 +210,25 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(kids.allSatisfy { Darwin.kill($0, 0) != 0 })
     }
 
+    /// Kapanırken terminale yazan çocuk (Claude Code çıkışta ekranı geri yükler) yazdıkları okunmazsa
+    /// "çıkıyor" (E) durumunda sonsuza dek takılıyordu: yardımcı okumayı bırakıp PTY'yi açık tutuyordu.
+    /// Kayıt dosyası canlı göründüğünden kapatılan ajan atölyede kalıyordu.
+    @Test func killedChildThatWritesOnExitActuallyExits() throws {
+        // Lider zsh SIGHUP'ta kendiliğinden çıkar; çocuk (Claude gibi) HUP/TERM'i yok sayıp yazmayı sürdürür.
+        let (s, path) = try makeServer(["/bin/zsh", "-f", "-i", "-c",
+                                        "trap '/bin/sleep 0.2; exit' HUP; /bin/sh -c \"trap '' HUP TERM; exec yes\"; :"])
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
+        let t = try #require(c.created())
+        Thread.sleep(forTimeInterval: 0.5)
+        let all = [t.pid] + ProcessTree.descendants(of: t.pid)
+        c.send(.kill(id: t.id))
+        let end = Date().addingTimeInterval(8)
+        while Date() < end, all.contains(where: { Darwin.kill($0, 0) == 0 }) { Thread.sleep(forTimeInterval: 0.2) }
+        #expect(all.allSatisfy { Darwin.kill($0, 0) != 0 }, "süreçler hâlâ var: \(all.filter { Darwin.kill($0, 0) == 0 })")
+    }
+
     @Test func envHasTerminalID() throws {
         let (s, path) = try makeServer(["/bin/sh", "-c", "echo id=$ATOLYE_TERMINAL_ID; sleep 5"])
         defer { s.stop() }
