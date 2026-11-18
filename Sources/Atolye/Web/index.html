@@ -117,7 +117,7 @@ import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
 import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
 import { t, LOCALE } from './i18n.mjs';
 import { homeDistance, homePosition } from './view.mjs';
-import { waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isOff, initialChecks } from './prompts.mjs';
+import { waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isOff, initialChecks, menuKey, dropFocus } from './prompts.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const V = THREE.Vector3;
@@ -665,7 +665,6 @@ renderer.domElement.addEventListener('dblclick', (e) => {
 const PENDING_MS = 3000;
 const ui = { pending: new Map(), checks: new Map(), edit: new Map(), menus: new Map() };
 let hoverFocus = null, clickFocus = null; // { zone, robot }: 1–9 / Esc bu balona gider
-const menuKey = (p) => JSON.stringify([p.kind, p.question, p.multi, p.page, (p.options || []).map((o) => o.label)]);
 const focusNow = () => hoverFocus || clickFocus;
 function promptItem(f) {
   const Z = f && zones.get(f.zone);
@@ -675,13 +674,15 @@ function promptItem(f) {
 function renderBalloon(Z) {
   const items = Z.leaving ? [] : waitingPrompts(Z.info);
   Z.prompts = items;
-  const now = performance.now();
+  const now = performance.now(), changed = new Set();
   for (const it of items) {
     const mk = menuKey(it.prompt);
-    if (ui.menus.get(it.robot) !== mk) { ui.menus.set(it.robot, mk); ui.checks.delete(it.robot); ui.edit.delete(it.robot); }
+    if (ui.menus.get(it.robot) !== mk) { ui.menus.set(it.robot, mk); ui.checks.delete(it.robot); ui.edit.delete(it.robot); changed.add(it.robot); }
     const pd = ui.pending.get(it.robot);
     if (pd && (pd.full !== JSON.stringify(it.prompt) || now - pd.at > PENDING_MS)) ui.pending.delete(it.robot);
   }
+  // Yeni menü eski odağı devralmaz (aynı etiketli yeni bir izin bile); fare üstündeyse yeniden üstüne gelince odaklanır.
+  hoverFocus = dropFocus(hoverFocus, changed); clickFocus = dropFocus(clickFocus, changed);
   const compact = selected == null;
   Z.balloon.visible = items.length > 0;
   Z.gitTag.visible = !!Z.info.git && !Z.balloon.visible; // balon git etiketinin üstüne düşer
@@ -713,6 +714,7 @@ function sendAnswer(Z, it, args, shown) {
   post(answerMessage(it.robot, it.prompt, args));
   ui.pending.set(it.robot, { full: JSON.stringify(it.prompt), at: performance.now() });
   ui.edit.delete(it.robot);
+  if (clickFocus?.robot === it.robot) clickFocus = null; // cevaplanan menünün odağı bir sonrakine geçmesin
   feed(`<b>${esc(Z.info.name)}</b> · ${t('{0}\'e cevap verildi: {1}', esc(it.label), esc(shown))}`);
   renderBalloon(Z);
   setTimeout(() => renderBalloon(Z), PENDING_MS + 50); // snapshot gelmese de düğmeler geri açılsın
@@ -761,10 +763,11 @@ function wireBalloon(Z) {
   };
   Z.balEl.addEventListener('click', (e) => {
     const c = card(e); if (!c) return;
-    clickFocus = { zone: Z.id, robot: c.it.robot }; markFocus();
     const a = e.target.closest('[data-act]');
+    // Bağlantılar (plan, terminal) odak vermez; yalnız menüyle uğraşan tıklama verir (gönderince düşer).
     if (a?.dataset.act === 'plan') return post({ type: 'openPlan', robot: c.it.robot });
     if (a?.dataset.act === 'term') return post({ type: 'openTerminal', id: a.dataset.term });
+    clickFocus = { zone: Z.id, robot: c.it.robot }; markFocus();
     if (a?.dataset.act === 'send') return a.disabled ? undefined : submit(Z, c.it);
     const b = e.target.closest('button.po');
     if (b && !b.disabled) choose(Z, c.it, Number(b.dataset.i));
@@ -905,6 +908,8 @@ function apply(s) {
   // Bekleyenlerin balonları; artık beklemeyen robotların yerel balon durumu atılır.
   const asking = new Set(s.zones.flatMap((z) => z.robots.filter((r) => r.prompt).map((r) => r.id)));
   for (const m of [ui.pending, ui.checks, ui.edit, ui.menus]) for (const id of [...m.keys()]) if (!asking.has(id)) m.delete(id);
+  if (hoverFocus && !asking.has(hoverFocus.robot)) hoverFocus = null;
+  if (clickFocus && !asking.has(clickFocus.robot)) clickFocus = null;
   renderBalloons();
 }
 window.atolye.update = (s) => { if (started) apply(s); else window.atolye._q = s; };

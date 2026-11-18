@@ -19,6 +19,20 @@ export function waitingPrompts(zone) {
   }));
 }
 
+/**
+ * Menünün kimliği: gönderim durumu (sent/failed) dışında her şey. Ardışık iki Bash izni aynı soru ve
+ * etiketleri taşıyabilir; ayrıntı (komut) da anahtarda, yoksa yeni izin eskisinin yerel durumunu devralırdı.
+ */
+export function menuKey(p) {
+  return JSON.stringify([p.kind, p.question, p.detail ?? null, p.multi, p.page ?? null, p.planPath ?? null,
+    (p.options || []).map((o) => [o.label, o.description ?? null, !!o.freeText])]);
+}
+
+/** Klavye odağı, menüsü değişen (ya da yeni gelen) robottaysa düşer: rakam görülmemiş menüyü cevaplamasın. */
+export function dropFocus(focus, changed) {
+  return focus && changed.has(focus.robot) ? null : focus;
+}
+
 /** Çoklu seçimde snapshot'taki işaretli satırlar (yerel seçim yoksa başlangıç). */
 export function initialChecks(prompt) {
   return (prompt.options || []).flatMap((o, i) => (o.checked ? [i] : []));

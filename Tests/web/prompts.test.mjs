@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DETAIL_MAX, waitingPrompts, balloonHtml, answerMessage, isPlaceholder } from '../../Sources/Atolye/Web/prompts.mjs';
+import { DETAIL_MAX, waitingPrompts, balloonHtml, answerMessage, isPlaceholder, menuKey, dropFocus } from '../../Sources/Atolye/Web/prompts.mjs';
 import { makeT } from '../../Sources/Atolye/Web/i18n.mjs';
 
 const t = makeT(null);
@@ -166,6 +166,21 @@ test('compactHidesDetailAndDescriptions', () => {
   assert.ok(!h.includes('rm -rf build'));
   assert.ok(!h.includes('desc here'));
   assert.ok(h.includes('[1]'));
+});
+
+// Yeni menü (aynı etiketli yeni bir izin bile) eski odağı devralmaz: rakam görülmemiş soruyu cevaplamasın.
+test('menuKeyIgnoresSendStateButNotMenu', () => {
+  const p = prompt();
+  assert.equal(menuKey(p), menuKey({ ...p, sent: true, failed: true }));
+  assert.notEqual(menuKey(p), menuKey({ ...p, question: 'Run rm?' }));
+  assert.notEqual(menuKey(p), menuKey({ ...p, detail: 'rm -rf /' }));
+});
+
+test('focusDroppedWhenItsMenuChanges', () => {
+  const f = { zone: 'z', robot: 'a' };
+  assert.equal(dropFocus(f, new Set(['a'])), null);
+  assert.equal(dropFocus(f, new Set(['b'])), f);
+  assert.equal(dropFocus(null, new Set(['a'])), null);
 });
 
 test('emptyItemsGiveEmptyHtml', () => {
