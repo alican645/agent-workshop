@@ -1,0 +1,136 @@
+import Foundation
+import Testing
+@testable import AtolyeCore
+
+@Suite struct PromptKeysTests {
+    private let up = "\u{1b}[A", down = "\u{1b}[B"
+
+    private func screen(_ name: String) throws -> ScreenPrompt {
+        let url = try #require(Bundle.module.url(forResource: name, withExtension: "txt",
+                                                 subdirectory: "Fixtures/prompts"))
+        var l = try String(contentsOf: url, encoding: .utf8).components(separatedBy: "\n")
+        if l.last == "" { l.removeLast() }
+        return try #require(PromptParser.parse(lines: l, cursorRow: l.count - 1))
+    }
+
+    private func str(_ d: Data?) -> String? { d.flatMap { String(data: $0, encoding: .utf8) } }
+
+    private func ans(_ s: ScreenPrompt, option: Int? = nil, checks: [Int] = [], text: String? = nil) -> PromptAnswer {
+        PromptAnswer(option: option, checks: checks, text: text, labels: s.options.map(\.label))
+    }
+
+    @Test func downTwiceThenEnter() throws {
+        let s = try screen("bash-permission")
+        #expect(str(PromptKeys.keys(for: ans(s, option: 2), on: s)) == down + down + "\r")
+    }
+
+    @Test func upOnce() throws {
+        let s = try screen("bash-permission-down")   // selected 1
+        #expect(str(PromptKeys.keys(for: ans(s, option: 0), on: s)) == up + "\r")
+    }
+
+    @Test func sameOptionJustEnter() throws {
+        let s = try screen("bash-permission")
+        #expect(str(PromptKeys.keys(for: ans(s, option: 0), on: s)) == "\r")
+    }
+
+    @Test func nilWhenLabelsDiffer() throws {
+        let s = try screen("bash-permission")
+        var a = ans(s, option: 1); a.labels[0] = "Başka"
+        #expect(PromptKeys.keys(for: a, on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s, option: 1), on: nil) == nil)
+    }
+
+    @Test func nilWhenOptionOutOfRange() throws {
+        let s = try screen("bash-permission")
+        #expect(PromptKeys.keys(for: ans(s, option: 9), on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s, option: -1), on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s), on: s) == nil)   // option yok
+    }
+
+    @Test func singleStopsSkipSeparator() throws {
+        // ask-single-below: imleç 5. seçenekte (stop ayracı atlar); 1. seçeneğe gitmek stop farkı kadar ↑
+        let s = try screen("ask-single-below")
+        let target = s.options[0].stop, from = s.options[s.selected].stop
+        #expect(str(PromptKeys.keys(for: ans(s, option: 0), on: s))
+                == String(repeating: up, count: from - target) + "\r")
+    }
+
+    @Test func mismatchedKindIsNil() throws {
+        let single = try screen("ask-single")
+        #expect(PromptKeys.keys(for: ans(single, checks: [0]), on: single) == nil)
+        let multi = try screen("ask-multi")
+        #expect(PromptKeys.keys(for: ans(multi, option: 0), on: multi) == nil)
+    }
+
+    @Test func freeTextTypesAndSubmits() throws {
+        let s = try screen("ask-single")
+        let i = try #require(s.options.firstIndex(where: { $0.freeText }))
+        let n = s.options[i].stop - s.options[s.selected].stop
+        #expect(str(PromptKeys.keys(for: ans(s, option: i, text: "hello"), on: s))
+                == String(repeating: down, count: n) + "hello\r")
+    }
+
+    @Test func freeTextOnNonFreeTextOptionIsNil() throws {
+        let s = try screen("bash-permission")
+        #expect(PromptKeys.keys(for: ans(s, option: 0, text: "x"), on: s) == nil)
+    }
+
+    @Test func emptySanitizedTextIsNil() throws {
+        let s = try screen("ask-single")
+        let i = try #require(s.options.firstIndex(where: { $0.freeText }))
+        #expect(PromptKeys.keys(for: ans(s, option: i, text: "\u{1b}[A"), on: s) == nil)
+        #expect(PromptKeys.keys(for: ans(s, option: i, text: ""), on: s) == nil)
+    }
+
+    // Kural: ESC [ … son bayt dizisi atılır (boşluk bırakmaz); \n ve \t boşluğa döner.
+    // "a\nb" + ESC[A + "c\t" → "a b" + "c " = "a bc "
+    @Test func freeTextStripsControlCharacters() {
+        #expect(PromptKeys.sanitize("a\nb\u{1b}[Ac\t") == "a bc ")
+        #expect(PromptKeys.sanitize("x\u{1b}Oy") == "xy")          // ESC + tek karakter
+        #expect(PromptKeys.sanitize("a\u{7f}b\r") == "a b ")        // DEL, CR
+        #expect(PromptKeys.sanitize("Merhaba şğ") == "Merhaba şğ")
+    }
+
+    @Test func multiChecks() throws {
+        let s = try screen("ask-multi")   // imleç 1'de, hiçbiri işaretli değil
+        let submit = try #require(s.submitStop)
+        let a = s.options[0].stop, c = s.options[2].stop
+        let expected = " " + String(repeating: down, count: c - a) + " "
+            + String(repeating: down, count: submit - c) + "\r\r"
+        #expect(str(PromptKeys.keys(for: ans(s, checks: [0, 2]), on: s)) == expected)
+    }
+
+    @Test func multiVerifiedReadmeSequence() throws {
+        // README: 1. seçeneği işaretle + ↓×4 (Submit) + Enter + Enter
+        let s = try screen("ask-multi")
+        #expect(str(PromptKeys.keys(for: ans(s, checks: [0]), on: s))
+                == " " + String(repeating: down, count: 4) + "\r\r")
+    }
+
+    @Test func multiTogglesOnlyDifferences() throws {
+        // ask-multi-checked: 1. ve 3. işaretli, imleç 3'te. Hedef {0}: yalnız 3. kapanır, 1. dokunulmaz.
+        let s = try screen("ask-multi-checked")
+        #expect(s.options[0].checked == true && s.options[2].checked == true && s.selected == 2)
+        let submit = try #require(s.submitStop)
+        let c = s.options[2].stop
+        #expect(str(PromptKeys.keys(for: ans(s, checks: [0]), on: s))
+                == " " + String(repeating: down, count: submit - c) + "\r\r")
+    }
+
+    @Test func multiFreeTextTypesWithoutSpace() throws {
+        let s = try screen("ask-multi")
+        let i = try #require(s.options.firstIndex(where: { $0.freeText }))
+        let submit = try #require(s.submitStop)
+        let start = s.options[s.selected].stop, t = s.options[i].stop
+        #expect(str(PromptKeys.keys(for: ans(s, checks: [i], text: "kiwi"), on: s))
+                == String(repeating: down, count: t - start) + "kiwi"
+                + String(repeating: down, count: submit - t) + "\r\r")
+    }
+
+    @Test func multiWithoutSubmitStopIsNil() throws {
+        var s = try screen("ask-multi")
+        s.submitStop = nil
+        #expect(PromptKeys.keys(for: ans(s, checks: [0]), on: s) == nil)
+    }
+}
