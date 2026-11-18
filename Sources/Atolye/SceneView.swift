@@ -98,15 +98,8 @@ struct SceneView: NSViewRepresentable {
                     openWindow?(id: "todos")
                 }
             case "answer":
-                // Sahneden gelen JS dizileri [Any] olur; her öğe String değilse mesaj yok sayılır.
-                guard let robot = body["robot"] as? String,
-                      let raw = body["labels"] as? [Any] else { break }
-                let labels = raw.compactMap { $0 as? String }
-                guard labels.count == raw.count else { break }
-                let checks = (body["checks"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
-                let option = (body["option"] as? NSNumber)?.intValue
-                model.answer(robot: robot, answer: PromptAnswer(option: option, checks: checks,
-                                                                text: body["text"] as? String, labels: labels))
+                // Geçersiz/yanlış tipli alan varsa mesaj tümden yok sayılır (şüphede hiçbir şey gönderilmez).
+                if let d = PromptAnswer.decode(body) { model.answer(robot: d.robot, answer: d.answer) }
             case "openPlan":
                 if let robot = body["robot"] as? String { model.openPlan(robot: robot) }
             case "unpin":
