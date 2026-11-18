@@ -204,5 +204,21 @@
  "Girintiyi artır": "Indent",
  "Girintiyi azalt": "Outdent",
  "Sil": "Delete",
- "Yeni madde, Enter ile ekle": "New item, press Enter to add"
+ "Yeni madde, Enter ile ekle": "New item, press Enter to add",
+ "Bu ay": "This month",
+ "En yoğun gün": "Busiest day",
+ "henüz yok": "none yet",
+ "{0} token · son bir yıl": "{0} tokens · last year",
+ "Kullanım": "Usage",
+ "Bütün Claude oturumları ve hesaplar, yardımcı ajanlar dahil": "All Claude sessions and accounts, helper agents included",
+ "Kayıtlar {0} tarihinden beri.": "Records since {0}.",
+ "Claude Code eski oturum kayıtlarını siler (varsayılan 30 gün); Agent Workshop günlük toplamları ayrıca saklar, grafik zamanla bir yıla tamamlanır.": "Claude Code deletes old session logs (30 days by default); Agent Workshop keeps its own daily totals, so the chart fills up to a full year over time.",
+ "Tıkla: günlük kullanım grafiği.": "Click: daily usage chart.",
+ "TODO.local.md'deki şu maddeyi yap. Bitince ne yaptığını kısaca anlat; maddeyi işaretlemeyi bana bırak.": "Do this item from TODO.local.md. When you're done, briefly tell me what you did; leave checking off the item to me.",
+ "Madde Claude'a iletilemedi": "Couldn't send the item to Claude",
+ "Terminalleri çalıştıran yardımcı eski sürüm; Claude oturumu açıldı ama madde gönderilmedi. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç.": "The helper that runs terminals is an older version; the Claude session opened but the item wasn't sent. Choose Terminals › Close all terminals from the menu and reopen Agent Workshop.",
+ "Robota ver": "Give to a robot",
+ "Bu projede yeni bir Claude oturumu açılır ve madde ilk mesaj olarak gönderilir": "Opens a new Claude session in this project and sends the item as the first message",
+ "Terminalini öne getir": "Bring its terminal to front",
+ "başlıyor…": "starting…"
 }

@@ -82,6 +82,14 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
                                         ZoneTodo(line: 3, text: "üç", done: false)])
     }
 
+    @Test func robotCarriesTaskOfItsTerminal() {
+        let snap = Workshop.build(sessions: [sess("a", cwd: "/p/erp")], details: [:], todos: [:],
+                                  terminalOf: ["a": "t1"], tasks: ["t1": "giriş ekranı"], fileExists: exists)
+        #expect(snap.zones[0].robots[0].task == "giriş ekranı")
+        let plain = Workshop.build(sessions: [sess("a", cwd: "/p/erp")], details: [:], todos: [:], fileExists: exists)
+        #expect(plain.zones[0].robots[0].task == nil)
+    }
+
     @Test func todosAreCapped() {
         let items = TodoList.parse((0..<60).map { "- [ ] m\($0)" }.joined(separator: "\n"))
         let snap = Workshop.build(sessions: [sess("a", cwd: "/p/erp")], details: [:], todos: ["/p/erp": items], fileExists: exists)
