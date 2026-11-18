@@ -166,4 +166,29 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
         let full = String(decoding: try JSONEncoder().encode(snap), as: UTF8.self)
         #expect(full.contains("\"robots\"") && full.contains("\"builtin\""))
     }
+
+    private static let samplePrompt = PromptInfo(kind: .permission, question: "Do you want to proceed?", detail: "ls",
+                                                 options: [PromptOptionInfo(label: "Yes"), PromptOptionInfo(label: "No")],
+                                                 multi: false, answerable: true)
+
+    @Test func promptOnlyWhenWaiting() {
+        let d = RobotDetails(tool: nil, history: [], helpers: [], waitingFor: "Bash", prompt: Self.samplePrompt)
+        let snap = Workshop.build(sessions: [sess("b", cwd: "/p/erp"), sess("w", cwd: "/p/erp", .waiting)],
+                                  details: ["b": d, "w": d], todos: [:], fileExists: exists)
+        let r = Dictionary(uniqueKeysWithValues: snap.zones[0].robots.map { ($0.id, $0) })
+        #expect(r["b"]?.prompt == nil)
+        #expect(r["w"]?.prompt == Self.samplePrompt)
+    }
+
+    @Test func promptEncodesUnderKey() throws {
+        let d = RobotDetails(tool: nil, history: [], helpers: [], waitingFor: nil, prompt: Self.samplePrompt)
+        let snap = Workshop.build(sessions: [sess("w", cwd: "/p/erp", .waiting)], details: ["w": d], todos: [:], fileExists: exists)
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(snap)) as? [String: Any])
+        let robot = try #require(((json["zones"] as? [[String: Any]])?.first?["robots"] as? [[String: Any]])?.first)
+        let prompt = try #require(robot["prompt"] as? [String: Any])
+        #expect(prompt["kind"] as? String == "permission")
+        #expect(Set(prompt.keys).isSuperset(of: ["kind", "question", "detail", "options", "multi", "answerable", "sent", "failed"]))
+        let opt = try #require((prompt["options"] as? [[String: Any]])?.first)
+        #expect(opt["label"] as? String == "Yes" && opt["freeText"] as? Bool == false)
+    }
 }

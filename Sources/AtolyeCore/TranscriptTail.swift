@@ -50,8 +50,14 @@ public enum ToolSummary {
 /// `tool_use` bloklarını döner. İlk okumada büyük dosyanın yalnız sonu okunur.
 public struct TranscriptTail: Sendable {
     static let initialWindow: UInt64 = 256 * 1024
+    /// Sonucu beklenen en çok bu kadar çağrı tutulur (paralel araç çağrıları için).
+    static let unansweredKeep = 16
     private var path: String?
     private var offset: UInt64 = 0
+    /// tool_result'ı henüz gelmemiş çağrılar, eskiden yeniye.
+    private var unanswered: [PendingTool] = []
+    /// Cevaplanmamış son araç çağrısı (izin, AskUserQuestion, ExitPlanMode beklerken bu olur).
+    public var pending: PendingTool? { unanswered.last }
 
     public init() {}
 
@@ -64,6 +70,7 @@ public struct TranscriptTail: Sendable {
             self.path = path
             offset = size > Self.initialWindow ? size - Self.initialWindow : 0
             skipFirstLine = offset > 0
+            unanswered = []
         }
         guard size > offset else { return [] }
         do { try h.seek(toOffset: offset) } catch { return [] }
@@ -73,20 +80,37 @@ public struct TranscriptTail: Sendable {
         offset += UInt64(complete.count)
         var lines = complete.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: true)
         if skipFirstLine, !lines.isEmpty { lines.removeFirst() }
-        return lines.flatMap(Self.toolUses)
+        var out: [ToolUse] = []
+        for line in lines { out += process(line) }
+        return out
     }
 
-    private static func toolUses(_ line: Data.SubSequence) -> [ToolUse] {
-        // Ucuz ön eleme: araç çağrısı olmayan satırları JSON'a çevirme.
-        guard line.count > 20, let s = String(data: Data(line), encoding: .utf8), s.contains("\"tool_use\""),
+    /// Satırdaki araç çağrılarını döner; çağrı/sonuç eşleşmesiyle `pending`'i günceller.
+    private mutating func process(_ line: Data.SubSequence) -> [ToolUse] {
+        // Ucuz ön eleme: araç çağrısı ya da sonucu olmayan satırları JSON'a çevirme.
+        guard line.count > 20, let s = String(data: Data(line), encoding: .utf8),
+              s.contains("\"tool_use\"") || s.contains("\"tool_result\""),
               let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
-              obj["type"] as? String == "assistant",
               let msg = obj["message"] as? [String: Any],
               let content = msg["content"] as? [[String: Any]] else { return [] }
-        let at = (obj["timestamp"] as? String).flatMap(parseDate)
+        let type = obj["type"] as? String
+        if type == "user" {
+            let done = Set(content.compactMap { b in
+                b["type"] as? String == "tool_result" ? b["tool_use_id"] as? String : nil
+            })
+            if !done.isEmpty { unanswered.removeAll { done.contains($0.id) } }
+            return []
+        }
+        guard type == "assistant" else { return [] }
+        let at = (obj["timestamp"] as? String).flatMap(Self.parseDate)
         return content.compactMap { b in
             guard b["type"] as? String == "tool_use", let name = b["name"] as? String else { return nil }
-            return ToolUse(name: name, target: ToolSummary.target(name: name, input: b["input"] as? [String: Any] ?? [:]), at: at)
+            let input = b["input"] as? [String: Any] ?? [:]
+            if let id = b["id"] as? String {
+                unanswered.append(PendingTool(id: id, name: name, input: input.mapValues(JSONValue.init(any:))))
+                if unanswered.count > Self.unansweredKeep { unanswered.removeFirst(unanswered.count - Self.unansweredKeep) }
+            }
+            return ToolUse(name: name, target: ToolSummary.target(name: name, input: input), at: at)
         }
     }
 

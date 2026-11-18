@@ -20,6 +20,24 @@ final class HostConnection {
     @ObservationIgnored private var bridges: [String: Bridge] = [:]
     @ObservationIgnored private var pendingCreates: [(TerminalInfo) -> Void] = []
 
+    /// Claude terminalinin son okunan görünen ekranı.
+    struct Screen {
+        var lines: [String]
+        var cursorRow: Int
+        var at: Date
+    }
+    /// Terminal kimliği → son ekran (arayüz bununla yeniden çizilmesin diye gözlenmez).
+    @ObservationIgnored private(set) var screens: [String: Screen] = [:]
+    /// Yardımcı ekran isteğini anlıyor mu; eski yardımcı "anlaşılmayan istek" der, o zaman istemeyi bırakırız.
+    @ObservationIgnored private(set) var screenSupported = true
+    /// Yanıtı beklenen ekran istekleri (terminal → sayı); bir hata bunlardan birine mi ait, buradan anlaşılır.
+    @ObservationIgnored private var screenRequests: [String: Int] = [:]
+    /// Ekranı bekleyenler (`requestScreen`); yanıt, hata ya da süre dolunca çağrılır.
+    @ObservationIgnored private var screenWaiters: [String: [(id: UUID, done: (Screen?) -> Void)]] = [:]
+    static let unknownRequest = "anlaşılmayan istek"
+    static let noScreenPrefix = "ekran yok: "
+    static let screenTimeout: TimeInterval = 1
+
     func start() {
         guard client == nil else { return }
         connect()
@@ -38,6 +56,9 @@ final class HostConnection {
         }
         client = c
         connected = true
+        // Yeni bağlanılan yardımcı güncellenmiş olabilir: ekran desteğini yeniden dene.
+        screenSupported = true
+        screenRequests = [:]
         c.send(.list)
         // Yeniden bağlanınca: görünümleri sıfırla, tampon baştan gelsin.
         for (id, v) in views {
@@ -59,6 +80,7 @@ final class HostConnection {
         case let .terminals(list):
             terminals = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             listed = true
+            screens = screens.filter { terminals[$0.key] != nil }
         case let .created(info):
             terminals[info.id] = info
             if !pendingCreates.isEmpty { pendingCreates.removeFirst()(info) }
@@ -68,12 +90,64 @@ final class HostConnection {
         case let .exited(id, code):
             terminals[id]?.running = false
             terminals[id]?.exitCode = code
-        case .screen:
-            break  // ekran yanıtını isteyen yer ayrıca işler (şimdilik kimse istemiyor)
+        case let .screen(id, lines, cursorRow):
+            answeredScreen(id)
+            let s = Screen(lines: lines, cursorRow: cursorRow, at: Date())
+            screens[id] = s
+            finishWaiters(id, s)
         case let .error(msg):
             if msg == HostClient.disconnected { retry() }
+            if msg == Self.unknownRequest, !screenRequests.isEmpty {
+                // Eski yardımcı: ekran isteğini bilmiyor.
+                screenSupported = false
+                screenRequests = [:]
+                screens = [:]
+                for id in Array(screenWaiters.keys) { finishWaiters(id, nil) }
+            } else if msg.hasPrefix(Self.noScreenPrefix) {
+                let id = String(msg.dropFirst(Self.noScreenPrefix.count))
+                answeredScreen(id)
+                screens[id] = nil
+                finishWaiters(id, nil)
+            }
         }
     }
+
+    private func answeredScreen(_ id: String) {
+        guard let n = screenRequests[id] else { return }
+        screenRequests[id] = n > 1 ? n - 1 : nil
+    }
+
+    private func finishWaiters(_ id: String, _ s: Screen?) {
+        guard let ws = screenWaiters.removeValue(forKey: id) else { return }
+        for w in ws { w.done(s) }
+    }
+
+    /// Terminalin görünen ekranını ister; yanıt `screens`'e düşer.
+    func screen(_ id: String) {
+        guard screenSupported, let client else { return }
+        screenRequests[id, default: 0] += 1
+        client.send(.screen(id: id))
+    }
+
+    /// Taze ekranı ister ve gelince (en çok `screenTimeout` bekleyip, gelmezse nil ile) `then`'i çağırır.
+    func requestScreen(_ id: String, then: @escaping (Screen?) -> Void) {
+        guard screenSupported, client != nil else { return then(nil) }
+        let token = UUID()
+        screenWaiters[id, default: []].append((token, then))
+        screen(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.screenTimeout) { [weak self] in
+            guard let self, var ws = self.screenWaiters[id], let i = ws.firstIndex(where: { $0.id == token }) else { return }
+            let w = ws.remove(at: i)
+            self.screenWaiters[id] = ws.isEmpty ? nil : ws
+            w.done(nil)
+        }
+    }
+
+    /// Eski ekranı unutur (robot artık beklemiyor; bir sonraki beklemede eski menü görünmesin).
+    func forgetScreen(_ id: String) { screens[id] = nil }
+
+    /// Terminale ham bayt yazar (seçenek menüsüne giden tuşlar).
+    func send(_ id: String, data: Data) { client?.send(.input(id: id, data: data)) }
 
     /// Yardımcının listesini tazeler (makine ışıkları için çıktı zamanları).
     func refresh() { client?.send(.list) }
