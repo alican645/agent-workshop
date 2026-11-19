@@ -51,7 +51,10 @@ struct AtolyeApp: App {
         // İlk sahne ana penceredir: açılışta ve Dock simgesine tıklanınca o açılır.
         .defaultLaunchBehavior(.presented)
         .commands {
-            CommandGroup(after: .appSettings) { LanguageMenu() }
+            CommandGroup(after: .appSettings) {
+                LanguageMenu()
+                Button(L("Claude Code entegrasyonu…")) { model.askIntegration() }
+            }
             CommandGroup(before: .windowList) { MainWindowButton() }
             CommandGroup(replacing: .sidebar) {
                 Button(model.sidebarHidden ? L("Sol paneli göster") : L("Sol paneli gizle")) { model.toggleSidebar() }

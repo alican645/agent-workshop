@@ -34,6 +34,11 @@ public enum AtolyeIntegration {
         return t + "\n" + statuslineBlock
     }
 
+    /// Atölye bloğunu statusline betiğinden çıkarır.
+    public static func uninstallStatusline(from text: String) -> String {
+        removeBlock(text, begin: begin, end: end)
+    }
+
     public static func limitFileName(configDir: String) -> String {
         var d = configDir
         while d.count > 1 && d.hasSuffix("/") { d.removeLast() }

@@ -141,17 +141,22 @@ final class Profiles {
 
     // MARK: Kurulum (her açılışta, değişiklik yoksa dokunmaz)
 
-    /// statusline'a limit bloğunu ekler. Değişen dosyanın aslı önce `yedek/` klasörüne kopyalanır.
-    nonisolated static func installIntegration(mainDir: String) {
+    /// Kullanıcının seçtiği entegrasyonları kurar, seçilmeyenleri kaldırır. Değişen dosyanın aslı önce
+    /// `yedek/` klasörüne kopyalanır.
+    nonisolated static func installIntegration(mainDir: String, choice: IntegrationChoice) {
         func rewrite(_ path: String, _ change: (String) -> String?) {
             let real = (path as NSString).resolvingSymlinksInPath
             guard let old = try? String(contentsOfFile: real, encoding: .utf8), let new = change(old), new != old else { return }
             backup(real)
             try? new.write(toFile: real, atomically: true, encoding: .utf8)
         }
-        rewrite(mainDir + "/statusline-command.sh") { AtolyeIntegration.installStatusline(into: $0) }
+        rewrite(mainDir + "/statusline-command.sh") {
+            choice.statusline ? AtolyeIntegration.installStatusline(into: $0) : AtolyeIntegration.uninstallStatusline(from: $0)
+        }
         // Balondan cevap için Claude Code hook'u: önce sabit yola kopyalanır, ayarlar o yolu gösterir.
-        if installHookBinary() {
+        if !choice.hooks {
+            rewrite(mainDir + "/settings.json") { AtolyeIntegration.uninstallHooks(from: $0) }
+        } else if installHookBinary() {
             rewrite(mainDir + "/settings.json") { AtolyeIntegration.installHooks(into: $0, executable: HostPaths.hookBinary) }
         }
     }
