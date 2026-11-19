@@ -44,6 +44,16 @@ public final class HostClient: @unchecked Sendable {
         throw POSIXError(.ETIMEDOUT)
     }
 
+    /// Soketin karşı ucundaki sürecin (yardımcının) kimliği; bağlı değilse nil.
+    public func peerPID() -> pid_t? {
+        writeLock.withLock {
+            guard fd >= 0 else { return nil }
+            var pid: pid_t = 0
+            var len = socklen_t(MemoryLayout<pid_t>.size)
+            return getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID, &pid, &len) == 0 && pid > 0 ? pid : nil
+        }
+    }
+
     public func send(_ r: HostRequest) {
         let d = Frame.encode(r)
         writeLock.withLock {

@@ -22,7 +22,11 @@ public final class HostServer: @unchecked Sendable {
     /// Yalnız testler için: terminal türüne göre çalıştırılacak komut.
     var commandOverride: (@Sendable (TerminalKind) -> [String])?
 
-    public init(socketPath: String, idleExit: TimeInterval?, onIdle: @escaping @Sendable () -> Void) {
+    /// Yürütülebilir dosyanın özeti (`HostVersion`); `hello`'ya bu bildirilir.
+    private let version: String?
+
+    public init(socketPath: String, idleExit: TimeInterval?, onIdle: @escaping @Sendable () -> Void, version: String? = nil) {
+        self.version = version
         self.socketPath = socketPath
         self.idleExit = idleExit
         self.onIdle = onIdle
@@ -114,7 +118,11 @@ public final class HostServer: @unchecked Sendable {
 
     // MARK: İstekler
 
+    /// `shutdown` alındı: yeni istekler karşılanmaz.
+    private var shuttingDown = false
+
     private func handle(_ body: Data, from key: ObjectIdentifier) {
+        guard !shuttingDown else { return }
         guard let req = try? JSONDecoder().decode(HostRequest.self, from: body) else {
             send(.error("anlaşılmayan istek"), to: key)
             return
@@ -145,11 +153,45 @@ public final class HostServer: @unchecked Sendable {
         case let .screen(id):
             guard let m = terminals[id]?.mirror else { return send(.error("ekran yok: \(id)"), to: key) }
             send(.screen(id: id, lines: m.lines(), cursorRow: m.cursorRow), to: key)
+        case .hello:
+            send(.hostInfo(version: version ?? ""), to: key)
+        case .shutdown:
+            shutdown()
         case .killAll:
             for t in terminals.values { retire(t) }
             terminals = [:]
             order = []
             scheduleIdleCheck()
+        }
+    }
+
+    /// Uygulama yardımcıyı yeniliyor: terminalleri sonlandır, bitişlerini bildir, bağlantıları kapat ve çık.
+    private func shutdown() {
+        listenSource?.cancel()
+        listenSource = nil
+        if listenFD >= 0 { close(listenFD) }
+        listenFD = -1
+        unlink(socketPath)
+        idleWork?.cancel()
+        shuttingDown = true
+        for t in terminals.values where t.info.running { t.terminate() }
+        // Terminaller bitene kadar (direnenleri `terminate` 3 sn sonra zorla bitirir) en çok 3,5 sn bekle;
+        // bitişler istemcilere ulaşsın, sonra çık.
+        finishShutdown(deadline: Date().addingTimeInterval(3.5))
+    }
+
+    private func finishShutdown(deadline: Date) {
+        let running = terminals.values.contains { $0.info.running } || dying.values.contains { $0.info.running }
+        if running && Date() < deadline {
+            queue.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.finishShutdown(deadline: deadline) }
+            return
+        }
+        // Bitişler yazılsın diye kısa bir an.
+        queue.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self else { return }
+            for c in self.clients.values { c.close() }
+            self.clients = [:]
+            self.onIdle()
         }
     }
 

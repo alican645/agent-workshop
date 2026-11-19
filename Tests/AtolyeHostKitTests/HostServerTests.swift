@@ -117,6 +117,56 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(t.args == ["--resume", "x"])
     }
 
+    /// Bağlanınca ilk istek `hello`: cevabı ilk gelen olaydır ve sunucunun sürümünü taşır.
+    @Test func helloReportsVersion() throws {
+        let path = "/tmp/ah-\(UUID().uuidString.prefix(8)).sock"
+        let s = HostServer(socketPath: path, idleExit: nil, onIdle: {}, version: "abc")
+        try s.start()
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.hello)
+        #expect(c.next { _ in true } == .hostInfo(version: "abc"))
+    }
+
+    /// `shutdown`: terminaller biter, bağlantı kapanır ve sunucu çıkış işini (onIdle) çağırır.
+    @Test func shutdownEndsTerminalsAndExits() throws {
+        let path = "/tmp/ah-\(UUID().uuidString.prefix(8)).sock"
+        let exited = EventBox()
+        let s = HostServer(socketPath: path, idleExit: nil, onIdle: { exited.add(.error("çıktı")) })
+        s.commandOverride = { _ in ["/bin/sh", "-c", "sleep 30"] }
+        try s.start()
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
+        let t = try #require(c.created())
+        c.send(.attach(id: t.id))
+        c.send(.shutdown)
+        #expect(c.next(timeout: 5) { if case let .exited(id, _) = $0 { id == t.id } else { false } } != nil)
+        #expect(c.closedByServer(timeout: 5))
+        #expect(exited.waitFor(5) { _ in true } != nil)
+    }
+
+    /// `shutdown`: SIGTERM'e direnen terminal de zorla bitirilir ve bitişi çıkıştan önce bildirilir;
+    /// kapanırken gelen yeni istek terminal açmaz.
+    @Test func shutdownWaitsForStubbornTerminals() throws {
+        let path = "/tmp/ah-\(UUID().uuidString.prefix(8)).sock"
+        let exitedAt = EventBox()
+        let s = HostServer(socketPath: path, idleExit: nil, onIdle: { exitedAt.add(.error("çıktı")) })
+        s.commandOverride = { _ in ["/bin/sh", "-c", "trap '' TERM HUP; while :; do sleep 1; done"] }
+        try s.start()
+        defer { s.stop() }
+        let c = try RawClient(path)
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
+        let t = try #require(c.created())
+        c.send(.attach(id: t.id))
+        Thread.sleep(forTimeInterval: 0.3)
+        c.send(.shutdown)
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
+        #expect(c.next(timeout: 6) { if case let .exited(id, _) = $0 { id == t.id } else { false } } != nil)
+        #expect(exitedAt.waitFor(6) { _ in true } != nil)
+        #expect(c.next(timeout: 0.3) { if case .created = $0 { true } else { false } } == nil)
+    }
+
     /// Çalıştırma kartı: komut giriş kabuğunda çalışır ve kabuğa dönülmez (bitiş = komutun bitişi).
     @Test func commandForRun() {
         let run = RunSpec(cardID: "c", name: "D", command: "./deploy.sh")

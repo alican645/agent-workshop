@@ -45,7 +45,7 @@ click one and the answer goes straight to the agent, even if that session runs i
 - With **Ask first** on (the default for new cards) you're asked before anything runs, for jobs that are hard to
   undo. Clicking a card that's already running doesn't start it twice; it brings its terminal forward.
 - Commands run in the background helper, so they keep going if you quit Agent Workshop. If the helper is an older
-  version the card isn't run and you get a warning (Terminals › Close all terminals, then reopen the app).
+  version the card isn't run and you're offered a helper restart.
 
 ```json
 {"cards":[{"id":"…","name":"Deploy","command":"./deploy.sh","confirm":true}]}
@@ -57,6 +57,9 @@ click one and the answer goes straight to the agent, even if that session runs i
 - As many Claude sessions, shells, read-only **Git** views (changes, commits, diffs) and **Markdown**
   readers per project as you like.
 - Terminals live in a separate helper process (`atolye-host`), so your sessions survive restarting the app.
+- After you build a new version, Agent Workshop notices the running helper is outdated and offers to restart it
+  (or use **Terminals › Restart helper…**). Open terminals close; Claude sessions in the workshop reopen where they
+  left off (`--resume`).
 
 ### 🔔 Never miss a waiting agent
 - The waiting agent's window and sidebar label pulse, with a sound.

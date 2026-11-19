@@ -49,7 +49,7 @@ MCP'ler ve hafızayla kullanırsın.
 - Geri alınması zor işler için **Önce sor** açıksa (yeni kartlarda varsayılan) çalıştırmadan önce sorulur.
   Çalışan karta tekrar tıklamak ikinci kez başlatmaz, terminalini öne getirir.
 - Komut arka plan yardımcısında çalışır: Agent Workshop'u kapatsan da sürer. Yardımcı eski sürümse kart
-  çalıştırılmaz ve uyarı çıkar (Terminaller › Tüm terminalleri kapat, sonra uygulamayı yeniden aç).
+  çalıştırılmaz ve yardımcıyı yeniden başlatma önerilir.
 
 ```json
 {"cards":[{"id":"…","name":"Deploy","command":"./deploy.sh","confirm":true}]}
@@ -62,6 +62,9 @@ MCP'ler ve hafızayla kullanırsın.
 - Aynı projede istediğin kadar Claude oturumu, kabuk, salt okunur **Git** görünümü (değişen dosyalar,
   commit'ler, diff) ve **Markdown** okuyucu.
 - Terminaller ayrı bir yardımcı süreçte (`atolye-host`) yaşar: Agent Workshop'u kapatıp açsan da oturumların sürer.
+- Yeni bir sürüm derleyince Agent Workshop çalışan yardımcının eski olduğunu fark eder ve yeniden başlatmayı sorar
+  (ya da **Terminaller › Yardımcıyı yeniden başlat…**). Açık terminaller kapanır; Atölye'deki Claude oturumları
+  kaldıkları yerden (`--resume`) yeniden açılır.
 
 ### 🔔 Seni bekleyen ajanı kaçırma
 - Bekleyen Claude'un penceresi ve sol paneldeki etiketi yanıp söner, sesli uyarı çalar.

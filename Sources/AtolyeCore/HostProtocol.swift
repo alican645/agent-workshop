@@ -62,6 +62,10 @@ public enum HostRequest: Codable, Equatable, Sendable {
     case killAll
     /// Terminalin görünen ekranını ister (yalnız Claude terminali). Eski yardımcı `.error` döner.
     case screen(id: String)
+    /// Sürüm sorusu; yardımcı `hostInfo` ile cevap verir. Eski yardımcı "anlaşılmayan istek" der.
+    case hello
+    /// Bütün terminalleri sonlandır ve çık (uygulama yardımcıyı yenilerken).
+    case shutdown
 }
 
 public enum HostEvent: Codable, Equatable, Sendable {
@@ -71,6 +75,8 @@ public enum HostEvent: Codable, Equatable, Sendable {
     case exited(id: String, code: Int32?)
     case error(String)
     case screen(id: String, lines: [String], cursorRow: Int)
+    /// `version`: yardımcının yürütülebilir dosya özeti (`HostVersion`).
+    case hostInfo(version: String)
 }
 
 /// Çerçeve: 4 bayt büyük-endian uzunluk + JSON gövde.
