@@ -60,6 +60,11 @@ public enum RunState: String, Codable, Sendable {
 }
 
 public enum RunCards {
+    /// Karta ait (aynı kökte açılmış) en yeni terminal; liste host'un açılış sırasındadır.
+    public static func latestTerminal(card: String, root: String, in terminals: [TerminalInfo]) -> TerminalInfo? {
+        terminals.last { $0.run?.cardID == card && $0.cwd == root }
+    }
+
     /// Karta ait en yeni terminalden durum: yok → boşta; çalışıyor; 0 ile bitti → başarılı; başka → hatalı.
     public static func state(of t: TerminalInfo?) -> RunState {
         guard let t else { return .idle }

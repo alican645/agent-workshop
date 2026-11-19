@@ -5,6 +5,19 @@ public enum TerminalKind: String, Codable, Sendable {
     case claude, shell
 }
 
+/// Çalıştırma kartından açılan terminal: komut giriş kabuğunda çalışır, bitince terminal de biter.
+public struct RunSpec: Codable, Equatable, Sendable {
+    public var cardID: String
+    public var name: String
+    public var command: String
+
+    public init(cardID: String, name: String, command: String) {
+        self.cardID = cardID
+        self.name = name
+        self.command = command
+    }
+}
+
 public struct TerminalInfo: Codable, Equatable, Sendable {
     public var id: String
     public var cwd: String
@@ -16,9 +29,11 @@ public struct TerminalInfo: Codable, Equatable, Sendable {
     public var lastOutputAt: Date?
     /// Claude'a verilen argümanlar (ör. `--resume <id>`). Eski yardımcı bu alanı bilmez, hep nil döner.
     public var args: [String]? = nil
+    /// Kart terminaliyse kartı. Eski yardımcı bu alanı bilmez, hep nil döner.
+    public var run: RunSpec? = nil
 
     public init(id: String, cwd: String, title: String, kind: TerminalKind, pid: Int32, running: Bool,
-                exitCode: Int32?, lastOutputAt: Date?, args: [String]? = nil) {
+                exitCode: Int32?, lastOutputAt: Date?, args: [String]? = nil, run: RunSpec? = nil) {
         self.id = id
         self.cwd = cwd
         self.title = title
@@ -28,6 +43,7 @@ public struct TerminalInfo: Codable, Equatable, Sendable {
         self.exitCode = exitCode
         self.lastOutputAt = lastOutputAt
         self.args = args
+        self.run = run
     }
 }
 
@@ -35,8 +51,9 @@ public enum HostRequest: Codable, Equatable, Sendable {
     case list
     /// `env`: terminale eklenecek ortam (ör. Claude profili için CLAUDE_CONFIG_DIR).
     /// `args`: Claude terminalinde `claude`'a eklenecek argümanlar.
+    /// `run`: kabuk yerine kartın komutunu çalıştır (eski yardımcı yok sayar, düz kabuk açar).
     case create(kind: TerminalKind, cwd: String, cols: UInt16, rows: UInt16, env: [String: String]? = nil,
-                args: [String]? = nil)
+                args: [String]? = nil, run: RunSpec? = nil)
     case attach(id: String)
     case detach(id: String)
     case input(id: String, data: Data)

@@ -3,7 +3,8 @@ import Testing
 @testable import AtolyeCore
 
 private func terminal(_ id: String, cwd: String = "/p/x", running: Bool, code: Int32?, card: String? = nil) -> TerminalInfo {
-    TerminalInfo(id: id, cwd: cwd, title: "zsh", kind: .shell, pid: 1, running: running, exitCode: code, lastOutputAt: nil)
+    TerminalInfo(id: id, cwd: cwd, title: "zsh", kind: .shell, pid: 1, running: running, exitCode: code, lastOutputAt: nil,
+                 run: card.map { RunSpec(cardID: $0, name: $0, command: "x") })
 }
 
 @Suite struct RunCardsTests {
@@ -41,5 +42,16 @@ private func terminal(_ id: String, cwd: String = "/p/x", running: Bool, code: I
         #expect(RunCards.state(of: terminal("t", running: false, code: 0)) == .ok)
         #expect(RunCards.state(of: terminal("t", running: false, code: 3)) == .failed)
         #expect(RunCards.state(of: terminal("t", running: false, code: nil)) == .failed)
+    }
+
+    @Test func latestTerminalPicksNewestForCardAndRoot() {
+        let ts = [terminal("a1", running: false, code: 0, card: "a"),
+                  terminal("other-root", cwd: "/p/y", running: true, code: nil, card: "a"),
+                  terminal("b1", running: true, code: nil, card: "b"),
+                  terminal("plain", running: true, code: nil),
+                  terminal("a2", running: true, code: nil, card: "a")]
+        #expect(RunCards.latestTerminal(card: "a", root: "/p/x", in: ts)?.id == "a2")
+        #expect(RunCards.latestTerminal(card: "b", root: "/p/x", in: ts)?.id == "b1")
+        #expect(RunCards.latestTerminal(card: "c", root: "/p/x", in: ts) == nil)
     }
 }
