@@ -40,8 +40,6 @@ MCP'ler ve hafızayla kullanırsın.
 - Plan onayında "Planı aç" planı Markdown okuyucuda açar.
 
 ### 🪟 Yüzen terminal pencereleri
-![Yüzen terminaller](docs/images/terminals.png)
-
 - Terminaller uygulamanın içinde, atölyenin üstünde: sürükle, kenarlardan/köşelerden boyutlandır,
   ekranın kenarına ya da köşesine sürükleyince yarım/çeyrek ekrana yapışır, çift tıkla tam ekran.
 - Sahneye tıklayınca pencereler sol paneldeki kendi projelerine animasyonla çekilir; projeye tıklayınca geri gelir.
@@ -55,8 +53,6 @@ MCP'ler ve hafızayla kullanırsın.
 - Dock simgesinde bekleyen ajan sayısı.
 
 ### 💰 Token ve maliyet
-![Kullanım](docs/images/usage.png)
-
 - Her oturumun kullandığı token ve Anthropic API liste fiyatıyla karşılığı (yardımcı ajanlar dahil).
 - Üst çubukta günün toplamı — kapanmış oturumlar ve bütün hesaplar dahil.
 - Abonelikle kullananlar için bu bir fatura değil; hangi oturumun ne kadar iş yaptığını karşılaştırmak içindir.
@@ -71,8 +67,6 @@ MCP'ler ve hafızayla kullanırsın.
 - Profile beklenen hesabı yazarsan, yanlış hesapla girişliyse uyarır; "Giriş yap" giriş sayfasını o e-postayla açar.
 
 ### 🟩 GitHub panosu
-![GitHub panosu](docs/images/github.png)
-
 - Üst çubuktaki **GitHub** düğmesiyle açılan kişisel pano: son bir yılın katkı ısı haritası, bugün,
   son 7 gün, kesintisiz seri ve en uzun seri; commit / PR / inceleme toplamları.
 - Son 30 günde çalıştığın depolar, gizli depolar dahil.

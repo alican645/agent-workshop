@@ -36,8 +36,6 @@ click one and the answer goes straight to the agent, even if that session runs i
 - "Open plan" shows the plan in the built-in Markdown reader.
 
 ### 🪟 Floating terminal windows
-![Floating terminals](docs/images/terminals.png)
-
 - Terminals live inside the app, on top of the workshop: drag, resize, snap to halves/quarters, double-click
   for full screen. Click the scene and every window flies back to its project in the sidebar.
 - As many Claude sessions, shells, read-only **Git** views (changes, commits, diffs) and **Markdown**
@@ -50,8 +48,6 @@ click one and the answer goes straight to the agent, even if that session runs i
 - Waiting-agent count on the Dock icon.
 
 ### 💰 Tokens and cost
-![Usage](docs/images/usage.png)
-
 - Tokens per session and their value at Anthropic API list prices (subagents included); today's total in the
   toolbar, across closed sessions and all accounts.
 - On a subscription this is not a bill — it is for comparing how much work each session did.
@@ -63,8 +59,6 @@ click one and the answer goes straight to the agent, even if that session runs i
 - 5-hour and weekly limits per profile, with a warning past 90%.
 
 ### 🟩 GitHub dashboard
-![GitHub dashboard](docs/images/github.png)
-
 - A personal dashboard: a year of contributions, today, last 7 days, current and longest streak,
   commit / PR / review totals, and the repositories you worked on in the last 30 days.
 - Sign-in uses GitHub's device flow; the token stays in your Keychain and only read requests are made.
