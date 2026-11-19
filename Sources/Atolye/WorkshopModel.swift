@@ -388,7 +388,7 @@ final class WorkshopModel {
         host.create(.claude, cwd: root, env: profiles.environment(), args: [prompt]) { [weak self] info in
             guard let self else { return }
             self.changeDesk { $0.open(.terminal(info.id), root: root) }
-            if info.args == nil { Self.alertOutdatedHostForTask() }
+            if info.args == nil { self.alertOutdatedHostForTask() }
             self.taskOfTerminal[info.id] = item.text
             self.todoTasks[Self.taskKey(root: root, text: item.text)] = info.id
             self.tick(initial: false)
@@ -454,7 +454,7 @@ final class WorkshopModel {
             guard info.run != nil else {
                 // Eski yardımcı alanı tanımadı, düz kabuk açtı: komut çalışmadı.
                 self.host.kill(info.id)
-                Self.alertOutdatedHostForRun()
+                self.alertOutdatedHostForRun()
                 return
             }
             self.changeDesk { $0.open(.terminal(info.id), root: root) }
@@ -462,18 +462,79 @@ final class WorkshopModel {
         }
     }
 
-    private static func alertOutdatedHostForRun() {
-        let a = NSAlert()
-        a.messageText = L("Kart çalıştırılamadı")
-        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm; kartın komutu çalıştırılmadı. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç.")
-        a.runModal()
+    private func alertOutdatedHostForRun() {
+        offerHostRestart(L("Kart çalıştırılamadı"),
+                         L("Terminalleri çalıştıran yardımcı eski sürüm; kartın komutu çalıştırılmadı. Yardımcıyı yeniden başlatınca (Terminaller › Yardımcıyı yeniden başlat) kartlar çalışır."))
     }
 
-    private static func alertOutdatedHostForTask() {
+    private func alertOutdatedHostForTask() {
+        offerHostRestart(L("Madde Claude'a iletilemedi"),
+                         L("Terminalleri çalıştıran yardımcı eski sürüm; Claude oturumu açıldı ama madde gönderilmedi. Yardımcıyı yeniden başlatınca (Terminaller › Yardımcıyı yeniden başlat) maddeler iletilir."))
+    }
+
+    /// "Yardımcı eski" uyarısı; düğmesi yeniden başlatma sorusunu açar.
+    private func offerHostRestart(_ title: String, _ text: String) {
         let a = NSAlert()
-        a.messageText = L("Madde Claude'a iletilemedi")
-        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm; Claude oturumu açıldı ama madde gönderilmedi. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç.")
-        a.runModal()
+        a.messageText = title
+        a.informativeText = text
+        a.addButton(withTitle: L("Yardımcıyı yeniden başlat…"))
+        a.addButton(withTitle: L("Tamam"))
+        if a.runModal() == .alertFirstButtonReturn { askRestartHost() }
+    }
+
+    // MARK: Yardımcı
+
+    /// Bu açılışta "yardımcı eski" sorusu soruldu mu.
+    @ObservationIgnored private var askedHostUpdate = false
+
+    /// Yardımcı eskiyse açılış başına bir kez sorar.
+    private func checkHostVersion() {
+        guard host.hostOutdated == true, !askedHostUpdate else { return }
+        askedHostUpdate = true
+        DispatchQueue.main.async { [weak self] in self?.askRestartHost() }
+    }
+
+    /// Onay sorusu; onaylanırsa yardımcıyı yeniden başlatır.
+    func askRestartHost() {
+        let outdated = host.hostOutdated == true
+        let n = host.terminals.values.filter(\.running).count
+        let running = (snapshot?.zones ?? []).flatMap(\.cards).filter { $0.state == .running }.map(\.name)
+        let a = NSAlert()
+        a.messageText = outdated ? L("Yardımcı güncellenmeli") : L("Yardımcı yeniden başlatılsın mı?")
+        var text = outdated ? L("Terminalleri çalıştıran yardımcı eski sürüm; yeni özellikler (ör. çalıştırma kartları) için yeniden başlatılmalı.") + "\n\n" : ""
+        text += L("Açık {0} terminal kapanır. Atölye'deki Claude oturumları kaldıkları yerden yeniden açılır; kabuklarda çalışan komutlar durur.", "\(n)")
+        if !running.isEmpty { text += "\n\n" + L("Şu an çalışan kartlar: {0}", running.joined(separator: ", ")) }
+        a.informativeText = text
+        a.addButton(withTitle: L("Şimdi yeniden başlat"))
+        a.addButton(withTitle: L("Sonra"))
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        restartHost()
+    }
+
+    /// Claude oturumlarını not eder, yardımcıyı yeniden başlatır, yeni yardımcıda oturumları `--resume` ile açar.
+    private func restartHost() {
+        let candidates = store.sessions.compactMap { s -> ProfileMove.Candidate? in
+            guard let profile = sessionProfile[s.id] else { return nil }
+            let t = sessionTerminal[s.id]
+            return ProfileMove.Candidate(sessionID: s.id, profileID: profile, terminal: t,
+                                         terminalKind: t.flatMap { host.terminals[$0]?.kind },
+                                         working: s.state == .working, cwd: s.cwd)
+        }
+        let resumes = HostRestart.resumable(candidates)
+        host.restart { [weak self] in
+            guard let self else { return }
+            // Geri açılmayacak eski terminallerin pencereleri kalkar; geri açılacaklarınki yenisine geçer.
+            self.changeDesk { $0.prune(liveTerminals: Set(resumes.map(\.terminal)).union(self.host.terminals.keys)) }
+            for r in resumes {
+                self.host.create(.claude, cwd: r.cwd, env: self.profiles.environment(r.profileID),
+                                 args: ProfileMove.resumeArgs(r.sessionID)) { [weak self] info in
+                    self?.changeDesk { d in
+                        if !d.retarget(.terminal(r.terminal), to: .terminal(info.id)) { d.open(.terminal(info.id), root: r.cwd) }
+                    }
+                }
+            }
+            self.tick(initial: false)
+        }
     }
 
     private func saveDesk() { try? desk.save(to: Self.deskURL) }
@@ -519,7 +580,7 @@ final class WorkshopModel {
         if plan.now.contains(where: { host.terminals[$0.terminal]?.args == nil }) {
             pendingMoves = []
             moveTarget = nil
-            Self.alertOutdatedHost()
+            alertOutdatedHost()
             return
         }
         for m in plan.now { move(m, to: target) }
@@ -543,11 +604,9 @@ final class WorkshopModel {
         }
     }
 
-    private static func alertOutdatedHost() {
-        let a = NSAlert()
-        a.messageText = L("Açık Claude oturumları yeni profile taşınamadı")
-        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç; bundan sonra profil değiştirince oturumlar kaldıkları yerden sürer. Yeni profil yine de seçildi: yeni oturumlar onunla açılır.")
-        a.runModal()
+    private func alertOutdatedHost() {
+        offerHostRestart(L("Açık Claude oturumları yeni profile taşınamadı"),
+                         L("Terminalleri çalıştıran yardımcı eski sürüm. Yardımcıyı yeniden başlatınca (Terminaller › Yardımcıyı yeniden başlat) profil değiştirince oturumlar kaldıkları yerden sürer. Yeni profil yine de seçildi: yeni oturumlar onunla açılır."))
     }
 
     // MARK: Tarama
@@ -556,6 +615,7 @@ final class WorkshopModel {
         let now = Date()
         host.refresh()
         pruneDesk()
+        checkHostVersion()
         if now.timeIntervalSince(lastProfilesRefresh) >= Self.profilesInterval {
             lastProfilesRefresh = now
             self.profiles.refresh()

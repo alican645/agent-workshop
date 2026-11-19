@@ -62,6 +62,9 @@ struct AtolyeApp: App {
             }
             CommandMenu(L("Terminaller")) {
                 Button(L("Tüm terminalleri kapat…")) { model.killAllTerminals() }
+                Button(model.host.hostOutdated == true ? L("Yardımcıyı yeniden başlat… — güncelleme var") : L("Yardımcıyı yeniden başlat…")) {
+                    model.askRestartHost()
+                }
             }
         }
         // Üst çubuktaki düğmeyle açılan kişisel GitHub panosu (açılışta gösterilmez).

@@ -14,6 +14,17 @@ final class HostConnection {
     /// Yardımcıdan ilk liste geldi mi (o zamana kadar odalardaki sekmeler budanmaz).
     private(set) var listed = false
     private(set) var connected = false
+    /// Çalışan yardımcı paketteki sürümden eski mi (nil: henüz bilinmiyor).
+    private(set) var hostOutdated: Bool?
+
+    /// Bağlanınca ilk istek `hello`; ilk "anlaşılmayan istek" ya da `hostInfo` ona aittir.
+    @ObservationIgnored private var helloPending = false
+    /// Başarılı bağlantı sayısı (yeniden başlatmanın yeni bağlantıyı beklemesi için).
+    @ObservationIgnored private var connections = 0
+    /// Yeniden başlatma: bu sayıdan sonraki bağlantının ilk listesi gelince çağrılır.
+    @ObservationIgnored private var onRestarted: (after: Int, done: () -> Void)?
+    /// Paketteki yardımcının sürümü (bir kez hesaplanır).
+    @ObservationIgnored private lazy var bundledVersion: String? = Self.hostExecutable().flatMap { HostVersion.of(executable: $0) }
 
     @ObservationIgnored private var client: HostClient?
     @ObservationIgnored private var views: [String: TerminalView] = [:]
@@ -59,6 +70,10 @@ final class HostConnection {
         }
         client = c
         connected = true
+        connections += 1
+        hostOutdated = nil
+        helloPending = true
+        c.send(.hello)
         // Yeni bağlanılan yardımcı güncellenmiş olabilir: ekran desteğini yeniden dene.
         screenSupported = true
         screenRequests = [:]
@@ -84,6 +99,10 @@ final class HostConnection {
         case let .terminals(list):
             terminals = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             listed = true
+            if let r = onRestarted, connections > r.after {
+                onRestarted = nil
+                r.done()
+            }
             screens = screens.filter { terminals[$0.key] != nil }
             noScreen = noScreen.filter { terminals[$0] != nil }
         case let .created(info):
@@ -95,8 +114,9 @@ final class HostConnection {
         case let .exited(id, code):
             terminals[id]?.running = false
             terminals[id]?.exitCode = code
-        case .hostInfo:
-            break // Task 3'te sürüm kontrolü
+        case let .hostInfo(version):
+            helloPending = false
+            hostOutdated = HostVersion.outdated(running: version.isEmpty ? nil : version, bundled: bundledVersion)
         case let .screen(id, lines, cursorRow):
             answeredScreen(id)
             let s = Screen(lines: lines, cursorRow: cursorRow, at: Date())
@@ -104,7 +124,11 @@ final class HostConnection {
             finishWaiters(id, s)
         case let .error(msg):
             if msg == HostClient.disconnected { retry() }
-            if msg == Self.unknownRequest, !screenRequests.isEmpty {
+            if msg == Self.unknownRequest, helloPending {
+                // Sürüm sorusunu bilmeyen eski yardımcı.
+                helloPending = false
+                hostOutdated = HostVersion.outdated(running: nil, bundled: bundledVersion)
+            } else if msg == Self.unknownRequest, !screenRequests.isEmpty {
                 // Eski yardımcı: ekran isteğini bilmiyor.
                 screenSupported = false
                 screenRequests = [:]
@@ -153,6 +177,25 @@ final class HostConnection {
 
     /// Eski ekranı unutur (robot artık beklemiyor; bir sonraki beklemede eski menü görünmesin).
     func forgetScreen(_ id: String) { screens[id] = nil }
+
+    /// Yardımcıyı yeniden başlatır: yenisi `shutdown` ile, onu bilmeyen eskisi süreç sinyaliyle kapanır;
+    /// bağlantı kopunca `retry()` paketteki yardımcıyı başlatır. Yeni bağlantının ilk listesinde `done`.
+    func restart(done: @escaping () -> Void) {
+        guard let client else { return done() }
+        let before = connections
+        onRestarted = (before, done)
+        let pid = client.peerPID()
+        if hostOutdated == false {
+            client.send(.shutdown)
+        } else if let pid {
+            Darwin.kill(pid, SIGTERM)
+        }
+        // Kapanmadıysa zorla (aynı bağlantı hâlâ duruyorsa).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, self.connections == before, self.connected, let pid else { return }
+            Darwin.kill(pid, SIGKILL)
+        }
+    }
 
     /// Terminale ham bayt yazar (seçenek menüsüne giden tuşlar).
     func send(_ id: String, data: Data) { client?.send(.input(id: id, data: data)) }

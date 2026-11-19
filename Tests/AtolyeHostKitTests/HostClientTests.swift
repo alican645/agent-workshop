@@ -58,6 +58,19 @@ private func builtHost() -> String? {
         #expect(c.peerPID() == getpid())
     }
 
+    /// Gerçek yardımcı kendi dosyasının özetini bildirir; uygulama paketteki dosyayla aynısını hesaplar.
+    @Test func spawnedHostReportsItsFileHash() throws {
+        let host = try #require(builtHost(), "önce `swift build --product atolye-host`")
+        let box = EventBox()
+        let c = HostClient(socketPath: tmpSocket(), hostExecutable: host, onEvent: box.add)
+        try c.connect()
+        let pid = try #require(c.spawnedPID)
+        defer { c.close(); kill(pid, SIGTERM) }
+        c.send(.hello)
+        let expected = try #require(HostVersion.of(executable: host))
+        #expect(box.waitFor { $0 == .hostInfo(version: expected) } != nil)
+    }
+
     @Test func failsWithoutServerOrExecutable() {
         let c = HostClient(socketPath: tmpSocket(), hostExecutable: nil, onEvent: { _ in })
         #expect(throws: (any Error).self) { try c.connect() }
