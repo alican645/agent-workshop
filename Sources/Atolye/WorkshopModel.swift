@@ -443,6 +443,10 @@ final class WorkshopModel {
         var terminalOf: [String: String] = [:]
         for s in store.sessions {
             if let pid = s.pid, let tid = terminalID(pid: pid) { terminalOf[s.id] = tid }
+        }
+        // prompt(for:) kabuk terminalini kaç oturumun sahiplendiğine bakar: eşleme bu turunki olmalı.
+        sessionTerminal = terminalOf
+        for s in store.sessions {
             guard let e = byID[s.id], let configDir = configDirs[e.profileID] else { continue }
             var t = transcripts[s.id] ?? Transcript()
             if t.path == nil, now.timeIntervalSince(t.lastLookup) > Self.lookupRetry {
@@ -468,7 +472,6 @@ final class WorkshopModel {
         planWritten = planWritten.filter { live.contains($0.key) }
         screenAsked = screenAsked.filter { host.terminals[$0.key] != nil }
         sessionProfile = byID.mapValues(\.profileID)
-        sessionTerminal = terminalOf
         if !pendingMoves.isEmpty { pendingMoves.formIntersection(live); moveSessions(onlyPending: true) }
         let livePids = Set(store.sessions.compactMap(\.pid))
         terminalOfPid = terminalOfPid.filter { livePids.contains($0.key) }
@@ -498,10 +501,12 @@ final class WorkshopModel {
 
     // MARK: Seçenek menüsü
 
-    /// Oturumun Claude terminali Atölye'deyse ve yardımcı ekran okuyabiliyorsa kimliği.
+    /// Oturumun terminali Atölye'deyse (Claude terminali ya da içinde tek Claude çalışan kabuk) ve
+    /// yardımcı ekran okuyabiliyorsa kimliği.
     private func screenTerminal(_ tid: String?) -> String? {
-        guard let tid, host.screenSupported, host.terminals[tid]?.kind == .claude else { return nil }
-        return tid
+        guard let tid, host.screenSupported, !host.noScreen.contains(tid) else { return nil }
+        let claimants = sessionTerminal.values.filter { $0 == tid }.count
+        return ScreenAccess.readable(kind: host.terminals[tid]?.kind, claimants: claimants) ? tid : nil
     }
 
     /// Bekleyen robotun balonu: ekranı (gerekirse) ister, ayrıştırır, kayıtla birleştirir; gönderim durumunu izler.

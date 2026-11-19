@@ -117,8 +117,9 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(t.args == ["--resume", "x"])
     }
 
-    /// Claude terminalinin görünen ekranı istenebilir; kabuk terminalinde ekran aynası yoktur.
-    @Test func screenForClaudeTerminal() throws {
+    /// Claude ve kabuk terminalinin görünen ekranı istenebilir (zsh'te `claude` yazılmış oturumun menüsü
+    /// kabuk terminalinden okunur); bilinmeyen terminalde ekran yoktur.
+    @Test func screenForTerminals() throws {
         let (s, path) = try makeServer(["/bin/sh", "-c", "echo merhaba-ekran; sleep 5"])
         defer { s.stop() }
         let c = try RawClient(path)
@@ -134,7 +135,12 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24))
         let sh = try #require(c.created())
         c.send(.screen(id: sh.id))
-        #expect(c.next({ if case .error = $0 { true } else { false } }) == .error("ekran yok: \(sh.id)"))
+        let se = c.next { if case .screen = $0 { true } else { false } }
+        guard case let .screen(sid, _, _)? = se else { Issue.record("kabuk ekranı gelmedi"); return }
+        #expect(sid == sh.id)
+
+        c.send(.screen(id: "yok"))
+        #expect(c.next({ if case .error = $0 { true } else { false } }) == .error("ekran yok: yok"))
     }
 
     @Test func createPassesEnvironment() throws {
