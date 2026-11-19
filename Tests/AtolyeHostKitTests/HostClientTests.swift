@@ -45,6 +45,19 @@ private func builtHost() -> String? {
         #expect(box.waitFor { $0 == .terminals([]) } != nil)
     }
 
+    /// Karşı uç PID'si: aynı süreçte çalışan sunucu → bu süreç.
+    @Test func peerPIDIsServerProcess() throws {
+        let path = tmpSocket()
+        let s = HostServer(socketPath: path, idleExit: nil, onIdle: {})
+        try s.start()
+        defer { s.stop() }
+        let c = HostClient(socketPath: path, hostExecutable: nil, onEvent: { _ in })
+        #expect(c.peerPID() == nil)
+        try c.connect()
+        defer { c.close() }
+        #expect(c.peerPID() == getpid())
+    }
+
     @Test func failsWithoutServerOrExecutable() {
         let c = HostClient(socketPath: tmpSocket(), hostExecutable: nil, onEvent: { _ in })
         #expect(throws: (any Error).self) { try c.connect() }

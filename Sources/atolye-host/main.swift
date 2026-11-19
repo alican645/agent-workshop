@@ -1,3 +1,4 @@
+import AtolyeCore
 import AtolyeHostKit
 import Foundation
 
@@ -7,7 +8,9 @@ try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLast
                                          withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
 signal(SIGPIPE, SIG_IGN)
 signal(SIGHUP, SIG_IGN)
-let server = HostServer(socketPath: path, idleExit: 600, onIdle: { exit(0) })
+// Çalışan kodun sürümü: dosya sonradan üstüne yazılsa da açılıştaki özet kalır.
+let version = HostVersion.of(executable: Bundle.main.executablePath ?? CommandLine.arguments[0])
+let server = HostServer(socketPath: path, idleExit: 600, onIdle: { exit(0) }, version: version)
 do {
     try server.start()
 } catch {

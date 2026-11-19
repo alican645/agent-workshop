@@ -22,7 +22,11 @@ public final class HostServer: @unchecked Sendable {
     /// Yalnız testler için: terminal türüne göre çalıştırılacak komut.
     var commandOverride: (@Sendable (TerminalKind) -> [String])?
 
-    public init(socketPath: String, idleExit: TimeInterval?, onIdle: @escaping @Sendable () -> Void) {
+    /// Yürütülebilir dosyanın özeti (`HostVersion`); `hello`'ya bu bildirilir.
+    private let version: String?
+
+    public init(socketPath: String, idleExit: TimeInterval?, onIdle: @escaping @Sendable () -> Void, version: String? = nil) {
+        self.version = version
         self.socketPath = socketPath
         self.idleExit = idleExit
         self.onIdle = onIdle
@@ -145,13 +149,33 @@ public final class HostServer: @unchecked Sendable {
         case let .screen(id):
             guard let m = terminals[id]?.mirror else { return send(.error("ekran yok: \(id)"), to: key) }
             send(.screen(id: id, lines: m.lines(), cursorRow: m.cursorRow), to: key)
-        case .hello, .shutdown:
-            send(.error("anlaşılmayan istek"), to: key) // Task 2'de yanıtlanacak
+        case .hello:
+            send(.hostInfo(version: version ?? ""), to: key)
+        case .shutdown:
+            shutdown()
         case .killAll:
             for t in terminals.values { retire(t) }
             terminals = [:]
             order = []
             scheduleIdleCheck()
+        }
+    }
+
+    /// Uygulama yardımcıyı yeniliyor: terminalleri sonlandır, bitişlerini bildir, bağlantıları kapat ve çık.
+    private func shutdown() {
+        listenSource?.cancel()
+        listenSource = nil
+        if listenFD >= 0 { close(listenFD) }
+        listenFD = -1
+        unlink(socketPath)
+        idleWork?.cancel()
+        for t in terminals.values where t.info.running { t.terminate() }
+        // Süreçlerin bitip bitişlerinin istemcilere ulaşması için kısa bir süre, sonra çık.
+        queue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            for c in self.clients.values { c.close() }
+            self.clients = [:]
+            self.onIdle()
         }
     }
 
