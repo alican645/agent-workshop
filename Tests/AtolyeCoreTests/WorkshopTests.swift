@@ -135,6 +135,38 @@ private func exists(_ p: String) -> Bool { gitRoots.contains(p) }
         #expect(snap.zones[0].machines.map(\.active) == [true, false, false])
     }
 
+    private func runTerm(_ id: String, card: String, running: Bool, code: Int32? = nil) -> TerminalInfo {
+        TerminalInfo(id: id, cwd: "/p/x", title: card, kind: .shell, pid: 1, running: running, exitCode: code,
+                     lastOutputAt: nil, run: RunSpec(cardID: card, name: card, command: "x"))
+    }
+
+    @Test func zoneCarriesCardStates() {
+        let cards = [RunCard(id: "a", name: "Deploy", command: "./deploy.sh"),
+                     RunCard(id: "b", name: "Build", command: "make"),
+                     RunCard(id: "c", name: "Test", command: "swift test")]
+        let snap = Workshop.build(sessions: [], details: [:], todos: [:],
+                                  terminals: [runTerm("ta", card: "a", running: true), runTerm("tb", card: "b", running: false, code: 0)],
+                                  pinned: ["/p/x"], cards: ["/p/x": cards], now: Date(), fileExists: exists)
+        let z = snap.zones[0]
+        #expect(z.cards.map(\.id) == ["a", "b", "c"])
+        #expect(z.cards.map(\.name) == ["Deploy", "Build", "Test"])
+        #expect(z.cards.map(\.state) == [.running, .ok, .idle])
+        #expect(z.cards.map(\.terminal) == ["ta", "tb", nil])
+    }
+
+    @Test func runTerminalsAreNotMachines() {
+        let snap = Workshop.build(sessions: [], details: [:], todos: [:],
+                                  terminals: [runTerm("r", card: "a", running: true), term("plain", cwd: "/p/x")],
+                                  pinned: [], now: Date(), fileExists: exists)
+        #expect(snap.zones[0].machines.map(\.id) == ["plain"])
+    }
+
+    @Test func cardsDoNotCreateZones() {
+        let snap = Workshop.build(sessions: [], details: [:], todos: [:], pinned: [],
+                                  cards: ["/p/x": [RunCard(name: "D", command: "x")]], now: Date(), fileExists: exists)
+        #expect(snap.zones.isEmpty)
+    }
+
     @Test func robotCarriesTerminalID() {
         let snap = Workshop.build(sessions: [sess("s1", cwd: "/p/erp")], details: [:], todos: [:], terminals: [],
                                   terminalOf: ["s1": "t1"], pinned: [], now: Date(), fileExists: exists)

@@ -31,6 +31,21 @@ private func roundTrip<T: Codable & Equatable>(_ v: T) -> T? {
         #expect(try JSONDecoder().decode(HostRequest.self, from: Data(old.utf8)) == .create(kind: .shell, cwd: "/p", cols: 80, rows: 24, env: nil))
     }
 
+    @Test func createCarriesRunSpec() throws {
+        let run = RunSpec(cardID: "c1", name: "Deploy", command: "./deploy.sh")
+        let r = HostRequest.create(kind: .shell, cwd: "/p", cols: 80, rows: 24, run: run)
+        #expect(roundTrip(r) == r)
+        var withRun = info
+        withRun.run = run
+        #expect(roundTrip(withRun) == withRun)
+        // Eski istek kartsız çözülür.
+        let old = #"{"create":{"kind":"shell","cwd":"/p","cols":80,"rows":24}}"#
+        #expect(try JSONDecoder().decode(HostRequest.self, from: Data(old.utf8)) == .create(kind: .shell, cwd: "/p", cols: 80, rows: 24, run: nil))
+        // Eski yardımcının bildirdiği (run alanı olmayan) terminal çözülür.
+        let oldInfo = #"{"id":"t","cwd":"/p","title":"zsh","kind":"shell","pid":1,"running":true}"#
+        #expect(try JSONDecoder().decode(TerminalInfo.self, from: Data(oldInfo.utf8)).run == nil)
+    }
+
     @Test func readerHandlesSplitAndJoinedFrames() {
         var r = Frame.Reader()
         let a = Frame.encode(HostRequest.list), b = Frame.encode(HostRequest.killAll)

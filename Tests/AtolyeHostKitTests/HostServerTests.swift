@@ -117,6 +117,34 @@ private func makeServer(_ cmd: [String], idle: TimeInterval? = nil, onIdle: @esc
         #expect(t.args == ["--resume", "x"])
     }
 
+    /// Çalıştırma kartı: komut giriş kabuğunda çalışır ve kabuğa dönülmez (bitiş = komutun bitişi).
+    @Test func commandForRun() {
+        let run = RunSpec(cardID: "c", name: "D", command: "./deploy.sh")
+        #expect(HostServer.command(for: .shell, run: run) == ["/bin/zsh", "-il", "-c", "./deploy.sh"])
+        #expect(HostServer.command(for: .shell, run: nil) == HostServer.command(for: .shell))
+    }
+
+    /// Kart terminali bitince çıkış kodu bildirilir; kart kimliği ve adı listede de kalır
+    /// (uygulama yeniden açılınca çark karta bağlansın diye). Override kartlı isteklere uygulanmaz.
+    @Test func runTerminalReportsExitCode() throws {
+        let (s, path) = try makeServer(["/bin/sh", "-c", "sleep 5"])
+        defer { s.stop() }
+        let c = try RawClient(path)
+        let run = RunSpec(cardID: "c", name: "D", command: "echo merhaba; exit 3")
+        c.send(.create(kind: .shell, cwd: "/tmp", cols: 80, rows: 24, run: run))
+        let t = try #require(c.created())
+        #expect(t.run == run && t.title == "D")
+        c.send(.attach(id: t.id))
+        #expect(c.waitOutput(t.id, contains: "merhaba", timeout: 15))
+        let e = c.next(timeout: 15) { if case let .exited(id, _) = $0 { id == t.id } else { false } }
+        guard case let .exited(_, code)? = e else { Issue.record("bitiş gelmedi"); return }
+        #expect(code == 3)
+        c.send(.list)
+        let l = c.next { if case .terminals = $0 { true } else { false } }
+        guard case let .terminals(list)? = l, let info = list.first(where: { $0.id == t.id }) else { Issue.record("liste yok"); return }
+        #expect(!info.running && info.exitCode == 3 && info.run == run)
+    }
+
     /// Claude ve kabuk terminalinin görünen ekranı istenebilir (zsh'te `claude` yazılmış oturumun menüsü
     /// kabuk terminalinden okunur); bilinmeyen terminalde ekran yoktur.
     @Test func screenForTerminals() throws {

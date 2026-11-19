@@ -20,6 +20,7 @@ final class WorkshopModel {
     /// GitHub girişi ve kişisel pano.
     let github = GitHubModel()
     let todos = Todos()
+    let runCards = RunCardsModel()
     let usageHistory = UsageHistoryModel()
     /// Kendi robotlarının klasörü (`<id>.glb` ve `robots.json`).
     nonisolated static let robotsDir = URL(fileURLWithPath: Profiles.support + "/robots")
@@ -110,6 +111,7 @@ final class WorkshopModel {
         host.start()
         startHooks()
         todos.onChange = { [weak self] in self?.tick(initial: false) }
+        runCards.onChange = { [weak self] in self?.tick(initial: false) }
         notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
         notifier.start()
         if let choice = IntegrationChoice.saved {
@@ -400,6 +402,73 @@ final class WorkshopModel {
 
     func terminalAlive(_ id: String) -> Bool { host.terminals[id] != nil }
 
+    // MARK: Çalıştırma kartları
+
+    /// Panoya ya da panele tıklanınca: kartlar penceresinde o proje seçili açılsın.
+    func showRunCards(_ root: String) {
+        runCards.select(root)
+    }
+
+    /// Karta ait en yeni terminal (host'un bildirdikleri arasından).
+    func runTerminal(card: String, root: String) -> TerminalInfo? {
+        RunCards.latestTerminal(card: card, root: root, in: Array(host.terminals.values))
+    }
+
+    /// Başlatılmış, host'tan cevabı beklenen kartlar ("kök\nkart"): hızlı ikinci tıklama ikinci kez başlatmasın.
+    @ObservationIgnored private var pendingRuns: Set<String> = []
+
+    /// Kartı çalıştır: çalışıyorsa terminalini öne getir; gerekiyorsa önce sor.
+    func runCard(root: String, id: String) {
+        guard let card = RunCardFile.cards(root: root).first(where: { $0.id == id }) else { return }
+        let latest = runTerminal(card: id, root: root)
+        switch RunLaunch.decide(card: card, latest: latest, pending: pendingRuns.contains(root + "\n" + id)) {
+        case let .focus(t): openTerminal(t)
+        case .invalid, .pending: return
+        case .start: startRun(card, root: root, replacing: latest)
+        case .ask:
+            let a = NSAlert()
+            a.messageText = L("‘{0}’ çalıştırılsın mı?", card.name.isEmpty ? card.command : card.name)
+            a.informativeText = card.command
+            a.addButton(withTitle: L("Çalıştır"))
+            a.addButton(withTitle: L("Vazgeç"))
+            guard a.runModal() == .alertFirstButtonReturn else { return }
+            // Soru açıkken başka yerden başlatılmış olabilir.
+            if pendingRuns.contains(root + "\n" + id) { return }
+            if let again = runTerminal(card: id, root: root), again.running { return openTerminal(again.id) }
+            startRun(card, root: root, replacing: runTerminal(card: id, root: root))
+        }
+    }
+
+    private func startRun(_ card: RunCard, root: String, replacing old: TerminalInfo?) {
+        // Kart başına tek terminal: eski (bitmiş) çıktı yenisiyle değişir.
+        if let old {
+            changeDesk { $0.remove(.terminal(old.id)) }
+            host.kill(old.id)
+        }
+        let spec = RunSpec(cardID: card.id, name: card.name.isEmpty ? card.command : card.name, command: card.command)
+        let key = root + "\n" + card.id
+        pendingRuns.insert(key)
+        host.create(.shell, cwd: root, env: profiles.environment(), run: spec) { [weak self] info in
+            guard let self else { return }
+            self.pendingRuns.remove(key)
+            guard info.run != nil else {
+                // Eski yardımcı alanı tanımadı, düz kabuk açtı: komut çalışmadı.
+                self.host.kill(info.id)
+                Self.alertOutdatedHostForRun()
+                return
+            }
+            self.changeDesk { $0.open(.terminal(info.id), root: root) }
+            self.tick(initial: false)
+        }
+    }
+
+    private static func alertOutdatedHostForRun() {
+        let a = NSAlert()
+        a.messageText = L("Kart çalıştırılamadı")
+        a.informativeText = L("Terminalleri çalıştıran yardımcı eski sürüm; kartın komutu çalıştırılmadı. Menüden Terminaller › Tüm terminalleri kapat'ı seçip Agent Workshop'u yeniden aç.")
+        a.runModal()
+    }
+
     private static func alertOutdatedHostForTask() {
         let a = NSAlert()
         a.messageText = L("Madde Claude'a iletilemedi")
@@ -545,15 +614,20 @@ final class WorkshopModel {
         var todos: [String: [TodoItem]] = [:]
         let roots = Set(store.sessions.compactMap(\.cwd).map { Workshop.projectRoot(cwd: $0, fileExists: fm.fileExists(atPath:)) })
             .union(desk.pinned)
+            // Yalnız kabuk terminali açık projeler de bölgedir: kartları ve maddeleri okunsun.
+            .union(host.terminals.values.filter { $0.kind == .shell }.map { Workshop.projectRoot(cwd: $0.cwd, fileExists: fm.fileExists(atPath:)) })
+        var cards: [String: [RunCard]] = [:]
         for root in roots {
             if let text = try? String(contentsOfFile: root + "/" + TodoList.fileName, encoding: .utf8) {
                 todos[root] = TodoList.parse(text)
             }
+            let c = RunCardFile.cards(root: root)
+            if !c.isEmpty { cards[root] = c }
         }
         var snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
                                   terminalOf: terminalOf, tasks: taskOfTerminal, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
-                                  now: now, fileExists: fm.fileExists(atPath:))
+                                  cards: cards, now: now, fileExists: fm.fileExists(atPath:))
         snap.robots = RobotPool.sceneRobots(robotPool.config)
         refreshGit(roots: snap.zones.map(\.id), now: now)
         refreshUsage(configDirs: profiles.map(\.configDir), now: now)

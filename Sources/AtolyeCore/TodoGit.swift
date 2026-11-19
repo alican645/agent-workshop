@@ -32,17 +32,18 @@ public struct TodoGitError: LocalizedError {
 
 /// Yapılacaklar dosyasının git ayarı. Git komutları çalıştırır; ana iş parçacığında çağrılmamalı.
 public enum TodoGit {
-    public static func state(root: String) -> TodoGitState {
+    public static func state(root: String, file: String = TodoList.fileName) -> TodoGitState {
         guard GitRunner.run(["rev-parse", "--git-dir"], in: root) != nil else { return .notRepo }
-        return GitRunner.run(["ls-files", "--error-unmatch", "--", TodoList.fileName], in: root) != nil ? .shared : .local
+        return GitRunner.run(["ls-files", "--error-unmatch", "--", file], in: root) != nil ? .shared : .local
     }
 
     /// Dosya takip edilmiyor ve hiçbir kural onu yok saymıyorsa bu depoda yok sayılanlara ekler.
-    public static func keepLocal(root: String) throws {
-        guard state(root: root) == .local,
-              FileManager.default.fileExists(atPath: ProjectRoot.todoPath(root: root)),
-              GitRunner.run(["check-ignore", "-q", "--", TodoList.fileName], in: root) == nil else { return }
-        try editExclude(root: root) { GitExclude.adding($0, $1) }
+    /// `file`: proje kökündeki dosya (varsayılan `TODO.local.md`; çalıştırma kartları için `RUN.local.json`).
+    public static func keepLocal(root: String, file: String = TodoList.fileName) throws {
+        guard state(root: root, file: file) == .local,
+              FileManager.default.fileExists(atPath: root + "/" + file),
+              GitRunner.run(["check-ignore", "-q", "--", file], in: root) == nil else { return }
+        try editExclude(root: root, file: file) { GitExclude.adding($0, $1) }
     }
 
     /// Dosyayı git'e ekler (hazırlar): bir sonraki commit'le birlikte push edilir.
@@ -62,19 +63,19 @@ public enum TodoGit {
     // MARK: Yardımcılar
 
     /// Depo kökü proje klasörünün üstündeyse girdi alt klasörle başlar.
-    private static func entry(root: String) -> String {
+    private static func entry(root: String, file: String) -> String {
         let prefix = GitRunner.run(["rev-parse", "--show-prefix"], in: root)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return "/" + prefix + TodoList.fileName
+        return "/" + prefix + file
     }
 
-    private static func editExclude(root: String, _ change: (String, String) -> String) throws {
+    private static func editExclude(root: String, file: String = TodoList.fileName, _ change: (String, String) -> String) throws {
         guard var rel = GitRunner.run(["rev-parse", "--git-path", "info/exclude"], in: root)?
             .trimmingCharacters(in: .whitespacesAndNewlines), !rel.isEmpty else {
             throw TodoGitError(message: "git: info/exclude bulunamadı")
         }
         if !rel.hasPrefix("/") { rel = root + "/" + rel }
         let old = (try? String(contentsOfFile: rel, encoding: .utf8)) ?? ""
-        let new = change(old, entry(root: root))
+        let new = change(old, entry(root: root, file: file))
         guard new != old else { return }
         try FileManager.default.createDirectory(atPath: (rel as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         try new.write(toFile: rel, atomically: true, encoding: .utf8)

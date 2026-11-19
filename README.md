@@ -35,6 +35,22 @@ click one and the answer goes straight to the agent, even if that session runs i
   The menu in the terminal stays open too; whichever you answer first wins.
 - "Open plan" shows the plan in the built-in Markdown reader.
 
+### ⚙️ Run cards
+- Commands you run often — `./deploy.sh`, a build, the tests — become the project's cards. Add them from the
+  **Cards** window in the top bar with a name, a command and an **Ask first** setting. Cards live in
+  `RUN.local.json` at the project root (git ignores it by default).
+- Each platform has a machine rack in its back right corner with one gear per card: click it and the command runs
+  in the project folder, its output streaming into a floating terminal window. The gear spins orange while it
+  runs and stops when it ends — a green flash on success, red on failure.
+- With **Ask first** on (the default for new cards) you're asked before anything runs, for jobs that are hard to
+  undo. Clicking a card that's already running doesn't start it twice; it brings its terminal forward.
+- Commands run in the background helper, so they keep going if you quit Agent Workshop. If the helper is an older
+  version the card isn't run and you get a warning (Terminals › Close all terminals, then reopen the app).
+
+```json
+{"cards":[{"id":"…","name":"Deploy","command":"./deploy.sh","confirm":true}]}
+```
+
 ### 🪟 Floating terminal windows
 - Terminals live inside the app, on top of the workshop: drag, resize, snap to halves/quarters, double-click
   for full screen. Click the scene and every window flies back to its project in the sidebar.

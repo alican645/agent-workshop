@@ -85,6 +85,15 @@ import Testing
         #expect(GitRunner.run(["status", "--porcelain"], in: root) == "")
     }
 
+    @Test func keepLocalExcludesRunCardFile() throws {
+        let root = repo()
+        try RunCardFile.write([RunCard(name: "Deploy", command: "./deploy.sh")], root: root)
+        try TodoGit.keepLocal(root: root, file: RunCardFile.fileName)
+        #expect(exclude(root).contains("/RUN.local.json"))
+        #expect(!exclude(root).contains("/TODO.local.md"))
+        #expect(GitRunner.run(["status", "--porcelain"], in: root) == "")
+    }
+
     @Test func keepLocalLeavesIgnoredFileAlone() throws {
         let root = repo()
         try "TODO.local.md\n".write(toFile: root + "/.gitignore", atomically: true, encoding: .utf8)

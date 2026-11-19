@@ -18,6 +18,7 @@ struct WorkshopToolbar: View {
             GitHubButton(github: model.github)
             RobotsButton()
             TodosButton(model: model)
+            RunCardsButton(model: model)
             BarSeparator()
             // Hesap ve harcama
             ProfileMenu(model: model)
@@ -68,6 +69,21 @@ private struct TodosButton: View {
         }
         .buttonStyle(.plain)
         .help(L("Projelerin TODO.local.md maddeleri"))
+    }
+}
+
+/// Üst çubukta Çalıştırma kartları penceresini açan düğme; çalışan kart sayısıyla.
+private struct RunCardsButton: View {
+    let model: WorkshopModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        let running = (model.snapshot?.zones ?? []).reduce(0) { $0 + $1.cards.filter { $0.state == .running }.count }
+        Button { openWindow(id: "runs") } label: {
+            BarChip(icon: "gearshape.2", title: L("Kartlar"), detail: running > 0 ? "\(running)" : nil)
+        }
+        .buttonStyle(.plain)
+        .help(L("Projelerin çalıştırma kartları (RUN.local.json)"))
     }
 }
 

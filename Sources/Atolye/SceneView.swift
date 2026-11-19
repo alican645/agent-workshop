@@ -97,6 +97,13 @@ struct SceneView: NSViewRepresentable {
                     model.showTodos(root)
                     openWindow?(id: "todos")
                 }
+            case "runCard":
+                if let root = body["root"] as? String, let id = body["id"] as? String { model.runCard(root: root, id: id) }
+            case "runOpen":
+                if let root = body["root"] as? String {
+                    model.showRunCards(root)
+                    openWindow?(id: "runs")
+                }
             case "answer":
                 // Geçersiz/yanlış tipli alan varsa mesaj tümden yok sayılır (şüphede hiçbir şey gönderilmez).
                 if let d = PromptAnswer.decode(body) { model.answer(robot: d.robot, answer: d.answer) }

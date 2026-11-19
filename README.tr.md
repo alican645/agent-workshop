@@ -39,6 +39,22 @@ MCP'ler ve hafızayla kullanırsın.
   hangisi önce cevaplanırsa o geçer.
 - Plan onayında "Planı aç" planı Markdown okuyucuda açar.
 
+### ⚙️ Çalıştırma kartları
+- `./deploy.sh`, build ya da test gibi sık çalıştırdığın komutlar projenin kartı olur; üst çubuktaki **Kartlar**
+  penceresinden ad, komut ve **Önce sor** ayarıyla eklenir. Kartlar proje kökündeki `RUN.local.json`'da durur
+  (varsayılan olarak git yok sayar).
+- Her platformun sağ arka köşesindeki makine panosunda her kart bir çark: tıklayınca komut proje klasöründe çalışır,
+  çıktısı yüzen bir terminal penceresinde akar. Çark çalışırken turuncu döner, bitince durur — başarılıysa yeşil
+  parlar, hata verdiyse kırmızı kalır.
+- Geri alınması zor işler için **Önce sor** açıksa (yeni kartlarda varsayılan) çalıştırmadan önce sorulur.
+  Çalışan karta tekrar tıklamak ikinci kez başlatmaz, terminalini öne getirir.
+- Komut arka plan yardımcısında çalışır: Agent Workshop'u kapatsan da sürer. Yardımcı eski sürümse kart
+  çalıştırılmaz ve uyarı çıkar (Terminaller › Tüm terminalleri kapat, sonra uygulamayı yeniden aç).
+
+```json
+{"cards":[{"id":"…","name":"Deploy","command":"./deploy.sh","confirm":true}]}
+```
+
 ### 🪟 Yüzen terminal pencereleri
 - Terminaller uygulamanın içinde, atölyenin üstünde: sürükle, kenarlardan/köşelerden boyutlandır,
   ekranın kenarına ya da köşesine sürükleyince yarım/çeyrek ekrana yapışır, çift tıkla tam ekran.
