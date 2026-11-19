@@ -79,6 +79,14 @@ final class WorkshopModel {
     static let screenInterval: TimeInterval = 0.9
     /// Cevaptan sonra menü bu kadar süre yerinde durursa gitmedi sayılır.
     static let answerTimeout: TimeInterval = 8
+    /// Claude Code hook'larından gelen bekleyen izin istekleri (soru, plan, araç izni) ve açık bağlantıları.
+    @ObservationIgnored private var hooks = HookInbox()
+    @ObservationIgnored private var hookConnections: [String: HookConnection] = [:]
+    @ObservationIgnored private var hookServer: HookServer?
+    /// Hook'la cevaplanan oturum → zamanı. Terminaldeki menü bir an daha görünür; o arada ekrandan
+    /// okunan eski menü balona dönmesin (ve tuşla ikinci kez cevaplanmasın).
+    @ObservationIgnored private var hookAnswered: [String: Date] = [:]
+    static let hookSettle: TimeInterval = 3
 
     private struct Transcript {
         var path: String?
@@ -100,6 +108,7 @@ final class WorkshopModel {
             saveDesk()
         }
         host.start()
+        startHooks()
         todos.onChange = { [weak self] in self?.tick(initial: false) }
         notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
         notifier.start()
@@ -114,6 +123,40 @@ final class WorkshopModel {
             MainActor.assumeIsolated { self?.tick(initial: false) }
         }
         timer?.tolerance = 0.2
+    }
+
+    // MARK: Hook'lar
+
+    private func startHooks() {
+        let server = HookServer(socketPath: HostPaths.hookSocket) { [weak self] data, conn in
+            let event = HookEvent.parse(data)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.received(event, conn) ?? conn.reply(nil) }
+            }
+        }
+        do {
+            try server.start()
+            hookServer = server
+        } catch {
+            hookServer = nil
+        }
+    }
+
+    private func received(_ event: HookEvent?, _ conn: HookConnection) {
+        guard let event else { return conn.reply(nil) }
+        let id = UUID().uuidString
+        if hooks.receive(event, id: id, now: Date()) {
+            hookConnections[id] = conn
+        } else {
+            conn.reply(nil)
+            for done in hooks.toolFinished(event) { releaseHook(done, reply: nil) }
+        }
+        tick(initial: false)
+    }
+
+    private func releaseHook(_ id: String, reply: String?) {
+        hooks.remove(id: id)
+        hookConnections.removeValue(forKey: id)?.reply(reply)
     }
 
     // MARK: Gezinme
@@ -446,6 +489,10 @@ final class WorkshopModel {
         }
         // prompt(for:) kabuk terminalini kaç oturumun sahiplendiğine bakar: eşleme bu turunki olmalı.
         sessionTerminal = terminalOf
+        // Artık beklemeyen (terminalden cevaplanmış) oturumların hook istekleri bırakılır.
+        let waitingNow = Set(store.sessions.filter { $0.state == .waiting }.map(\.id))
+        for id in hooks.drop(waiting: waitingNow, live: Set(store.sessions.map(\.id)), now: now) { releaseHook(id, reply: nil) }
+        hookAnswered = hookAnswered.filter { now.timeIntervalSince($0.value) < Self.hookSettle }
         for s in store.sessions {
             guard let e = byID[s.id], let configDir = configDirs[e.profileID] else { continue }
             var t = transcripts[s.id] ?? Transcript()
@@ -511,6 +558,18 @@ final class WorkshopModel {
 
     /// Bekleyen robotun balonu: ekranı (gerekirse) ister, ayrıştırır, kayıtla birleştirir; gönderim durumunu izler.
     private func prompt(for s: Session, terminal: String?, pending: PendingTool?, now: Date) -> PromptInfo? {
+        // Hook'tan gelen istek esastır: her oturumda (cmux dahil) cevaplanır, ekran okumaya gerek yok.
+        if let r = hooks.current(session: s.id) {
+            var info = HookInbox.info(r)
+            if info.kind == .plan {
+                let p = PendingTool(id: r.id, name: r.tool, input: r.input)
+                info.planPath = r.input["planFilePath"]?.string.flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
+                    ?? planFile(session: s.id, pending: p)
+            }
+            return info
+        }
+        // Hook'la az önce cevaplandı: terminalde kalan eski menü balona dönmesin.
+        if hookAnswered[s.id] != nil { return nil }
         guard s.state == .waiting else {
             promptSent[s.id] = nil
             promptFailed.remove(s.id)
@@ -573,6 +632,16 @@ final class WorkshopModel {
     /// Balondan gelen cevabı terminale tuş olarak yollar. Önce ekran yeniden okunur; cevap o ekrana
     /// uymuyorsa (menü kimliği ya da etiketler farklı) hiçbir şey gönderilmez, yalnız görüntü tazelenir.
     func answer(robot id: String, answer: PromptAnswer) {
+        if answer.menuId.hasPrefix(HookInbox.menuPrefix) {
+            switch hooks.answer(answer, session: id) {
+            case let .reply(rid, json)?:
+                hookConnections.removeValue(forKey: rid)?.reply(json)
+                hookAnswered[id] = Date()
+            case .next?, nil:
+                break
+            }
+            return tick(initial: false)
+        }
         guard let s = store.sessions.first(where: { $0.id == id }), s.state == .waiting,
               let tid = screenTerminal(sessionTerminal[id]) else { return }
         // Gönderilmiş cevabın üstüne ikinci kez basma (çift tık); gitmedi sayılan menüye de yeniden deneme yok.

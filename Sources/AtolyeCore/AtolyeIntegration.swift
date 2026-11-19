@@ -47,6 +47,65 @@ public enum AtolyeIntegration {
         return UsageReport.parse(body: data, headers: [:], now: mtime)?.usage
     }
 
+    // MARK: Claude Code hook'ları
+
+    /// Hook'un dinlediği olaylar. PermissionRequest cevabı bekler (terminaldeki menü de açık kalır); uzun
+    /// süre beklenebilsin diye zaman aşımı bir gün. Diğerleri yalnız haber verir.
+    static let hookEvents: [(event: String, timeout: Int?)] = [
+        ("PermissionRequest", 86400), ("PostToolUse", nil), ("PostToolUseFailure", nil),
+    ]
+
+    /// settings.json'a Atölye hook'larını ekler (eskisinin yerine). Kullanıcının hook'larına dokunmaz;
+    /// Atölye'ninkiler komutta `atolye-hook` geçmesinden tanınır. JSON okunamazsa nil (dosyaya dokunulmaz).
+    public static func installHooks(into text: String, executable: String) -> String? {
+        let src = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "{}" : text
+        guard var root = (try? JSONSerialization.jsonObject(with: Data(src.utf8))) as? [String: Any] else { return nil }
+        var hooks = root["hooks"] as? [String: Any] ?? [:]
+        if root["hooks"] != nil, root["hooks"] as? [String: Any] == nil { return nil }
+        hooks = removeAtolyeHooks(hooks)
+        let command = "\"" + executable.replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        for (event, timeout) in hookEvents {
+            var handler: [String: Any] = ["type": "command", "command": command]
+            if let timeout { handler["timeout"] = timeout }
+            var groups = hooks[event] as? [Any] ?? []
+            groups.append(["matcher": "*", "hooks": [handler]] as [String: Any])
+            hooks[event] = groups
+        }
+        root["hooks"] = hooks
+        return serialize(root)
+    }
+
+    /// Atölye hook'larını çıkarır (ayarlarda kalan başka bir şey değişmez).
+    public static func uninstallHooks(from text: String) -> String? {
+        guard var root = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else { return nil }
+        guard let hooks = root["hooks"] as? [String: Any] else { return text }
+        let left = removeAtolyeHooks(hooks)
+        if left.isEmpty { root.removeValue(forKey: "hooks") } else { root["hooks"] = left }
+        return serialize(root)
+    }
+
+    static func removeAtolyeHooks(_ hooks: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        for (event, value) in hooks {
+            guard let groups = value as? [Any] else { out[event] = value; continue }
+            let kept: [Any] = groups.compactMap { g in
+                guard var group = g as? [String: Any], let hs = group["hooks"] as? [Any] else { return g }
+                let rest = hs.filter { h in !(((h as? [String: Any])?["command"] as? String)?.contains("atolye-hook") ?? false) }
+                if rest.isEmpty { return nil }
+                group["hooks"] = rest
+                return group
+            }
+            if !kept.isEmpty { out[event] = kept }
+        }
+        return out
+    }
+
+    private static func serialize(_ root: [String: Any]) -> String? {
+        guard let d = try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        else { return nil }
+        return String(decoding: d, as: UTF8.self) + "\n"
+    }
+
     /// Profilde hesaba giriş: tarayıcıda giriş sayfası beklenen e-posta dolu açılır.
     public static func loginCommand(email: String?) -> String {
         guard let email, !email.isEmpty else { return "claude auth login" }
