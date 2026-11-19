@@ -112,8 +112,12 @@ final class WorkshopModel {
         todos.onChange = { [weak self] in self?.tick(initial: false) }
         notifier.onOpen = { [weak self] id in self?.open(sessionID: id) }
         notifier.start()
-        let mainDir = profiles.main.configDir
-        DispatchQueue.global(qos: .utility).async { Profiles.installIntegration(mainDir: mainDir) }
+        if let choice = IntegrationChoice.saved {
+            applyIntegration(choice)
+        } else {
+            // İlk açılış: Claude Code ayarlarına dokunmadan önce sorulur (pencere açıldıktan sonra).
+            DispatchQueue.main.async { [weak self] in self?.askIntegration() }
+        }
         profiles.onWarning = { [weak self] p, text in
             self?.notifier.postLimit(id: p.id, title: L("{0} limitine yaklaştı", p.displayName),
                                      body: L("{0}. Yeni oturumları başka bir profille açabilirsin.", text))
@@ -123,6 +127,20 @@ final class WorkshopModel {
             MainActor.assumeIsolated { self?.tick(initial: false) }
         }
         timer?.tolerance = 0.2
+    }
+
+    // MARK: Claude Code entegrasyonu
+
+    /// Seçimi sorar, kaydeder ve uygular. Menüden de açılır.
+    func askIntegration() {
+        guard let choice = IntegrationSetup.ask(current: IntegrationChoice.saved) else { return }
+        choice.save()
+        applyIntegration(choice)
+    }
+
+    private func applyIntegration(_ choice: IntegrationChoice) {
+        let mainDir = profiles.main.configDir
+        DispatchQueue.global(qos: .utility).async { Profiles.installIntegration(mainDir: mainDir, choice: choice) }
     }
 
     // MARK: Hook'lar

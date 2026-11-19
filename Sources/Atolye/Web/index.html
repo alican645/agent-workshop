@@ -64,7 +64,7 @@
   .gittag .gc{color:#ffb070}.gittag .ga{color:#8fd3b4}.gittag .gb{color:#9fc3ff}
   .gitline{font-size:12px;color:#5c554b;margin:-4px 0 8px}
   /* Platform balonu: bekleyen ajanın seçenekleri. Yalnız balonun kendisi tıklanır, çevresi sahneyi sürükler. */
-  .pwrap{pointer-events:none}
+  .pwrap{pointer-events:none;z-index:2147483000 !important} /* CSS2DRenderer derinliğe göre z-index verir; balon etiketlerin altında kalmasın */
   .pbal{pointer-events:auto;width:296px;max-height:340px;overflow:auto;background:rgba(255,253,248,.95);border:1px solid rgba(90,70,40,.12);border-radius:14px;padding:6px 10px;box-shadow:0 6px 24px rgba(80,60,30,.16);font-size:13px;color:#2c2a26;transform-origin:50% 0;transition:transform .3s}
   .pbal.compact{transform:scale(.9)}
   .pq{padding:6px 0}
