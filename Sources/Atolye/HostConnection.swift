@@ -28,6 +28,9 @@ final class HostConnection {
     }
     /// Terminal kimliği → son ekran (arayüz bununla yeniden çizilmesin diye gözlenmez).
     @ObservationIgnored private(set) var screens: [String: Screen] = [:]
+    /// Yardımcının ekranını tutmadığı terminaller (eski yardımcıda kabuk terminalleri). Bunlar için ekran
+    /// beklenmez; bekleyen robotun balonu kayıttan çizilir.
+    @ObservationIgnored private(set) var noScreen: Set<String> = []
     /// Yardımcı ekran isteğini anlıyor mu; eski yardımcı "anlaşılmayan istek" der, o zaman istemeyi bırakırız.
     @ObservationIgnored private(set) var screenSupported = true
     /// Yanıtı beklenen ekran istekleri (terminal → sayı); bir hata bunlardan birine mi ait, buradan anlaşılır.
@@ -59,6 +62,7 @@ final class HostConnection {
         // Yeni bağlanılan yardımcı güncellenmiş olabilir: ekran desteğini yeniden dene.
         screenSupported = true
         screenRequests = [:]
+        noScreen = []
         c.send(.list)
         // Yeniden bağlanınca: görünümleri sıfırla, tampon baştan gelsin.
         for (id, v) in views {
@@ -81,6 +85,7 @@ final class HostConnection {
             terminals = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             listed = true
             screens = screens.filter { terminals[$0.key] != nil }
+            noScreen = noScreen.filter { terminals[$0] != nil }
         case let .created(info):
             terminals[info.id] = info
             if !pendingCreates.isEmpty { pendingCreates.removeFirst()(info) }
@@ -105,6 +110,7 @@ final class HostConnection {
                 for id in Array(screenWaiters.keys) { finishWaiters(id, nil) }
             } else if msg.hasPrefix(Self.noScreenPrefix) {
                 let id = String(msg.dropFirst(Self.noScreenPrefix.count))
+                noScreen.insert(id)
                 answeredScreen(id)
                 screens[id] = nil
                 finishWaiters(id, nil)
