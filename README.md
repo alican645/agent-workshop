@@ -1,150 +1,162 @@
 # Agent Workshop
 
-**Claude Code oturumlarını bir robot atölyesi olarak gösteren, terminalleri de içinde barındıran macOS uygulaması.**
+**A macOS app that turns your Claude Code sessions into a 3D robot workshop — with built-in floating terminals,
+answer-from-the-scene prompts, git status, token/cost tracking and seamless multi-account support.**
 
-Her Claude Code oturumu atölyede bir robottur. Robotlar projelerine göre bölgelere ayrılır; çalışırken
-tezgâhta iş yapar, seni beklerken el sallar, işi bitince dinlenir. Terminaller atölyenin üstünde yüzen
-pencerelerdir: sürükle, büyüt, kenara yapıştır, sahneye dokununca hepsi animasyonla sol paneldeki
-projelerine çekilir. Birden çok Claude hesabını, hangisini kullandığını fark etmeden aynı skill'ler,
-MCP'ler ve hafızayla kullanırsın.
+[Türkçe README](README.tr.md)
 
-> *A macOS app that turns your Claude Code sessions into a 3D robot workshop — with built-in floating
-> terminals, git status, token/cost tracking, seamless multi-account support and a personal GitHub
-> contribution dashboard. UI is in Turkish. MIT licensed.*
+![Agent Workshop](docs/images/workshop.gif)
 
----
-
-## Neler yapıyor?
-
-### 🤖 Robot atölyesi
-- Açık her Claude Code oturumu bir robot; projelere (git köküne) göre bölgelere yerleşir.
-- Durumlar anında görünür: **çalışıyor** (hangi aracı kullandığıyla), **seni bekliyor** (neyi beklediğiyle),
-  **bitti**, **boşta**. Yardımcı ajanlar (subagent) robotun yanında küçük yardımcılar olarak çıkar.
-- Bölge panelinde son araç çağrıları, açık `TODO.local.md` maddeleri ve git durumu.
-- Akış: commit, push, pull ve dal değişikliği olayları sahnede ve olay akışında görünür.
-- **6 farklı robot:** ana ajanlar için George, Mike, Stan; alt ajanlar için Leela, Android, Bolt.
-  Her yeni oturum rolündeki robotlardan rastgele birini alır, o an atölyede olmayanlar önce gelir.
-- **Kendi robotun:** üst çubuktaki **Robotlar** penceresinden bir `.glb` dosyası (en fazla 30 MB) ekle.
-  Animasyonlar adlarına göre eşlenir (Idle, Walk/Run, Wave, Sit, Yes…); eksik olanların yerine robot
-  kendisi sallanır, zıplar ya da eğilir. Hazır robotları aynı pencereden kapatabilirsin.
-
-### 🪟 Yüzen terminal pencereleri
-- Terminaller uygulamanın içinde, atölyenin üstünde: sürükle, kenarlardan/köşelerden boyutlandır,
-  ekranın kenarına ya da köşesine sürükleyince yarım/çeyrek ekrana yapışır, çift tıkla tam ekran.
-- Sahneye tıklayınca pencereler sol paneldeki kendi projelerine animasyonla çekilir; projeye tıklayınca geri gelir.
-- Aynı projede istediğin kadar Claude oturumu, kabuk, salt okunur **Git** görünümü (değişen dosyalar,
-  commit'ler, diff) ve **Markdown** okuyucu.
-- Terminaller ayrı bir yardımcı süreçte (`atolye-host`) yaşar: Agent Workshop'u kapatıp açsan da oturumların sürer.
-
-### 🔔 Seni bekleyen ajanı kaçırma
-- Bekleyen Claude'un penceresi ve sol paneldeki etiketi yanıp söner, sesli uyarı çalar.
-- Agent Workshop arka plandayken macOS bildirimi; bildirime tıklayınca doğrudan o terminale gidersin.
-- Dock simgesinde bekleyen ajan sayısı.
-- Bekleyen Claude'un seçenekleri (izin, seçenekli soru, plan onayı) projenin platformu üstündeki balonda çıkar; tıklayınca cevap terminale girmeden ajana gider.
-  Balon odaktayken 1–9 tuşları da seçer; plan onayında "Planı aç" planı Markdown okuyucuda açar. Cevap yalnız Agent Workshop'un kendi terminallerindeki oturumlara gönderilir (Claude terminali ya da içinde tek bir `claude` çalışan zsh terminali). Agent Workshop, Claude Code'a bir `PermissionRequest` hook'u kurar (`~/.claude/settings.json`; komut `~/Library/Application Support/Atolye/bin/atolye-hook`). Bu sayede izin istekleri, sorular ve plan onayları cmux gibi dış oturumlarda da balonda çıkar ve balondan cevaplanır; terminaldeki menü de açık kalır, hangisi önce cevaplanırsa o geçer. Atölye kapalıyken hook hiçbir şey yapmaz. Hook'u kaldırmak için ayarlardaki `atolye-hook` satırlarını silmek yeter (Atölye her açılışta yeniden ekler). Menü tanınmazsa ya da cevap tutmazsa balon "terminali aç" der.
-  Bu özellik yeni `atolye-host` gerektirir; güncellemeden sonra helper yeniden başlatılmalı (açık terminaller kapanır).
-
-### 💰 Token ve maliyet
-- Her oturumun kullandığı token ve Anthropic API liste fiyatıyla karşılığı (yardımcı ajanlar dahil).
-- Üst çubukta günün toplamı — kapanmış oturumlar ve bütün hesaplar dahil.
-- Abonelikle kullananlar için bu bir fatura değil; hangi oturumun ne kadar iş yaptığını karşılaştırmak içindir.
-
-### 👥 Birden çok Claude hesabı, tek çalışma ortamı
-- Profiller (`Profil 1`, `Profil 2`, …) üst çubuktaki menüden yönetilir; yeni Claude oturumları seçili
-  profille açılır, istersen tek pencereyi başka profille açarsın.
-- Bütün profiller **aynı** skill'leri, plugin'leri, ayarları, hafızayı, komut geçmişini ve dosya geçmişini kullanır.
-- MCP sunucuları ve proje izinleri profiller arasında otomatik eşitlenir: bir hesapta eklediğin MCP
-  diğerinde de olur. Hesabın kimlik bilgilerine dokunulmaz.
-- Her profilin 5 saatlik ve haftalık limiti görünür; %90'ı geçince Agent Workshop uyarır.
-- Profile beklenen hesabı yazarsan, yanlış hesapla girişliyse uyarır; "Giriş yap" giriş sayfasını o e-postayla açar.
-
-### 🟩 GitHub panosu
-- Üst çubuktaki **GitHub** düğmesiyle açılan kişisel pano: son bir yılın katkı ısı haritası, bugün,
-  son 7 gün, kesintisiz seri ve en uzun seri; commit / PR / inceleme toplamları.
-- Son 30 günde çalıştığın depolar, gizli depolar dahil.
-- Giriş GitHub'ın cihaz akışıyla: Agent Workshop bir kod gösterir, tarayıcıda onaylarsın. Şifre girilmez;
-  anahtar Mac'in Anahtar Zinciri'nde durur ve Agent Workshop GitHub'a yalnız okuma isteği gönderir.
+Every Claude Code session is a robot. Robots gather in zones by project: they work at the bench while
+Claude is busy, wave at you when it needs you, and rest when the job is done. When an agent asks for
+permission, asks a question or wants a plan approved, the options appear in a balloon above its project —
+click one and the answer goes straight to the agent, even if that session runs in another terminal app.
 
 ---
 
-## Kurulum
+## Features
 
-**Gerekenler:** macOS 26, Xcode 26 (Swift 6.2), [Claude Code](https://claude.com/claude-code), `jq`
-(limit göstergesi için, `brew install jq`).
+### 🤖 Robot workshop
+- Every open Claude Code session is a robot, placed in a zone per project (git root).
+- States at a glance: **working** (with the tool it is using), **waiting for you** (and what for), **done**,
+  **idle**. Subagents show up as small helpers next to their robot.
+- The zone panel shows recent tool calls, open `TODO.local.md` items and git status. Commits, pushes,
+  pulls and branch switches appear in the scene and the activity feed.
+- **6 robots** (George, Mike, Stan for main agents; Leela, Android, Bolt for subagents), or bring your own
+  `.glb` model from the **Robots** window. Animations are matched by name (Idle, Walk/Run, Wave, Sit, Yes…).
+
+### 💬 Answer from the scene
+![Prompt balloon](docs/images/balloon.png)
+
+- Permission requests, questions (single/multi select, free text, multi-page) and plan approvals appear in a
+  balloon over the project. Click an option (or press 1–9) and the answer goes to the agent.
+- Works for **every** session — in Agent Workshop's own terminals and in any other terminal app — through a
+  small Claude Code `PermissionRequest` hook (opt-in, see [What it changes](#what-it-changes-on-your-mac)).
+  The menu in the terminal stays open too; whichever you answer first wins.
+- "Open plan" shows the plan in the built-in Markdown reader.
+
+### 🪟 Floating terminal windows
+![Floating terminals](docs/images/terminals.png)
+
+- Terminals live inside the app, on top of the workshop: drag, resize, snap to halves/quarters, double-click
+  for full screen. Click the scene and every window flies back to its project in the sidebar.
+- As many Claude sessions, shells, read-only **Git** views (changes, commits, diffs) and **Markdown**
+  readers per project as you like.
+- Terminals live in a separate helper process (`atolye-host`), so your sessions survive restarting the app.
+
+### 🔔 Never miss a waiting agent
+- The waiting agent's window and sidebar label pulse, with a sound.
+- macOS notification while the app is in the background; click it to jump to that terminal.
+- Waiting-agent count on the Dock icon.
+
+### 💰 Tokens and cost
+![Usage](docs/images/usage.png)
+
+- Tokens per session and their value at Anthropic API list prices (subagents included); today's total in the
+  toolbar, across closed sessions and all accounts.
+- On a subscription this is not a bill — it is for comparing how much work each session did.
+
+### 👥 Several Claude accounts, one environment
+- Profiles (`Profile 1`, `Profile 2`, …) from the toolbar menu; new sessions open with the selected profile.
+- All profiles share the **same** skills, plugins, settings, memory and history. MCP servers and project
+  permissions are synced between profiles; credentials are never touched.
+- 5-hour and weekly limits per profile, with a warning past 90%.
+
+### 🟩 GitHub dashboard
+![GitHub dashboard](docs/images/github.png)
+
+- A personal dashboard: a year of contributions, today, last 7 days, current and longest streak,
+  commit / PR / review totals, and the repositories you worked on in the last 30 days.
+- Sign-in uses GitHub's device flow; the token stays in your Keychain and only read requests are made.
+
+---
+
+## Install
+
+**Requirements:** macOS 26, Xcode 26 (Swift 6.2), [Claude Code](https://claude.com/claude-code), and `jq`
+for the usage-limit display (`brew install jq`).
 
 ```sh
 git clone https://github.com/alican645/agent-workshop.git
 cd agent-workshop
-./scripts/build-atolye.sh --install   # "build/Agent Workshop.app" oluşturur ve ~/Applications'a kopyalar
+./scripts/build-atolye.sh --install   # builds "build/Agent Workshop.app" and copies it to ~/Applications
 open ~/Applications/"Agent Workshop.app"
 ```
 
-Arayüz Türkçe ve İngilizce: uygulama menüsündeki **Dil** ile Sistem / English / Türkçe seçilir (sistem dili
-Türkçe değilse İngilizce açılır). Çeviriler `Sources/Atolye/Web/i18n/en.json` dosyasında; anahtar Türkçe metindir
-ve hem Swift arayüzü (`L("…")`) hem sahne (`t('…')`) aynı dosyayı kullanır. Eksik çeviriyi testler yakalar.
+On first launch Agent Workshop asks before changing anything in your Claude Code setup; you can change
+that choice later from the app menu (**Claude Code integration…**).
 
-Uygulama Apple geliştirici imzası taşımaz (yerelde ad-hoc imzalanır). Kaynaktan derleyince sorun
-olmaz; derlenmiş bir `.app` indirip açarsan macOS uyarı verir — sağ tık → **Aç** ile açabilirsin.
+The app is not notarized. Built from source it just works; the build script signs with your first
+"Apple Development" identity if you have one (otherwise ad-hoc, and macOS may ask for Keychain access on
+each new build).
 
-Testler:
+The UI is in English and Turkish (**Language** in the app menu). Translations live in
+`Sources/Atolye/Web/i18n/en.json`; missing ones are caught by the tests.
 
 ```sh
 swift test
-node --test Tests/web/*.test.mjs   # sahne mantığı (robot seçimi, animasyon eşleme)
+node --test Tests/web/*.test.mjs   # scene logic
 ```
 
-## Kısayollar
+## Shortcuts
 
-| Kısayol | İş |
+| Shortcut | Action |
 |---|---|
-| ⌘⇧T | Öndeki projede yeni Claude oturumu |
-| ⌘T | Yeni terminal |
-| ⌘W | Pencereyi kapat (çalışan bir şey varsa sorar) |
-| ⌘M | Pencereyi projesine çek |
-| ⌘1 … ⌘9 | N'inci pencereyi öne getir |
-| ⌘\` · ⌘[ · ⌘] | Pencereler arasında dolaş |
+| ⌘⇧T | New Claude session in the front project |
+| ⌘T | New terminal |
+| ⌘W | Close window (asks if something is running) |
+| ⌘M | Send window back to its project |
+| ⌘1 … ⌘9 | Bring the Nth window to front |
+| ⌘\` · ⌘[ · ⌘] | Cycle through windows |
+| ⌃⌘S | Show / hide the sidebar |
 
-## Nasıl çalışıyor?
+## How it works
 
-Agent Workshop hiçbir yere veri göndermez; her şeyi Claude Code'un kendi yerel dosyalarından okur. Tek istisna,
-giriş yaparsan GitHub panosunun GitHub'dan kendi katkılarını okumasıdır.
+Agent Workshop sends no data anywhere; it reads Claude Code's own local files. The only exception is the
+GitHub dashboard, which reads your own contributions from GitHub if you sign in.
 
-- **Oturum durumu:** Claude Code'un oturum kayıtları (`<profil>/sessions/<pid>.json`) saniyede bir taranır.
-- **Ne yapıyor:** sohbet kayıtlarının (`projects/**/*.jsonl`) sonu artımlı okunur; araç çağrıları, yardımcı
-  ajanlar ve token kullanımı buradan çıkar.
-- **GitHub panosu:** yalnız sen giriş yaparsan; GitHub GraphQL (katkı takvimi) ve commit araması, salt okunur.
-- **Git:** `git` komut satırı, kilit almadan (`--no-optional-locks`) ve salt okunur.
-- **Limitler:** Claude Code'un durum satırı betiğine eklenen küçük bir blok, `rate_limits` bilgisini profil
-  başına bir dosyaya yazar.
+- **Session state:** Claude Code's session registry (`<profile>/sessions/<pid>.json`), scanned every second.
+- **What an agent is doing:** the tail of the conversation logs (`projects/**/*.jsonl`) — tool calls,
+  subagents and token usage.
+- **Prompts:** the `PermissionRequest` hook forwards the request to the app over a local Unix socket and
+  waits for your answer. For sessions in Agent Workshop's own terminals the visible screen is also read.
+- **Git:** the `git` CLI, read-only and without taking locks (`--no-optional-locks`).
 
-Agent Workshop'un bilgisayarında değiştirdikleri (değişen her dosyanın aslı önce
-`~/Library/Application Support/Atolye/yedek/` altına kopyalanır):
+### What it changes on your Mac
 
-- `~/.claude/statusline-command.sh` sonuna limit bloğu.
-- Ek profillerde ortak öğeler için ana `~/.claude` klasörüne sembolik bağlar.
-- Profillerin `.claude.json` dosyalarında yalnız MCP ve proje izni alanları (üç yollu birleştirme;
-  Claude dosyayı o an yazıyorsa o tur atlanır).
+Only with your consent (first launch, or **Claude Code integration…**). The original of every file it
+changes is copied to `~/Library/Application Support/Atolye/yedek/` first.
 
-## Proje yapısı
+- `~/.claude/settings.json`: a `PermissionRequest` hook (plus `PostToolUse`/`PostToolUseFailure` to notice
+  answers given in the terminal) running `~/Library/Application Support/Atolye/bin/atolye-hook`. When the
+  app is not running the hook does nothing. Your own hooks are left untouched.
+- `~/.claude/statusline-command.sh`: a short block that saves `rate_limits` per profile, for the limit display.
+- For extra profiles: symlinks to shared items in `~/.claude`, and only the MCP / project-permission fields
+  of each profile's `.claude.json` (three-way merge; skipped while Claude is writing the file).
 
-| Hedef | Ne |
+Turning an option off removes what it added.
+
+## Project layout
+
+| Target | What |
 |---|---|
-| `Atolye` | SwiftUI uygulaması; sahne `WKWebView` içinde three.js ile çizilir (`Sources/Atolye/Web`) |
-| `atolye-host` | Terminalleri barındıran arka plan yardımcısı (Unix soketi üzerinden) |
-| `AtolyeHostKit` | Yardımcının sunucu/istemci kodu, [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) ile |
-| `AtolyeCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
+| `Atolye` | The SwiftUI app; the scene is three.js in a `WKWebView` (`Sources/Atolye/Web`) |
+| `atolye-host` | Background helper that hosts the terminals (Unix socket) |
+| `atolye-hook` | The Claude Code hook: forwards prompts to the app and returns your answer |
+| `AtolyeHostKit` | Helper and hook server/client code, with [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) |
+| `AtolyeCore` | UI-independent core: session scanning, prompts, git, usage/cost, profiles, sync |
 
-Tasarım notları ve uygulama planları `docs/superpowers/` altında.
+## Credits
 
-## Teşekkürler
-
-- [three.js](https://threejs.org) (MIT) ve robot modeli *RobotExpressive* — Tomás Laulhé (Quaternius), düzenleme
-  Don McCurdy (CC0).
-- Robot modelleri George, Leela, Mike, Stan (*Animated Mech Pack*) ve Android (*Cyberpunk Game Kit*) —
-  [Quaternius](https://quaternius.com) (CC0). Ayrıntı: `Sources/Atolye/Web/models/LICENSE.txt`.
+- [three.js](https://threejs.org) (MIT) and the *RobotExpressive* model — Tomás Laulhé (Quaternius),
+  modifications by Don McCurdy (CC0).
+- Robots George, Leela, Mike, Stan (*Animated Mech Pack*) and Android (*Cyberpunk Game Kit*) —
+  [Quaternius](https://quaternius.com) (CC0). Details: `Sources/Atolye/Web/models/LICENSE.txt`.
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT), [marked](https://marked.js.org) (MIT).
-- Bazı fikirler (token/maliyet takibi gibi) Orbiterm'den esinlendi; kod paylaşılmadı.
+- Some ideas (like token/cost tracking) were inspired by Orbiterm; no code was shared.
 
-## Lisans
+Agent Workshop is an independent project and is not affiliated with Anthropic.
+
+## License
 
 [MIT](LICENSE) © 2026 Ali Can Aydın
