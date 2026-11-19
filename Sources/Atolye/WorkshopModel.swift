@@ -496,6 +496,7 @@ final class WorkshopModel {
 
     /// Onay sorusu; onaylanırsa yardımcıyı yeniden başlatır.
     func askRestartHost() {
+        guard !host.restarting else { return }
         let outdated = host.hostOutdated == true
         let n = host.terminals.values.filter(\.running).count
         let running = (snapshot?.zones ?? []).flatMap(\.cards).filter { $0.state == .running }.map(\.name)
@@ -507,7 +508,7 @@ final class WorkshopModel {
         a.informativeText = text
         a.addButton(withTitle: L("Şimdi yeniden başlat"))
         a.addButton(withTitle: L("Sonra"))
-        guard a.runModal() == .alertFirstButtonReturn else { return }
+        guard a.runModal() == .alertFirstButtonReturn, !host.restarting else { return }
         restartHost()
     }
 

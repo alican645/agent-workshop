@@ -118,7 +118,11 @@ public final class HostServer: @unchecked Sendable {
 
     // MARK: İstekler
 
+    /// `shutdown` alındı: yeni istekler karşılanmaz.
+    private var shuttingDown = false
+
     private func handle(_ body: Data, from key: ObjectIdentifier) {
+        guard !shuttingDown else { return }
         guard let req = try? JSONDecoder().decode(HostRequest.self, from: body) else {
             send(.error("anlaşılmayan istek"), to: key)
             return
@@ -169,9 +173,21 @@ public final class HostServer: @unchecked Sendable {
         listenFD = -1
         unlink(socketPath)
         idleWork?.cancel()
+        shuttingDown = true
         for t in terminals.values where t.info.running { t.terminate() }
-        // Süreçlerin bitip bitişlerinin istemcilere ulaşması için kısa bir süre, sonra çık.
-        queue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        // Terminaller bitene kadar (direnenleri `terminate` 3 sn sonra zorla bitirir) en çok 3,5 sn bekle;
+        // bitişler istemcilere ulaşsın, sonra çık.
+        finishShutdown(deadline: Date().addingTimeInterval(3.5))
+    }
+
+    private func finishShutdown(deadline: Date) {
+        let running = terminals.values.contains { $0.info.running } || dying.values.contains { $0.info.running }
+        if running && Date() < deadline {
+            queue.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.finishShutdown(deadline: deadline) }
+            return
+        }
+        // Bitişler yazılsın diye kısa bir an.
+        queue.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self else { return }
             for c in self.clients.values { c.close() }
             self.clients = [:]

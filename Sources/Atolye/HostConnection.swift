@@ -21,8 +21,11 @@ final class HostConnection {
     @ObservationIgnored private var helloPending = false
     /// Başarılı bağlantı sayısı (yeniden başlatmanın yeni bağlantıyı beklemesi için).
     @ObservationIgnored private var connections = 0
-    /// Yeniden başlatma: bu sayıdan sonraki bağlantının ilk listesi gelince çağrılır.
-    @ObservationIgnored private var onRestarted: (after: Int, done: () -> Void)?
+    /// Yeniden başlatma: eski yardımcının süreçleri bitti (`teardownDone`) ve `after`'dan sonraki bağlantının
+    /// ilk listesi geldiyse `done` çağrılır.
+    @ObservationIgnored private var onRestarted: (after: Int, teardownDone: Bool, done: () -> Void)?
+    /// Yeniden başlatma sürüyor (ikincisi başlatılmaz).
+    private(set) var restarting = false
     /// Paketteki yardımcının sürümü (bir kez hesaplanır).
     @ObservationIgnored private lazy var bundledVersion: String? = Self.hostExecutable().flatMap { HostVersion.of(executable: $0) }
 
@@ -91,6 +94,9 @@ final class HostConnection {
         client?.close()
         client = nil
         connected = false
+        listed = false
+        // Cevabı gelmeyecek açma istekleri: yeni bağlantının cevaplarıyla eşleşmesinler.
+        pendingCreates = []
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.connect() }
     }
 
@@ -99,10 +105,7 @@ final class HostConnection {
         case let .terminals(list):
             terminals = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             listed = true
-            if let r = onRestarted, connections > r.after {
-                onRestarted = nil
-                r.done()
-            }
+            fireRestartIfReady()
             screens = screens.filter { terminals[$0.key] != nil }
             noScreen = noScreen.filter { terminals[$0] != nil }
         case let .created(info):
@@ -181,20 +184,34 @@ final class HostConnection {
     /// Yardımcıyı yeniden başlatır: yenisi `shutdown` ile, onu bilmeyen eskisi süreç sinyaliyle kapanır;
     /// bağlantı kopunca `retry()` paketteki yardımcıyı başlatır. Yeni bağlantının ilk listesinde `done`.
     func restart(done: @escaping () -> Void) {
-        guard let client else { return done() }
+        guard !restarting else { return }
+        restarting = true
         let before = connections
-        onRestarted = (before, done)
-        let pid = client.peerPID()
-        if hostOutdated == false {
-            client.send(.shutdown)
-        } else if let pid {
-            Darwin.kill(pid, SIGTERM)
+        guard let client, let pid = client.peerPID() else {
+            // Bağlı değil: bir sonraki bağlantı (paketteki yardımcı) hazır olunca devam.
+            onRestarted = (before, true, done)
+            return
         }
-        // Kapanmadıysa zorla (aynı bağlantı hâlâ duruyorsa).
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            guard let self, self.connections == before, self.connected, let pid else { return }
-            Darwin.kill(pid, SIGKILL)
+        onRestarted = (before, false, done)
+        // Yeni yardımcı `shutdown` ile kendini kapatır; bilmeyen ya da sürümü bilinmeyen sinyalle.
+        let graceful = hostOutdated == false
+        if graceful { client.send(.shutdown) }
+        Task.detached {
+            _ = await HostTeardown.terminate(helper: pid, graceful: graceful)
+            await MainActor.run { [weak self] in
+                guard let self, self.onRestarted != nil else { return }
+                self.onRestarted?.teardownDone = true
+                self.fireRestartIfReady()
+            }
         }
+    }
+
+    /// Eski süreçler bitti ve yeni bağlantının listesi geldiyse yeniden başlatmayı tamamla.
+    private func fireRestartIfReady() {
+        guard let r = onRestarted, r.teardownDone, connections > r.after, listed else { return }
+        onRestarted = nil
+        restarting = false
+        r.done()
     }
 
     /// Terminale ham bayt yazar (seçenek menüsüne giden tuşlar).
