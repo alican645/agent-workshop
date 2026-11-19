@@ -21,9 +21,16 @@ final class RunCardsModel {
 
     /// Dosyayı yeniden oku (elle düzenlenmiş olabilir).
     func reload() {
-        let new = root.map { RunCardFile.cards(root: $0) } ?? []
+        guard let root else { if !cards.isEmpty { cards = [] }; return }
+        guard let new = RunCardFile.load(root: root) else {
+            error = Self.unreadableText
+            return
+        }
+        if error == Self.unreadableText { error = nil } // dosya düzeltildi
         if new != cards { cards = new }
     }
+
+    private static var unreadableText: String { L("RUN.local.json okunamadı; dosyayı düzeltince kartlar yeniden görünür. Bozuk dosyanın üstüne yazılmadı.") }
 
     @discardableResult
     func add() -> RunCard {
@@ -32,25 +39,35 @@ final class RunCardsModel {
         return card
     }
 
-    func update(_ card: RunCard) {
+    /// Yalnız verilen alanları değiştirir; kartın geri kalanı dosyadaki son halinden gelir
+    /// (ör. az önce işaretlenen "Önce sor" bir ad kaydıyla geri dönmesin).
+    func edit(_ id: String, _ apply: @escaping (inout RunCard) -> Void) {
         change { list in
-            if let i = list.firstIndex(where: { $0.id == card.id }) { list[i] = card }
+            if let i = list.firstIndex(where: { $0.id == id }) { apply(&list[i]) }
         }
     }
 
-    func delete(_ card: RunCard) { change { $0.removeAll { $0.id == card.id } } }
+    func delete(_ id: String) { change { $0.removeAll { $0.id == id } } }
 
-    func move(from: IndexSet, to: Int) { change { $0.move(fromOffsets: from, toOffset: to) } }
+    /// Görünen listedeki sırayla taşır; kartlar kimlikle bulunur (dosya o arada değişmiş olabilir).
+    func move(from: IndexSet, to: Int) {
+        var ids = cards.map(\.id)
+        ids.move(fromOffsets: from, toOffset: to)
+        change { list in
+            let rank = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+            list = list.enumerated().sorted { (rank[$0.element.id] ?? ids.count + $0.offset, $0.offset) < (rank[$1.element.id] ?? ids.count + $1.offset, $1.offset) }.map(\.element)
+        }
+    }
 
-    /// Dosyanın son halini okuyup değiştirir (pencere açıkken elle düzenlenmiş olabilir).
-    private func change(_ edit: (inout [RunCard]) -> Void) {
+    /// Dosyanın son halini okuyup değiştirir. Bozuk dosyanın üstüne yazmaz.
+    private func change(_ edit: @escaping (inout [RunCard]) -> Void) {
         guard let root else { return }
         let existed = FileManager.default.fileExists(atPath: RunCardFile.path(root: root))
-        var list = RunCardFile.cards(root: root)
-        edit(&list)
         do {
-            try RunCardFile.write(list, root: root)
+            try RunCardFile.update(root: root, edit)
             error = nil
+        } catch is RunCardFile.Unreadable {
+            error = Self.unreadableText
         } catch {
             self.error = L("RUN.local.json yazılamadı") + ": " + error.localizedDescription
         }

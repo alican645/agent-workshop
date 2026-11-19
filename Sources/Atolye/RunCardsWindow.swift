@@ -114,7 +114,7 @@ private struct CardRow: View {
             }
             Spacer(minLength: 8)
             Toggle(L("Önce sor"), isOn: Binding(get: { card.confirm }, set: { v in
-                var c = card; c.confirm = v; runCards.update(c)
+                runCards.edit(card.id) { $0.confirm = v }
             }))
             .toggleStyle(.checkbox).font(.system(size: 12))
             Button(L("Çalıştır")) {
@@ -122,7 +122,7 @@ private struct CardRow: View {
                 model.runCard(root: root, id: card.id)
             }
             .disabled(command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Button { runCards.delete(card) } label: {
+            Button { runCards.delete(card.id) } label: {
                 Image(systemName: "trash").foregroundStyle(GHTheme.muted)
             }
             .buttonStyle(.plain).help(L("Sil"))
@@ -133,15 +133,13 @@ private struct CardRow: View {
             if focus == nil { name = c.name; command = c.command }
         }
         .onChange(of: focus) { old, _ in if old != nil { save() } }
+        .onDisappear(perform: save)
     }
 
     private func save() {
         let n = name.trimmingCharacters(in: .whitespaces), c = command.trimmingCharacters(in: .whitespaces)
         guard n != card.name || c != card.command else { return }
-        var new = card
-        new.name = n
-        new.command = c
-        runCards.update(new)
+        runCards.edit(card.id) { $0.name = n; $0.command = c }
     }
 
     private func text(_ s: RunState) -> String {

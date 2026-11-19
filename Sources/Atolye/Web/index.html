@@ -57,7 +57,7 @@
   .newrow{display:flex;gap:6px}.newrow .enter{flex:1;padding:7px 4px;font-size:12px}
   .enter{display:block;width:100%;margin:4px 0 10px;padding:8px;font-weight:600;background:#2c2a26;color:#fff;border-color:#2c2a26}
   .mach{font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
-  .card{display:flex;align-items:center;gap:7px}
+  .card{display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
   .mach:hover{color:#2c2a26}
   .unpin{font-size:11px;color:#a09583;cursor:pointer;margin-top:10px;display:inline-block}
   .tag.m{font-weight:500;color:#5c554b;font-size:10px}
@@ -449,7 +449,7 @@ function setRack(Z, cards) {
   const now = performance.now() / 1000;
   for (const it of R.items) {
     const c = list.find((x) => x.id === it.id); if (!c) continue;
-    if (c.state === 'ok' && it.state !== 'ok' && it.state !== undefined && R.seen) it.okAt = now;
+    if (c.state === 'ok' && it.state !== 'ok' && R.seen) it.okAt = now;
     it.state = c.state;
   }
   R.seen = true;
@@ -753,7 +753,7 @@ function todoHtml(z) {
 const RUN_TEXT = { idle: () => t('boşta'), running: () => t('çalışıyor'), ok: () => t('başarılı'), failed: () => t('hata verdi') };
 function cardsHtml(z) {
   const list = z.cards || [];
-  const rows = list.map((c) => `<div class="mach card" data-card="${esc(c.id)}"><span class="d" style="background:#${gearColor(c.state, 9).toString(16).padStart(6, '0')}"></span>` +
+  const rows = list.map((c) => `<div class="card" data-card="${esc(c.id)}"><span class="d" style="background:#${gearColor(c.state, 9).toString(16).padStart(6, '0')}"></span>` +
     `${esc(c.name)} <span style="color:#a09583">· ${(RUN_TEXT[c.state] || RUN_TEXT.idle)()}</span></div>`).join('');
   return `<h4>${t('KARTLAR')}</h4>${rows}` +
     `<div class="todosum">${list.length ? '<span style="flex:1"></span>' : `<span style="flex:1;color:#a09583">${t('henüz kart yok')}</span>`}` +

@@ -65,4 +65,53 @@ private func terminal(_ id: String, cwd: String = "/p/x", running: Bool, code: I
         #expect(RunLaunch.decide(card: ask, latest: nil) == .ask)
         #expect(RunLaunch.decide(card: quiet, latest: nil) == .start)
     }
+
+    private func tmpRoot() throws -> String {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("runcards-\(UUID().uuidString)").path
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    /// Elle yazılmış, kimliği olmayan kart kaybolmaz; kimliği her okumada aynıdır (çark karta bağlı kalsın).
+    @Test func cardWithoutIdGetsStableId() {
+        let json = #"{"cards":[{"name":"Deploy","command":"./deploy.sh"},{"id":"b","name":"T","command":"t"}]}"#
+        let a = RunCardFile.parse(Data(json.utf8)), b = RunCardFile.parse(Data(json.utf8))
+        #expect(a.count == 2 && a.map(\.name) == ["Deploy", "T"])
+        #expect(!a[0].id.isEmpty && a[0].id == b[0].id)
+    }
+
+    /// Bozuk dosya "okunamadı" olarak bildirilir; dosya yoksa boş liste.
+    @Test func loadDistinguishesUnreadableFromMissing() throws {
+        let root = try tmpRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        #expect(RunCardFile.load(root: root) == [])
+        try "{bozuk".write(toFile: RunCardFile.path(root: root), atomically: true, encoding: .utf8)
+        #expect(RunCardFile.load(root: root) == nil)
+    }
+
+    /// Bozuk dosyaya yazılmaz: kullanıcının elle yazdıkları kaybolmasın.
+    @Test func updateRefusesUnreadableFile() throws {
+        let root = try tmpRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try "{bozuk".write(toFile: RunCardFile.path(root: root), atomically: true, encoding: .utf8)
+        #expect(throws: RunCardFile.Unreadable.self) { try RunCardFile.update(root: root) { $0.append(RunCard(name: "x", command: "y")) } }
+        #expect(try String(contentsOfFile: RunCardFile.path(root: root), encoding: .utf8) == "{bozuk")
+    }
+
+    /// Değişiklik dosyanın son haline uygulanır (pencerede eski kopya olsa da başka alan geri dönmez).
+    @Test func updateEditsFreshContents() throws {
+        let root = try tmpRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try RunCardFile.write([RunCard(id: "a", name: "Deploy", command: "./deploy.sh", confirm: false)], root: root)
+        try RunCardFile.update(root: root) { $0[0].confirm = true }
+        try RunCardFile.update(root: root) { list in if let i = list.firstIndex(where: { $0.id == "a" }) { list[i].name = "Yayınla" } }
+        #expect(RunCardFile.cards(root: root) == [RunCard(id: "a", name: "Yayınla", command: "./deploy.sh", confirm: true)])
+    }
+
+    /// Başlatılmış ama host'tan henüz cevap gelmemiş kart ikinci kez başlatılmaz.
+    @Test func decidePendingWaits() {
+        let quiet = RunCard(id: "a", name: "Deploy", command: "./deploy.sh", confirm: false)
+        #expect(RunLaunch.decide(card: quiet, latest: nil, pending: true) == .pending)
+        #expect(RunLaunch.decide(card: quiet, latest: nil, pending: false) == .start)
+    }
 }

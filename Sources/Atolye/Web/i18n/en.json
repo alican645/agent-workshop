@@ -264,5 +264,6 @@
  "RUN.local.json yazılamadı": "Couldn't write RUN.local.json",
  "kart ekle": "add card",
  "KARTLAR": "CARDS",
- "henüz kart yok": "no cards yet"
+ "henüz kart yok": "no cards yet",
+ "RUN.local.json okunamadı; dosyayı düzeltince kartlar yeniden görünür. Bozuk dosyanın üstüne yazılmadı.": "Couldn't read RUN.local.json; the cards come back once the file is fixed. The broken file was not overwritten."
 }

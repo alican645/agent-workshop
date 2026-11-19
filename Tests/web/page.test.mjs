@@ -18,3 +18,11 @@ test('index.html betikleri derlenir', () => {
     assert.equal(r.status, 0, r.stderr);
   });
 });
+
+// Panelde kart satırı terminal satırı (.mach) seçicisine takılmamalı: yoksa tıklama terminal açmaya döner.
+test('kart satırları terminal satırı sayılmaz', () => {
+  const html = readFileSync(new URL('../../Sources/Atolye/Web/index.html', import.meta.url), 'utf8');
+  const row = html.match(/class="([^"]*)" data-card=/);
+  assert.ok(row, 'kart satırı bulunamadı');
+  assert.ok(!row[1].split(/\s+/).includes('mach'), row[1]);
+});

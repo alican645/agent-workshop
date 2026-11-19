@@ -414,13 +414,16 @@ final class WorkshopModel {
         RunCards.latestTerminal(card: card, root: root, in: Array(host.terminals.values))
     }
 
+    /// Başlatılmış, host'tan cevabı beklenen kartlar ("kök\nkart"): hızlı ikinci tıklama ikinci kez başlatmasın.
+    @ObservationIgnored private var pendingRuns: Set<String> = []
+
     /// Kartı çalıştır: çalışıyorsa terminalini öne getir; gerekiyorsa önce sor.
     func runCard(root: String, id: String) {
         guard let card = RunCardFile.cards(root: root).first(where: { $0.id == id }) else { return }
         let latest = runTerminal(card: id, root: root)
-        switch RunLaunch.decide(card: card, latest: latest) {
+        switch RunLaunch.decide(card: card, latest: latest, pending: pendingRuns.contains(root + "\n" + id)) {
         case let .focus(t): openTerminal(t)
-        case .invalid: return
+        case .invalid, .pending: return
         case .start: startRun(card, root: root, replacing: latest)
         case .ask:
             let a = NSAlert()
@@ -430,6 +433,7 @@ final class WorkshopModel {
             a.addButton(withTitle: L("Vazgeç"))
             guard a.runModal() == .alertFirstButtonReturn else { return }
             // Soru açıkken başka yerden başlatılmış olabilir.
+            if pendingRuns.contains(root + "\n" + id) { return }
             if let again = runTerminal(card: id, root: root), again.running { return openTerminal(again.id) }
             startRun(card, root: root, replacing: runTerminal(card: id, root: root))
         }
@@ -442,8 +446,11 @@ final class WorkshopModel {
             host.kill(old.id)
         }
         let spec = RunSpec(cardID: card.id, name: card.name.isEmpty ? card.command : card.name, command: card.command)
+        let key = root + "\n" + card.id
+        pendingRuns.insert(key)
         host.create(.shell, cwd: root, env: profiles.environment(), run: spec) { [weak self] info in
             guard let self else { return }
+            self.pendingRuns.remove(key)
             guard info.run != nil else {
                 // Eski yardımcı alanı tanımadı, düz kabuk açtı: komut çalışmadı.
                 self.host.kill(info.id)
