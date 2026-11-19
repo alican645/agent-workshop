@@ -10,7 +10,8 @@ struct TodoWindow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ProjectList(model: model)
+            ProjectList(model: model, selected: todos.root, onSelect: { todos.select($0) },
+                        badge: { z in z.todos.filter { !$0.done }.count })
                 .frame(width: 220)
             Divider()
             if let root = todos.root {
@@ -37,9 +38,12 @@ struct TodoWindow: View {
     }
 }
 
-/// Atölyedeki projeler ve açık madde sayıları.
-private struct ProjectList: View {
+/// Atölyedeki projeler ve yanlarında bir sayı (açık madde, kart…). Yapılacaklar ve kartlar pencerelerinde ortak.
+struct ProjectList: View {
     let model: WorkshopModel
+    let selected: String?
+    let onSelect: (String) -> Void
+    let badge: (ZoneInfo) -> Int
 
     var body: some View {
         let zones = model.snapshot?.zones ?? []
@@ -49,9 +53,9 @@ private struct ProjectList: View {
             ScrollView {
                 VStack(spacing: 2) {
                     ForEach(zones, id: \.id) { z in
-                        let open = z.todos.filter { !$0.done }.count
-                        let selected = model.todos.root == z.id
-                        Button { model.todos.select(z.id) } label: {
+                        let open = badge(z)
+                        let selected = self.selected == z.id
+                        Button { onSelect(z.id) } label: {
                             HStack(spacing: 8) {
                                 Circle().fill(Color(hex: z.color)).frame(width: 9, height: 9)
                                 Text(z.name).lineLimit(1).truncationMode(.middle)

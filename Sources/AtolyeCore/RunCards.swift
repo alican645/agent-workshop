@@ -72,3 +72,20 @@ public enum RunCards {
         return t.exitCode == 0 ? .ok : .failed
     }
 }
+
+/// Karta tıklanınca ne olacağı.
+public enum RunLaunch: Equatable, Sendable {
+    /// Zaten çalışıyor: ikinci kez başlatma, terminalini öne getir.
+    case focus(terminal: String)
+    /// Önce sor.
+    case ask
+    case start
+    /// Komut boş: çalıştırılamaz.
+    case invalid
+
+    public static func decide(card: RunCard, latest: TerminalInfo?) -> RunLaunch {
+        if card.command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .invalid }
+        if let latest, latest.running { return .focus(terminal: latest.id) }
+        return card.confirm ? .ask : .start
+    }
+}

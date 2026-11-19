@@ -54,4 +54,15 @@ private func terminal(_ id: String, cwd: String = "/p/x", running: Bool, code: I
         #expect(RunCards.latestTerminal(card: "b", root: "/p/x", in: ts)?.id == "b1")
         #expect(RunCards.latestTerminal(card: "c", root: "/p/x", in: ts) == nil)
     }
+
+    @Test func decide() {
+        let ask = RunCard(id: "a", name: "Deploy", command: "./deploy.sh", confirm: true)
+        let quiet = RunCard(id: "a", name: "Deploy", command: "./deploy.sh", confirm: false)
+        #expect(RunLaunch.decide(card: RunCard(id: "a", name: "x", command: "  \n"), latest: nil) == .invalid)
+        #expect(RunLaunch.decide(card: ask, latest: terminal("t", running: true, code: nil, card: "a")) == .focus(terminal: "t"))
+        #expect(RunLaunch.decide(card: quiet, latest: terminal("t", running: true, code: nil, card: "a")) == .focus(terminal: "t"))
+        #expect(RunLaunch.decide(card: ask, latest: terminal("t", running: false, code: 0, card: "a")) == .ask)
+        #expect(RunLaunch.decide(card: ask, latest: nil) == .ask)
+        #expect(RunLaunch.decide(card: quiet, latest: nil) == .start)
+    }
 }
