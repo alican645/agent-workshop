@@ -13,6 +13,7 @@ let package = Package(
                                                        .product(name: "SwiftTerm", package: "SwiftTerm")], exclude: ["Web"]),
         .target(name: "AtolyeHostKit", dependencies: ["AtolyeCore", .product(name: "SwiftTerm", package: "SwiftTerm")]),
         .executableTarget(name: "atolye-host", dependencies: ["AtolyeHostKit"]),
+        .executableTarget(name: "atolye-hook"),
         // Geliştirici aracı: gerçek Claude ekranlarını ayrıştırıcı testleri için dosyaya yakalar.
         .executableTarget(name: "prompt-capture", dependencies: ["AtolyeHostKit", .product(name: "SwiftTerm", package: "SwiftTerm")]),
         .testTarget(name: "AtolyeCoreTests", dependencies: ["AtolyeCore"], resources: [.copy("Fixtures")]),
