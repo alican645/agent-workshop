@@ -15,11 +15,12 @@ private func roundTrip<T: Codable & Equatable>(_ v: T) -> T? {
     @Test func roundTripsEveryCase() {
         let reqs: [HostRequest] = [.list, .create(kind: .claude, cwd: "/p", cols: 80, rows: 24), .attach(id: "t1"),
                                    .detach(id: "t1"), .input(id: "t1", data: Data([0, 27, 255])),
-                                   .resize(id: "t1", cols: 120, rows: 40), .kill(id: "t1"), .killAll, .screen(id: "t")]
+                                   .resize(id: "t1", cols: 120, rows: 40), .kill(id: "t1"), .killAll, .screen(id: "t"),
+                                   .hello, .shutdown]
         for r in reqs { #expect(roundTrip(r) == r) }
         let evs: [HostEvent] = [.terminals([info]), .created(info), .output(id: "t1", data: Data("ğ\u{1b}[0m".utf8)),
                                 .exited(id: "t1", code: 3), .exited(id: "t1", code: nil), .error("x"),
-                                .screen(id: "t", lines: ["x"], cursorRow: 0)]
+                                .screen(id: "t", lines: ["x"], cursorRow: 0), .hostInfo(version: "abc")]
         for e in evs { #expect(roundTrip(e) == e) }
     }
 

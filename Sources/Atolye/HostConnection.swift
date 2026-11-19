@@ -95,6 +95,8 @@ final class HostConnection {
         case let .exited(id, code):
             terminals[id]?.running = false
             terminals[id]?.exitCode = code
+        case .hostInfo:
+            break // Task 3'te sürüm kontrolü
         case let .screen(id, lines, cursorRow):
             answeredScreen(id)
             let s = Screen(lines: lines, cursorRow: cursorRow, at: Date())
