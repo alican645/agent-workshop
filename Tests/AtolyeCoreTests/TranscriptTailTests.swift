@@ -88,4 +88,29 @@ private func append(_ path: String, _ s: String) throws {
         #expect(TranscriptTail.findTranscript(configDir: dir, sessionID: "s1") == dir + "/projects/-x-erp/s1.jsonl")
         #expect(TranscriptTail.findTranscript(configDir: dir, sessionID: "s2") == nil)
     }
+
+    @Test func pendingToolUntilResult() throws {
+        let use = #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"a","name":"AskUserQuestion","input":{"questions":[{"question":"Renk?","multiSelect":false,"options":[{"label":"Kırmızı","description":"sıcak"}]}]}}]}}"# + "\n"
+        let p = try tmpFile(use)
+        var t = TranscriptTail()
+        _ = t.read(path: p)
+        #expect(t.pending?.name == "AskUserQuestion")
+        #expect(t.pending?.id == "a")
+        #expect(t.pending?.input["questions"]?.array?.first?.object?["question"]?.string == "Renk?")
+        try append(p, #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"a","content":"ok"}]}}"# + "\n")
+        _ = t.read(path: p)
+        #expect(t.pending == nil)
+    }
+
+    @Test func pendingIsLastUnanswered() throws {
+        let two = #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"a","name":"Bash","input":{"command":"ls"}},{"type":"tool_use","id":"b","name":"Read","input":{}}]}}"# + "\n"
+        let p = try tmpFile(two)
+        var t = TranscriptTail()
+        _ = t.read(path: p)
+        #expect(t.pending?.id == "b")
+        try append(p, #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"b","content":"x"}]}}"# + "\n")
+        _ = t.read(path: p)
+        #expect(t.pending?.id == "a")
+        #expect(t.pending?.input["command"]?.string == "ls")
+    }
 }

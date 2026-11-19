@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Haiku 5.5 · Claude Pro
+ ▝▝   ▝▝   /…/-Users-exampleuser-Downloads-Projeler-AjanTakip/68319abe-69fe-4efd-beff-a339819227c9/scratchpad/demo
+
+
+❯ Run python3 --version with the Bash tool. Do nothing else.
+
+  Ran 1 shell command
+
+⏺ Python 3.9.6 is installed.
+
+✻ Crunched for 1s · done 22:56
+
+❯ In notes.txt replace the word world with there, using the Edit tool. Do nothing else.
+
+  Reading ~/Downloads/Projeler/AjanTakip/notes.txt
+  ⎿  ~/Downloads/Projeler/AjanTakip/notes.txt
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Read file
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Read(/Users/exampleuser/Downloads/Projeler/AjanTakip/notes.txt)
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, allow reading from /Users/exampleuser/Downloads/Projeler/AjanTakip during this session
+   3. No
+
+ Esc to cancel · Tab to amend
+
+
+
+
+
+
+
+
+
+

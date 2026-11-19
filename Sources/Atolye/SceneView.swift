@@ -97,6 +97,11 @@ struct SceneView: NSViewRepresentable {
                     model.showTodos(root)
                     openWindow?(id: "todos")
                 }
+            case "answer":
+                // Geçersiz/yanlış tipli alan varsa mesaj tümden yok sayılır (şüphede hiçbir şey gönderilmez).
+                if let d = PromptAnswer.decode(body) { model.answer(robot: d.robot, answer: d.answer) }
+            case "openPlan":
+                if let robot = body["robot"] as? String { model.openPlan(robot: robot) }
             case "unpin":
                 if let id = body["id"] as? String { model.unpin(id) }
             default:

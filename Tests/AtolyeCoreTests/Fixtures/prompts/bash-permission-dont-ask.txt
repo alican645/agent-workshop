@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Haiku 5.5 · Claude Pro
+ ▝▝   ▝▝   /…/-Users-exampleuser-Downloads-Projeler-AjanTakip/68319abe-69fe-4efd-beff-a339819227c9/scratchpad/demo
+
+
+❯ Run git add notes.txt with the Bash tool. Do nothing else.
+
+  Staging notes.txt for commit
+  ⎿  $ git add notes.txt
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Bash command
+ Tip: auto mode handles these prompts for you — choose "switch to auto mode" below
+ Stage notes.txt for commit
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ git add notes.txt
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ This command requires approval
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don’t ask again for: git add *
+   3. Yes, and switch to auto mode · auto mode handles these prompts for you
+   4. No
+
+ Esc to cancel · Tab to amend
+
+
+
+
+
+
+
+
+
+
+
+
+

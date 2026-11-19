@@ -43,6 +43,8 @@ public enum HostRequest: Codable, Equatable, Sendable {
     case resize(id: String, cols: UInt16, rows: UInt16)
     case kill(id: String)
     case killAll
+    /// Terminalin görünen ekranını ister (yalnız Claude terminali). Eski yardımcı `.error` döner.
+    case screen(id: String)
 }
 
 public enum HostEvent: Codable, Equatable, Sendable {
@@ -51,6 +53,7 @@ public enum HostEvent: Codable, Equatable, Sendable {
     case output(id: String, data: Data)
     case exited(id: String, code: Int32?)
     case error(String)
+    case screen(id: String, lines: [String], cursorRow: Int)
 }
 
 /// Çerçeve: 4 bayt büyük-endian uzunluk + JSON gövde.

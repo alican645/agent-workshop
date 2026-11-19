@@ -1,0 +1,28 @@
+[
+  {
+    "asksForConvertedSkills" : false,
+    "cwd" : "\/private\/tmp\/claude-501\/-Users-exampleuser-Downloads-Projeler-AjanTakip\/68319abe-69fe-4efd-beff-a339819227c9\/scratchpad\/demo",
+    "entrypoint" : "cli",
+    "kind" : "interactive",
+    "messagingSocketPath" : "\/tmp\/cc-socks\/36711.sock",
+    "name" : "demo-ed",
+    "nameSince" : 1795032383445,
+    "nameSource" : "derived",
+    "peerFeatures" : [
+      "notify_idle",
+      "reply_across_default_dirs",
+      "artifact_yield"
+    ],
+    "peerProtocol" : 1,
+    "pid" : 36711,
+    "pidDomain" : "darwin",
+    "procStart" : "Wed Nov 18 20:06:23 2026",
+    "sessionId" : "20fba98b-bb48-4581-b982-61e166a2ba5b",
+    "startedAt" : 1795032383445,
+    "status" : "waiting",
+    "statusUpdatedAt" : 1795032390805,
+    "updatedAt" : 1795032390805,
+    "version" : "2.1.327",
+    "waitingFor" : "permission prompt"
+  }
+]

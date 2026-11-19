@@ -7,12 +7,15 @@ public struct RobotDetails: Sendable {
     public var history: [ToolUse]
     public var helpers: [Helper]
     public var waitingFor: String?
+    /// Ekrandaki (ya da kayıttaki) seçenek menüsü; yalnız bekleyen robotta snapshot'a girer.
+    public var prompt: PromptInfo?
 
-    public init(tool: ToolUse?, history: [ToolUse], helpers: [Helper], waitingFor: String?) {
+    public init(tool: ToolUse?, history: [ToolUse], helpers: [Helper], waitingFor: String?, prompt: PromptInfo? = nil) {
         self.tool = tool
         self.history = history
         self.helpers = helpers
         self.waitingFor = waitingFor
+        self.prompt = prompt
     }
 }
 
@@ -40,6 +43,8 @@ public struct RobotInfo: Codable, Equatable, Sendable {
     public var cost: Double? = nil
     /// Yapılacaklardan robota verilen iş (Atölye bu terminali o işle açtıysa).
     public var task: String? = nil
+    /// Bekleyen robotun seçenek menüsü (balon).
+    public var prompt: PromptInfo? = nil
 }
 
 /// Atölyede açılmış düz terminal: tezgâhta bir makine.
@@ -194,7 +199,8 @@ public enum Workshop {
                     history: (d?.history ?? []).suffix(historyLimit).reversed().map(toolText),
                     terminal: terminalOf[s.id],
                     tokens: usage[s.id]?.tokens.total, cost: usage[s.id]?.cost,
-                    task: terminalOf[s.id].flatMap { tasks[$0] })
+                    task: terminalOf[s.id].flatMap { tasks[$0] },
+                    prompt: s.state == .waiting ? d?.prompt : nil)
             }
             let list = (todos[root] ?? []).prefix(todoLimit).map { ZoneTodo(line: $0.line, text: $0.text, done: $0.done) }
             return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(list),

@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Haiku 5.5 · Claude Pro
+ ▝▝   ▝▝   /…/-Users-exampleuser-Downloads-Projeler-AjanTakip/68319abe-69fe-4efd-beff-a339819227c9/scratchpad/demo
+
+
+❯ Use the AskUserQuestion tool to ask me exactly one multi-select question (multiSelect true), "Which fruits do you
+  like?", header "Fruits", with the options Apple, Banana and Cherry. Do nothing else.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+←  ☐ Fruits  ✔ Submit  →
+
+Which fruits do you like?
+
+❯ 1. [ ] Apple
+         Apple
+  2. [ ] Banana
+         Banana
+  3. [ ] Cherry
+         Cherry
+  4. [ ] Type something
+     Submit
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

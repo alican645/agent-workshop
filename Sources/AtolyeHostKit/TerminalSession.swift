@@ -10,6 +10,8 @@ final class TerminalSession: LocalProcessDelegate {
     var info: TerminalInfo
     var buffer = RingBuffer(capacity: TerminalSession.bufferCapacity)
     var attached = Set<ObjectIdentifier>()
+    /// Görünen ekranın aynası; yalnız Claude terminalinde (seçenek menülerini okumak için).
+    let mirror: ScreenMirror?
     private var process: LocalProcess!
     private var size: winsize
     private let onOutput: (TerminalSession, Data) -> Void
@@ -18,6 +20,7 @@ final class TerminalSession: LocalProcessDelegate {
     init(info: TerminalInfo, cols: UInt16, rows: UInt16, queue: DispatchQueue,
          onOutput: @escaping (TerminalSession, Data) -> Void, onExit: @escaping (TerminalSession, Int32?) -> Void) {
         self.info = info
+        mirror = info.kind == .claude ? ScreenMirror(cols: Int(cols), rows: Int(rows)) : nil
         size = winsize(ws_row: max(rows, 1), ws_col: max(cols, 1), ws_xpixel: 0, ws_ypixel: 0)
         self.onOutput = onOutput
         self.onExit = onExit
@@ -39,6 +42,7 @@ final class TerminalSession: LocalProcessDelegate {
     func resize(cols: UInt16, rows: UInt16) {
         size = winsize(ws_row: max(rows, 1), ws_col: max(cols, 1), ws_xpixel: 0, ws_ypixel: 0)
         process.updateWindowSize(&size)
+        mirror?.resize(cols: Int(size.ws_col), rows: Int(size.ws_row))
     }
 
     func terminate() {
@@ -71,6 +75,7 @@ final class TerminalSession: LocalProcessDelegate {
     func dataReceived(slice: ArraySlice<UInt8>) {
         let d = Data(slice)
         buffer.append(d)
+        mirror?.feed(d)
         info.lastOutputAt = Date()
         onOutput(self, d)
     }

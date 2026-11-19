@@ -63,6 +63,22 @@ final class WorkshopModel {
     private(set) var todayCost = 0.0
     private(set) var todayTokens = 0
     static let usageInterval: TimeInterval = 4
+    /// Seçenek menüsü: terminal → son ekran isteği (zamanı ve o anki son çıktı zamanı).
+    @ObservationIgnored private var screenAsked: [String: (at: Date, output: Date?)] = [:]
+    /// Robot → gönderilen cevap (zamanı, gönderildiği menünün kimliği ve o anki bekleyen araç çağrısı);
+    /// menü kalkınca, değişince ya da bekleyen çağrı değişince silinir.
+    @ObservationIgnored private var promptSent: [String: (at: Date, menu: String, tool: String?)] = [:]
+    /// Ekranı okunup tuşları hazırlanan cevaplar (robot); bu sürede ikinci tık yok sayılır.
+    @ObservationIgnored private var answering: Set<String> = []
+    /// Gönderildiği halde menüsü yerinde duran robotlar ("gitmedi — terminali aç"). Bu menüye bir daha
+    /// cevap gönderilmez: tuşların neden tutmadığı bilinmiyor; kullanıcı terminalde cevaplar.
+    @ObservationIgnored private var promptFailed: Set<String> = []
+    /// Oturum → plans/<oturum>.md'ye son yazılan plan metni.
+    @ObservationIgnored private var planWritten: [String: String] = [:]
+    /// Terminal başına ekran isteği aralığı (zamanlayıcı toleransı için 1 sn'den biraz az).
+    static let screenInterval: TimeInterval = 0.9
+    /// Cevaptan sonra menü bu kadar süre yerinde durursa gitmedi sayılır.
+    static let answerTimeout: TimeInterval = 8
 
     private struct Transcript {
         var path: String?
@@ -204,6 +220,14 @@ final class WorkshopModel {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         changeDesk { $0.open(.markdown(url.path), root: root) }
+    }
+
+    /// Bekleyen ajanın plan dosyasını, robotun bölgesinde yüzen Markdown penceresi olarak açar.
+    /// Plan yolu ya da bölge yoksa hiçbir şey yapmaz.
+    func openPlan(robot id: String) {
+        guard let zone = snapshot?.zones.first(where: { $0.robots.contains { $0.id == id } }),
+              let path = zone.robots.first(where: { $0.id == id })?.prompt?.planPath else { return }
+        changeDesk { $0.open(.markdown(path), root: zone.id) }
     }
 
     /// Pencereyi kapatır; çalışan terminalse önce sorar.
@@ -421,10 +445,16 @@ final class WorkshopModel {
             }
             transcripts[s.id] = t
             details[s.id] = RobotDetails(tool: s.state == .working ? t.history.last : nil, history: t.history,
-                                         helpers: helpers, waitingFor: e.waitingFor)
+                                         helpers: helpers, waitingFor: e.waitingFor,
+                                         prompt: prompt(for: s, terminal: terminalOf[s.id], pending: t.tail.pending, now: now))
         }
         let live = Set(store.sessions.map(\.id))
         transcripts = transcripts.filter { live.contains($0.key) }
+        promptSent = promptSent.filter { live.contains($0.key) }
+        promptFailed.formIntersection(live)
+        answering.formIntersection(live)
+        planWritten = planWritten.filter { live.contains($0.key) }
+        screenAsked = screenAsked.filter { host.terminals[$0.key] != nil }
         sessionProfile = byID.mapValues(\.profileID)
         sessionTerminal = terminalOf
         if !pendingMoves.isEmpty { pendingMoves.formIntersection(live); moveSessions(onlyPending: true) }
@@ -452,6 +482,100 @@ final class WorkshopModel {
         notify(old: snapshot, new: snap)
         snapshot = snap
         snapshotJSON = String(decoding: data, as: UTF8.self)
+    }
+
+    // MARK: Seçenek menüsü
+
+    /// Oturumun Claude terminali Atölye'deyse ve yardımcı ekran okuyabiliyorsa kimliği.
+    private func screenTerminal(_ tid: String?) -> String? {
+        guard let tid, host.screenSupported, host.terminals[tid]?.kind == .claude else { return nil }
+        return tid
+    }
+
+    /// Bekleyen robotun balonu: ekranı (gerekirse) ister, ayrıştırır, kayıtla birleştirir; gönderim durumunu izler.
+    private func prompt(for s: Session, terminal: String?, pending: PendingTool?, now: Date) -> PromptInfo? {
+        guard s.state == .waiting else {
+            promptSent[s.id] = nil
+            promptFailed.remove(s.id)
+            // Cevaplanmış menünün ekranı önbellekte kalmasın: bir sonraki beklemede taze ekran beklenir.
+            if let terminal { host.forgetScreen(terminal) }
+            return nil
+        }
+        let tid = screenTerminal(terminal)
+        var parsed: ScreenPrompt?
+        if let tid {
+            requestScreenIfNeeded(tid, now: now)
+            parsed = host.screens[tid].flatMap { PromptParser.parse(lines: $0.lines, cursorRow: $0.cursorRow) }
+        }
+        // Menü kalktı ya da başka bir menü geldi: gönderim tamam. Aynı menü 8 sn'dir duruyorsa gitmemiş.
+        if let sent = promptSent[s.id] {
+            if let parsed, parsed.menuId == sent.menu, pending?.id == sent.tool {
+                if now.timeIntervalSince(sent.at) > Self.answerTimeout { promptFailed.insert(s.id) }
+            } else {
+                promptSent[s.id] = nil
+                promptFailed.remove(s.id)
+            }
+        } else if parsed == nil {
+            promptFailed.remove(s.id)
+        }
+        let screenRead = tid.map { host.screens[$0] != nil } ?? false
+        var info = PromptMerge.info(screen: parsed, pending: pending, hasTerminal: tid != nil, screenRead: screenRead,
+                                    sent: promptSent[s.id] != nil, failed: promptFailed.contains(s.id))
+        if info?.kind == .plan { info?.planPath = planFile(session: s.id, pending: pending) }
+        return info
+    }
+
+    /// Terminal başına saniyede en çok bir istek; yalnız son istekten beri çıktı geldiyse ya da ekran hiç yoksa.
+    private func requestScreenIfNeeded(_ tid: String, now: Date) {
+        let output = host.terminals[tid]?.lastOutputAt
+        if let last = screenAsked[tid] {
+            if now.timeIntervalSince(last.at) < Self.screenInterval { return }
+            if host.screens[tid] != nil, last.output == output { return }
+        }
+        screenAsked[tid] = (now, output)
+        host.screen(tid)
+    }
+
+    /// Bekleyen ExitPlanMode'un planını `plans/<oturum>.md`'ye yazar (yalnız metin değiştiyse); yolu döner.
+    private func planFile(session id: String, pending: PendingTool?) -> String? {
+        guard pending?.name == "ExitPlanMode", let text = pending?.input["plan"]?.string, !text.isEmpty else { return nil }
+        let dir = HostPaths.supportDir + "/plans"
+        let path = dir + "/" + id + ".md"
+        if planWritten[id] != text || !FileManager.default.fileExists(atPath: path) {
+            do {
+                try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                try text.write(toFile: path, atomically: true, encoding: .utf8)
+                planWritten[id] = text
+            } catch {
+                return nil
+            }
+        }
+        return path
+    }
+
+    /// Balondan gelen cevabı terminale tuş olarak yollar. Önce ekran yeniden okunur; cevap o ekrana
+    /// uymuyorsa (menü kimliği ya da etiketler farklı) hiçbir şey gönderilmez, yalnız görüntü tazelenir.
+    func answer(robot id: String, answer: PromptAnswer) {
+        guard let s = store.sessions.first(where: { $0.id == id }), s.state == .waiting,
+              let tid = screenTerminal(sessionTerminal[id]) else { return }
+        // Gönderilmiş cevabın üstüne ikinci kez basma (çift tık); gitmedi sayılan menüye de yeniden deneme yok.
+        // Ekran beklenirken gelen ikinci tık da yok sayılır: ikisi aynı (tuşlardan önceki) ekranı alıp tuşları
+        // iki kez yollardı.
+        func busy() -> Bool { answering.contains(id) || promptSent[id] != nil || promptFailed.contains(id) }
+        guard !busy() else { return }
+        answering.insert(id)
+        host.requestScreen(tid) { [weak self] screen in
+            guard let self else { return }
+            self.answering.remove(id)
+            let parsed = screen.flatMap { PromptParser.parse(lines: $0.lines, cursorRow: $0.cursorRow) }
+            // PromptKeys menü kimliğini (answer.menuId == parsed.menuId) ve etiketleri karşılaştırır.
+            if self.promptSent[id] == nil, !self.promptFailed.contains(id),
+               let parsed, let keys = PromptKeys.keys(for: answer, on: parsed) {
+                self.host.send(tid, data: keys)
+                self.promptSent[id] = (Date(), parsed.menuId, self.transcripts[id]?.tail.pending?.id)
+            }
+            self.tick(initial: false)
+        }
     }
 
     /// Bekleyenler: pencere vurgusu, Dock rozeti ve (Atölye arka plandayken) bildirim.
