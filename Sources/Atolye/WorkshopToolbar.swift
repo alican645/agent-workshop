@@ -7,6 +7,11 @@ struct WorkshopToolbar: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            Button { model.toggleSidebar() } label: {
+                BarChip(icon: "sidebar.left", title: "")
+            }
+            .buttonStyle(.plain)
+            .help(model.sidebarHidden ? L("Sol paneli göster (⌃⌘S)") : L("Sol paneli gizle (⌃⌘S)"))
             Text("Agent Workshop").font(.headline).foregroundStyle(Theme.barText)
             Spacer()
             // Pencereler
@@ -27,6 +32,8 @@ struct WorkshopToolbar: View {
             .help(L("Bir proje klasörünü atölyeye sabitle"))
         }
         .padding(.horizontal, 14)
+        // Panel gizliyken çubuk pencerenin sol kenarına dayanır; kapat/küçült düğmelerine yer bırak.
+        .padding(.leading, model.sidebarHidden ? 64 : 0)
         .frame(height: 38)
         .background(Theme.bar)
         .overlay(alignment: .bottom) { Divider() }
@@ -106,7 +113,7 @@ struct BarChip: View {
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-            Text(title).font(.system(size: 12, weight: .semibold))
+            if !title.isEmpty { Text(title).font(.system(size: 12, weight: .semibold)) }
             if let detail {
                 Text(detail).font(.system(size: 12)).opacity(tint == nil ? 1 : 0.85)
                     .foregroundStyle(tint == nil ? Theme.barMuted : .white)

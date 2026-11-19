@@ -148,6 +148,18 @@ final class WorkshopModel {
     @ObservationIgnored var arriving: Set<String> = []
     /// Sol paneldeki proje başlıklarının pencere koordinatlarındaki yeri (çekilme hedefi).
     @ObservationIgnored var sidebarTargets: [String: CGRect] = [:]
+    /// Sol panel (oturum listesi) gizli mi; seçim hatırlanır.
+    var sidebarHidden = UserDefaults.standard.bool(forKey: "sidebarHidden") {
+        didSet {
+            UserDefaults.standard.set(sidebarHidden, forKey: "sidebarHidden")
+            // Panel yokken çekilme hedefi de yok: küçültülen pencereler sağ üstteki rafta durur.
+            if sidebarHidden { sidebarTargets = [:] }
+        }
+    }
+
+    func toggleSidebar() {
+        withAnimation(.smooth(duration: 0.38)) { sidebarHidden.toggle() }
+    }
     @ObservationIgnored private var tuckGeneration = 0
     static let tuckDuration = 0.34
 
