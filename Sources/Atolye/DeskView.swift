@@ -40,8 +40,8 @@ struct DeskView: View {
 
     /// Pencerenin merkezini sol paneldeki projesinin başlığına taşıyan kayma (yoksa panelin ortasına).
     private func tuckMove(_ r: FloatRect, root: String, canvas: CGSize, origin: CGPoint) -> CGSize {
-        let target = model.sidebarTargets[root].map { CGPoint(x: $0.midX - origin.x, y: $0.midY - origin.y) }
-            ?? CGPoint(x: -125, y: canvas.height / 2)
+        let target = (model.sidebarHidden ? nil : model.sidebarTargets[root]).map { CGPoint(x: $0.midX - origin.x, y: $0.midY - origin.y) }
+            ?? (model.sidebarHidden ? CGPoint(x: canvas.width - 60, y: 24) : CGPoint(x: -125, y: canvas.height / 2))
         let cx = (r.x + r.w / 2) * canvas.width, cy = (r.y + r.h / 2) * canvas.height
         return CGSize(width: target.x - cx, height: target.y - cy)
     }
@@ -55,7 +55,7 @@ struct DeskView: View {
     private var shelf: some View {
         HStack(spacing: 6) {
             // Yalnız sol panelde yeri olmayan projelerin küçültülmüş pencereleri burada kalır.
-            ForEach(model.desk.windows.filter { $0.minimized && model.sidebarTargets[$0.root] == nil }) { w in
+            ForEach(model.desk.windows.filter { $0.minimized && (model.sidebarHidden || model.sidebarTargets[$0.root] == nil) }) { w in
                 Button { model.changeDesk { $0.raise(w.id) } } label: {
                     HStack(spacing: 6) {
                         Circle().fill(model.zoneColor(w.root).map(Color.init(hex:)) ?? Theme.muted).frame(width: 8, height: 8)

@@ -18,9 +18,17 @@ struct AtolyeApp: App {
         Window("Agent Workshop", id: "atolye") {
             // cmux gibi: solda hep oturum listesi; sağda atölye ya da açık projenin terminalleri.
             HStack(spacing: 0) {
+                // Panel ağaçta kalır; genişliği daralırken kendisi sola kayar (yumuşak geçiş).
+                let hidden = model.sidebarHidden
                 SessionSidebar(model: model)
                     .frame(width: 250)
-                Divider()
+                    .offset(x: hidden ? -250 : 0)
+                    .opacity(hidden ? 0 : 1)
+                    .frame(width: hidden ? 0 : 250, alignment: .leading)
+                    .clipped()
+                    .allowsHitTesting(!hidden)
+                    .accessibilityHidden(hidden)
+                Divider().opacity(hidden ? 0 : 1)
                 VStack(spacing: 0) {
                     WorkshopToolbar(model: model)
                     // Terminaller sahnenin üstünde yüzen pencereler; sahne hep görünür.
@@ -45,6 +53,10 @@ struct AtolyeApp: App {
         .commands {
             CommandGroup(after: .appSettings) { LanguageMenu() }
             CommandGroup(before: .windowList) { MainWindowButton() }
+            CommandGroup(replacing: .sidebar) {
+                Button(model.sidebarHidden ? L("Sol paneli göster") : L("Sol paneli gizle")) { model.toggleSidebar() }
+                    .keyboardShortcut("s", modifiers: [.control, .command])
+            }
             CommandMenu(L("Terminaller")) {
                 Button(L("Tüm terminalleri kapat…")) { model.killAllTerminals() }
             }
