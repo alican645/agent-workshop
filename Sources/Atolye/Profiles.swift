@@ -1,5 +1,6 @@
 import AtolyeCore
 import AppKit
+import AtolyeHostKit
 import Foundation
 
 /// Claude hesapları (profiller). Bütün profiller aynı skill'leri, ayarları, hafızayı ve geçmişi kullanır
@@ -149,6 +150,30 @@ final class Profiles {
             try? new.write(toFile: real, atomically: true, encoding: .utf8)
         }
         rewrite(mainDir + "/statusline-command.sh") { AtolyeIntegration.installStatusline(into: $0) }
+        // Balondan cevap için Claude Code hook'u: önce sabit yola kopyalanır, ayarlar o yolu gösterir.
+        if installHookBinary() {
+            rewrite(mainDir + "/settings.json") { AtolyeIntegration.installHooks(into: $0, executable: HostPaths.hookBinary) }
+        }
+    }
+
+    /// Paketteki `atolye-hook`'u Application Support'a kopyalar (aynıysa dokunmaz). Hook kullanılabilir mi.
+    nonisolated private static func installHookBinary() -> Bool {
+        let fm = FileManager.default
+        guard let src = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("atolye-hook").path,
+              let data = fm.contents(atPath: src) else { return fm.isExecutableFile(atPath: HostPaths.hookBinary) }
+        if fm.contents(atPath: HostPaths.hookBinary) == data { return true }
+        let dir = (HostPaths.hookBinary as NSString).deletingLastPathComponent
+        let tmp = HostPaths.hookBinary + ".new"
+        do {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try? fm.removeItem(atPath: tmp)
+            try fm.copyItem(atPath: src, toPath: tmp)
+            // Çalışan bir hook eski dosyayı açık tutuyor olabilir: yerine taşımak onu bozmaz.
+            _ = rename(tmp, HostPaths.hookBinary)
+        } catch {
+            return fm.isExecutableFile(atPath: HostPaths.hookBinary)
+        }
+        return fm.isExecutableFile(atPath: HostPaths.hookBinary)
     }
 
     nonisolated private static func backup(_ path: String) {
