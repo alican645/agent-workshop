@@ -57,6 +57,7 @@
   .newrow{display:flex;gap:6px}.newrow .enter{flex:1;padding:7px 4px;font-size:12px}
   .enter{display:block;width:100%;margin:4px 0 10px;padding:8px;font-weight:600;background:#2c2a26;color:#fff;border-color:#2c2a26}
   .mach{font-size:12px;padding:3px 0;cursor:pointer;color:#5c554b}
+  .card{display:flex;align-items:center;gap:7px}
   .mach:hover{color:#2c2a26}
   .unpin{font-size:11px;color:#a09583;cursor:pointer;margin-top:10px;display:inline-block}
   .tag.m{font-weight:500;color:#5c554b;font-size:10px}
@@ -123,6 +124,7 @@ import { BUILTINS, DEFAULTS, pick } from './robots.mjs';
 import { modelKind, customKind, instantiate, fallbackPose } from './robotkit.mjs';
 import { t, LOCALE } from './i18n.mjs';
 import { homeDistance, homePosition } from './view.mjs';
+import { gearLayout, gearColor, gearSpeed, cardLabel } from './gears.mjs';
 import { waitingPrompts, balloonHtml, answerMessage, isPlaceholder, isCheckable, isOff, initialChecks, menuKey, dropFocus } from './prompts.mjs';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
@@ -265,10 +267,12 @@ function buildZone(info) {
   hit.position.y = 2; g.add(hit);
   const board = buildBoard(); board.g.position.set(-4.25, 0.16, -3.75); g.add(board.g);
   board.hit.userData.zoneId = info.id; boardHits.push(board.hit);
+  const rack = buildRack(); rack.g.position.set(4.25, 0.16, -3.75); g.add(rack.g);
+  rack.hit.userData.zoneId = info.id; rackHits.push(rack.hit);
   const slots = new THREE.Group(); bench.add(slots);
   const machGroup = new THREE.Group(); g.add(machGroup);
   g.scale.setScalar(0.001);
-  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag, board, balloon, balEl, prompts: [] };
+  const Z = { id: info.id, info, g, bench, slots, slotCount: -1, xs: [], screens: [], crates, frame, fm, lamp, hit, more, target: new V(), leaving: false, robots: [], machGroup, machKey: '', machs: [], gitEl, gitTag, board, rack, balloon, balEl, prompts: [] };
   wireBalloon(Z);
   zones.set(info.id, Z);
   return Z;
@@ -365,6 +369,102 @@ function setBoard(Z, todos) {
     }
   });
   Z.board.mat.map?.dispose(); Z.board.mat.map = tex; Z.board.mat.needsUpdate = true;
+}
+
+// ---------- makine panosu (RUN.local.json çalıştırma kartları) ----------
+// Her kart bir çark: çalışırken döner, bitince durur; renk sonucu gösterir.
+const rackHits = [], gearHits = [];
+const RACK_FACE = { w: 2.38, h: 1.6, y: 2.35 };
+function buildRack() {
+  const g = new THREE.Group();
+  for (const x of [-1.05, 1.05]) { const leg = box(0.07, 3.05, 0.07, metal); leg.position.set(x, 1.52, -0.06); g.add(leg); }
+  for (const x of [-1.05, 1.05]) { const foot = box(0.07, 0.05, 0.7, metal); foot.position.set(x, 0.03, -0.06); g.add(foot); }
+  const frame = box(2.5, 1.72, 0.07, 0x5b5751, { roughness: 0.45, metalness: 0.4 }); frame.position.y = 2.35; g.add(frame);
+  // üst kenarda ikaz şeridi
+  const stripe = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.07), new THREE.MeshStandardMaterial({ map: canvasTex(256, 8, (c, w, h) => {
+    for (let x = -8; x < w; x += 16) { c.fillStyle = (x / 16) % 2 ? '#2c2a26' : '#f0b429'; c.beginPath(); c.moveTo(x, h); c.lineTo(x + 8, 0); c.lineTo(x + 16, 0); c.lineTo(x + 8, h); c.fill(); }
+  }), roughness: 0.6 }));
+  stripe.position.set(0, 3.175, 0.037); g.add(stripe);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0.15 });
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(RACK_FACE.w, RACK_FACE.h), mat); face.position.set(0, RACK_FACE.y, 0.037); g.add(face);
+  const gears = new THREE.Group(); gears.position.z = 0.09; g.add(gears);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.9, 0.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  hit.position.y = 2.3; g.add(hit);
+  return { g, mat, gears, hit, key: null, items: [] };
+}
+function gearMesh() {
+  const mat = new THREE.MeshStandardMaterial({ color: gearColor('idle'), metalness: 0.65, roughness: 0.32, emissive: 0x000000 });
+  const gear = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 28), mat); disc.rotation.x = Math.PI / 2; gear.add(disc);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.08), mat);
+    tooth.position.set(Math.cos(a) * 0.235, Math.sin(a) * 0.235, 0); tooth.rotation.z = a + Math.PI / 2; gear.add(tooth);
+  }
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.1, 16), new THREE.MeshStandardMaterial({ color: 0x2c2a26, metalness: 0.5, roughness: 0.4 }));
+  hub.rotation.x = Math.PI / 2; gear.add(hub);
+  gear.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return { gear, mat };
+}
+/** Pano yüzü yerel koordinatından kanvas pikseline. */
+function rackPx(x, y, w, h) { return [((x + RACK_FACE.w / 2) / RACK_FACE.w) * w, ((RACK_FACE.y + RACK_FACE.h / 2 - y) / RACK_FACE.h) * h]; }
+function setRack(Z, cards) {
+  const list = cards || [], R = Z.rack;
+  const key = list.map((c) => c.id + '\u0001' + c.name).join('\n');
+  if (key !== R.key) {
+    R.key = key;
+    for (const it of R.items) { const i = gearHits.indexOf(it.hit); if (i >= 0) gearHits.splice(i, 1); }
+    while (R.gears.children.length) dispose(R.gears.children[0]);
+    const { slots, more } = gearLayout(list.length);
+    const old = new Map(R.items.map((it) => [it.id, it]));
+    R.items = slots.map((p, i) => {
+      const c = list[i], { gear, mat } = gearMesh();
+      gear.position.set(p.x, p.y, 0); R.gears.add(gear);
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.3), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      hit.position.set(p.x, p.y - 0.1, 0); hit.userData = { zoneId: Z.id, card: c.id }; R.gears.add(hit); gearHits.push(hit);
+      const prev = old.get(c.id);
+      return { id: c.id, gear, mat, hit, state: prev ? prev.state : c.state, okAt: prev ? prev.okAt : -Infinity };
+    });
+    const tex = canvasTex(768, 512, (cx, w, h) => {
+      cx.fillStyle = '#3d3a36'; cx.fillRect(0, 0, w, h);
+      // ince perçinler
+      cx.fillStyle = '#56524c'; for (const [x, y] of [[18, 18], [w - 18, 18], [18, h - 18], [w - 18, h - 18]]) { cx.beginPath(); cx.arc(x, y, 6, 0, Math.PI * 2); cx.fill(); }
+      cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      slots.forEach((p, i) => {
+        const [x, y] = rackPx(p.x, p.y - 0.36, w, h);
+        cx.fillStyle = '#ece6dc'; cx.font = '600 30px -apple-system, system-ui, sans-serif';
+        cx.fillText(cardLabel(list[i].name), x, y);
+      });
+      if (more) { cx.fillStyle = '#b8b0a3'; cx.font = '600 34px -apple-system, system-ui, sans-serif'; cx.fillText(`+${more}`, w - 70, h - 36); }
+      if (!list.length) { // boş pano: ekleme ipucu
+        cx.strokeStyle = '#8a837a'; cx.lineWidth = 5; cx.setLineDash([14, 12]);
+        cx.beginPath(); cx.roundRect(w / 2 - 44, h / 2 - 80, 88, 88, 12); cx.stroke(); cx.setLineDash([]);
+        cx.beginPath(); cx.moveTo(w / 2, h / 2 - 58); cx.lineTo(w / 2, h / 2 - 14); cx.moveTo(w / 2 - 22, h / 2 - 36); cx.lineTo(w / 2 + 22, h / 2 - 36); cx.stroke();
+        cx.fillStyle = '#b8b0a3'; cx.font = '600 32px -apple-system, system-ui, sans-serif'; cx.fillText(t('kart ekle'), w / 2, h / 2 + 50);
+      }
+    });
+    R.mat.map?.dispose(); R.mat.map = tex; R.mat.needsUpdate = true;
+  }
+  // Durum: yeni başarıda yeşil parlama başlar (ilk görüşte zaten bitmişse parlamaz).
+  const now = performance.now() / 1000;
+  for (const it of R.items) {
+    const c = list.find((x) => x.id === it.id); if (!c) continue;
+    if (c.state === 'ok' && it.state !== 'ok' && it.state !== undefined && R.seen) it.okAt = now;
+    it.state = c.state;
+  }
+  R.seen = true;
+}
+function animateRack(Z, dt) {
+  const now = performance.now() / 1000;
+  for (const it of Z.rack.items) {
+    it.gear.rotation.z -= gearSpeed(it.state) * dt;
+    const since = now - it.okAt;
+    it.mat.color.setHex(gearColor(it.state, since));
+    if (it.state === 'running') { it.mat.emissive.setHex(0x7a3a00); it.mat.emissiveIntensity = 0.35 + 0.25 * Math.sin(now * 6); }
+    else if (it.state === 'ok' && since < 2) { it.mat.emissive.setHex(0x1f8a55); it.mat.emissiveIntensity = 0.9 * (1 - since / 2); }
+    else if (it.state === 'failed') { it.mat.emissive.setHex(0x6a1412); it.mat.emissiveIntensity = 0.35; }
+    else it.mat.emissiveIntensity = 0;
+  }
 }
 
 // ---------- machines (düz terminaller) ----------
@@ -629,13 +729,15 @@ function renderPanel() {
       (r.state === 'waiting' ? `<div class="ask">${t('{0} — cmux\'ta yanıtla', waitText(r))}</div>` : '') + `</div>`).join('') +
     (hist ? `<h4>${t('SON İŞLER')}</h4><ul class="hist">${hist}</ul>` : '') +
     (machs ? `<h4>${t('TERMİNALLER')}</h4>${machs}` : '') +
-    todoHtml(z) +
+    todoHtml(z) + cardsHtml(z) +
     (z.pinned ? `<span class="unpin" id="unpin">${t('sabitlemeyi kaldır')}</span>` : '');
   panel.style.display = 'block';
   if (html === panel._last) return;
   panel._last = html; panel.innerHTML = html;
   document.getElementById('fold').onclick = () => setFolded(true);
   const to = document.getElementById('todoOpen'); if (to) to.onclick = () => post({ type: 'todoOpen', root: z.id });
+  const ro = document.getElementById('runOpen'); if (ro) ro.onclick = () => post({ type: 'runOpen', root: z.id });
+  panel.querySelectorAll('.card').forEach((el) => el.onclick = () => post({ type: 'runCard', root: z.id, id: el.dataset.card }));
   panel.querySelectorAll('.sess').forEach((el) => el.onclick = () => post({ type: 'focus', id: el.dataset.id }));
   panel.querySelectorAll('.mach').forEach((el) => el.onclick = () => post({ type: 'openTerminal', id: el.dataset.term }));
   panel.querySelectorAll('.newrow .enter').forEach((el) => el.onclick = () => post({ type: 'newWindow', root: z.id, kind: el.dataset.kind }));
@@ -647,6 +749,15 @@ function todoHtml(z) {
   return `<h4>${t('YAPILACAKLAR')}${list.length ? `<span class="cnt">${done}/${list.length}</span>` : ''}</h4>` +
     `<div class="todosum">${list.length ? `<span class="bar"><i style="width:${pct}%"></i></span>` : `<span style="flex:1;color:#a09583">${t('henüz madde yok')}</span>`}` +
     `<button id="todoOpen">${t('Aç')}</button></div>`;
+}
+const RUN_TEXT = { idle: () => t('boşta'), running: () => t('çalışıyor'), ok: () => t('başarılı'), failed: () => t('hata verdi') };
+function cardsHtml(z) {
+  const list = z.cards || [];
+  const rows = list.map((c) => `<div class="mach card" data-card="${esc(c.id)}"><span class="d" style="background:#${gearColor(c.state, 9).toString(16).padStart(6, '0')}"></span>` +
+    `${esc(c.name)} <span style="color:#a09583">· ${(RUN_TEXT[c.state] || RUN_TEXT.idle)()}</span></div>`).join('');
+  return `<h4>${t('KARTLAR')}</h4>${rows}` +
+    `<div class="todosum">${list.length ? '<span style="flex:1"></span>' : `<span style="flex:1;color:#a09583">${t('henüz kart yok')}</span>`}` +
+    `<button id="runOpen">${t('Düzenle')}</button></div>`;
 }
 function select(Z) {
   selected = Z.id;
@@ -669,6 +780,16 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (rh) { const r = rh.object.userData.robot; post({ type: 'focus', id: r.parent ? r.parent.id : r.id }); return; }
   const mh = ray.intersectObjects(machHits)[0];
   if (mh) { post({ type: 'openTerminal', id: mh.object.userData.machine }); return; }
+  const gh = ray.intersectObjects(gearHits)[0];
+  if (gh) {
+    const Z = zones.get(gh.object.userData.zoneId);
+    if (Z && !Z.leaving) { post({ type: 'runCard', root: Z.id, id: gh.object.userData.card }); return; }
+  }
+  const kh = ray.intersectObjects(rackHits)[0];
+  if (kh) {
+    const Z = zones.get(kh.object.userData.zoneId);
+    if (Z && !Z.leaving) { post({ type: 'runOpen', root: Z.id }); return; }
+  }
   const bh = ray.intersectObjects(boardHits)[0];
   if (bh) {
     const Z = zones.get(bh.object.userData.zoneId);
@@ -884,6 +1005,7 @@ function apply(s) {
     setSlots(Z, shown.length);
     setMachines(Z, info.machines || []);
     setBoard(Z, info.todos);
+    setRack(Z, info.cards);
     applyGit(Z, (prev.zones.find((z) => z.id === info.id) || {}).git, info.git);
     Z.more.visible = info.robots.length > MAX_SLOTS;
     Z.more.element.textContent = `+${info.robots.length - MAX_SLOTS}`;
@@ -985,8 +1107,9 @@ function tick() {
   for (const Z of [...zones.values()]) {
     const target = Z.leaving ? 0.001 : 1;
     const s = THREE.MathUtils.damp(Z.g.scale.x, target, 4, dt); Z.g.scale.setScalar(s);
-    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } { const i = boardHits.indexOf(Z.board.hit); if (i >= 0) boardHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
+    if (Z.leaving && s < 0.01 && ![...robots.values()].some((r) => r.zone === Z)) { zones.delete(Z.id); for (const m of Z.machs) { const i = machHits.indexOf(m.hit); if (i >= 0) machHits.splice(i, 1); } { const i = boardHits.indexOf(Z.board.hit); if (i >= 0) boardHits.splice(i, 1); } { const i = rackHits.indexOf(Z.rack.hit); if (i >= 0) rackHits.splice(i, 1); } for (const it of Z.rack.items) { const i = gearHits.indexOf(it.hit); if (i >= 0) gearHits.splice(i, 1); } dispose(Z.g); if (selected === Z.id) goHome(); continue; }
     Z.g.position.lerp(Z.target, Math.min(1, dt * 3));
+    animateRack(Z, dt);
     const waiting = Z.info.robots.some((r) => r.state === 'waiting');
     Z.frame.visible = waiting && !Z.leaving;
     if (waiting) { const p = 0.5 + 0.5 * Math.sin(t * 5); Z.fm.emissiveIntensity = 0.6 + 1.4 * p; Z.lamp.intensity = 6 + 18 * p; }

@@ -261,5 +261,8 @@
  "Kartlar": "Cards",
  "Projelerin çalıştırma kartları (RUN.local.json)": "Projects' run cards (RUN.local.json)",
  "Yeni kart": "New card",
- "RUN.local.json yazılamadı": "Couldn't write RUN.local.json"
+ "RUN.local.json yazılamadı": "Couldn't write RUN.local.json",
+ "kart ekle": "add card",
+ "KARTLAR": "CARDS",
+ "henüz kart yok": "no cards yet"
 }
