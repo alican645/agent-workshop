@@ -67,6 +67,24 @@ public struct ZoneInfo: Codable, Equatable, Sendable {
     public var pinned: Bool
     /// Proje bir git deposuysa durumu.
     public var git: GitBadge?
+    /// Çalıştırma kartları (`RUN.local.json` sırasıyla) ve durumları: makine panosundaki çarklar.
+    public var cards: [ZoneCard] = []
+}
+
+/// Makine panosundaki bir çark.
+public struct ZoneCard: Codable, Equatable, Sendable {
+    public var id: String
+    public var name: String
+    public var state: RunState
+    /// Karta ait en yeni terminal (çalışırken tıklanınca öne gelir).
+    public var terminal: String?
+
+    public init(id: String, name: String, state: RunState, terminal: String?) {
+        self.id = id
+        self.name = name
+        self.state = state
+        self.terminal = terminal
+    }
 }
 
 /// Bölgenin beyaz tahtasındaki bir madde. `line` dosyadaki satır; işaretlerken satırın değişmediği bununla denetlenir.
@@ -165,7 +183,8 @@ public enum Workshop {
 
     public static func build(sessions: [Session], details: [String: RobotDetails], todos: [String: [TodoItem]],
                              terminals: [TerminalInfo] = [], terminalOf: [String: String] = [:], tasks: [String: String] = [:], pinned: [String] = [],
-                             git: [String: GitBadge] = [:], usage: [String: SessionUsage] = [:], now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
+                             git: [String: GitBadge] = [:], usage: [String: SessionUsage] = [:], cards: [String: [RunCard]] = [:],
+                             now: Date = Date(), fileExists: (String) -> Bool) -> WorkshopSnapshot {
         var groups: [String: [(Session, String)]] = [:]
         for s in sessions {
             guard let cwd = s.cwd, !cwd.isEmpty else { continue }
@@ -175,9 +194,11 @@ public enum Workshop {
         var machines: [String: [MachineInfo]] = [:]
         for t in terminals where t.kind == .shell {
             let root = projectRoot(cwd: t.cwd, fileExists: fileExists)
+            if groups[root] == nil { groups[root] = [] }
+            // Kart terminali tezgâhta makine değil, panoda çarktır.
+            guard t.run == nil else { continue }
             let active = t.running && (t.lastOutputAt.map { now.timeIntervalSince($0) <= machineActiveWindow } ?? false)
             machines[root, default: []].append(MachineInfo(id: t.id, title: t.title, active: active))
-            if groups[root] == nil { groups[root] = [] }
         }
         let pinnedSet = Set(pinned)
         for p in pinned where groups[p] == nil { groups[p] = [] }
@@ -203,8 +224,12 @@ public enum Workshop {
                     prompt: s.state == .waiting ? d?.prompt : nil)
             }
             let list = (todos[root] ?? []).prefix(todoLimit).map { ZoneTodo(line: $0.line, text: $0.text, done: $0.done) }
+            let zoneCards = (cards[root] ?? []).map { c -> ZoneCard in
+                let t = RunCards.latestTerminal(card: c.id, root: root, in: terminals)
+                return ZoneCard(id: c.id, name: c.name, state: RunCards.state(of: t), terminal: t?.id)
+            }
             return ZoneInfo(id: root, name: name, color: color(for: name), robots: robots, todos: Array(list),
-                            machines: machines[root] ?? [], pinned: pinnedSet.contains(root), git: git[root])
+                            machines: machines[root] ?? [], pinned: pinnedSet.contains(root), git: git[root], cards: zoneCards)
         }
         return WorkshopSnapshot(zones: zones.sorted { ($0.name, $0.id) < ($1.name, $1.id) })
     }

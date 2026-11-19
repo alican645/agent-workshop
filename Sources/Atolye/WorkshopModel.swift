@@ -545,15 +545,20 @@ final class WorkshopModel {
         var todos: [String: [TodoItem]] = [:]
         let roots = Set(store.sessions.compactMap(\.cwd).map { Workshop.projectRoot(cwd: $0, fileExists: fm.fileExists(atPath:)) })
             .union(desk.pinned)
+            // Yalnız kabuk terminali açık projeler de bölgedir: kartları ve maddeleri okunsun.
+            .union(host.terminals.values.filter { $0.kind == .shell }.map { Workshop.projectRoot(cwd: $0.cwd, fileExists: fm.fileExists(atPath:)) })
+        var cards: [String: [RunCard]] = [:]
         for root in roots {
             if let text = try? String(contentsOfFile: root + "/" + TodoList.fileName, encoding: .utf8) {
                 todos[root] = TodoList.parse(text)
             }
+            let c = RunCardFile.cards(root: root)
+            if !c.isEmpty { cards[root] = c }
         }
         var snap = Workshop.build(sessions: store.sessions, details: details, todos: todos,
                                   terminals: Array(host.terminals.values).sorted { $0.id < $1.id },
                                   terminalOf: terminalOf, tasks: taskOfTerminal, pinned: desk.pinned, git: gitBadges, usage: sessionUsage,
-                                  now: now, fileExists: fm.fileExists(atPath:))
+                                  cards: cards, now: now, fileExists: fm.fileExists(atPath:))
         snap.robots = RobotPool.sceneRobots(robotPool.config)
         refreshGit(roots: snap.zones.map(\.id), now: now)
         refreshUsage(configDirs: profiles.map(\.configDir), now: now)
