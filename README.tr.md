@@ -154,8 +154,6 @@ Yalnız onayınla (ilk açılışta ya da **Claude Code entegrasyonu…** menüs
 | `AtolyeHostKit` | Yardımcının ve hook'un sunucu/istemci kodu, [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) ile |
 | `AtolyeCore` | Arayüzden bağımsız çekirdek: oturum tarama, git, kullanım/maliyet, profiller, eşitleme |
 
-Tasarım notları ve uygulama planları `docs/superpowers/` altında.
-
 ## Teşekkürler
 
 - [three.js](https://threejs.org) (MIT) ve robot modeli *RobotExpressive* — Tomás Laulhé (Quaternius), düzenleme
