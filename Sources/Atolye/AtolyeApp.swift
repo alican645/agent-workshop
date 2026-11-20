@@ -96,6 +96,13 @@ struct AtolyeApp: App {
         }
         .defaultSize(width: 860, height: 520)
         .defaultLaunchBehavior(.suppressed)
+        // Claude hesapları: limitler, sıfırlanma, giriş.
+        Window(L("Profiller"), id: "profiles") {
+            ProfilesWindow(model: model)
+                .environment(\.locale, L10n.locale)
+        }
+        .defaultSize(width: 760, height: 480)
+        .defaultLaunchBehavior(.suppressed)
         // Günlük token kullanımı (üst çubuktaki "Bugün" çipinden).
         Window(L("Kullanım"), id: "usage") {
             UsageWindow(model: model)

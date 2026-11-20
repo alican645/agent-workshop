@@ -20,6 +20,16 @@ public struct AccountUsage: Equatable, Codable, Sendable {
     }
     public func effectiveFiveHour(now: Date) -> Double? { Self.effective(fiveHour, fiveHourResetsAt, now) }
     public func effectiveSevenDay(now: Date) -> Double? { Self.effective(sevenDay, sevenDayResetsAt, now) }
+
+    /// Sıfırlanmaya kalan süre, kısa: "45 dk", "2 sa 10 dk", "3 gün 4 sa". Geçmişse ya da bilinmiyorsa nil.
+    public static func resetIn(_ reset: Date?, now: Date) -> String? {
+        guard let reset, reset > now else { return nil }
+        let minutes = Int((reset.timeIntervalSince(now) / 60).rounded(.up))
+        let (d, h, m) = (minutes / 1440, minutes % 1440 / 60, minutes % 60)
+        if d > 0 { return h > 0 ? L("{0} gün {1} sa", "\(d)", "\(h)") : L("{0} gün", "\(d)") }
+        if h > 0 { return m > 0 ? L("{0} sa {1} dk", "\(h)", "\(m)") : L("{0} sa", "\(h)") }
+        return L("{0} dk", "\(m)")
+    }
 }
 
 /// `POST /usage` gövdesi: statusline JSON'undaki `rate_limits` nesnesi + X-Claude-Config-Dir başlığı.

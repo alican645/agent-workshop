@@ -92,3 +92,22 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
     let block = "# >>> ajantakip >>>\nX\n# <<< ajantakip <<<\n"
 
 }
+
+@Suite struct ResetCountdownTests {
+    func text(_ seconds: TimeInterval) -> String? { AccountUsage.resetIn(now.addingTimeInterval(seconds), now: now) }
+
+    @Test func formatsRemainingTime() {
+        #expect(text(30) == "1 dk")
+        #expect(text(45 * 60) == "45 dk")
+        #expect(text(2 * 3600) == "2 sa")
+        #expect(text(2 * 3600 + 10 * 60) == "2 sa 10 dk")
+        #expect(text(3 * 86400) == "3 gün")
+        #expect(text(3 * 86400 + 4 * 3600 + 59 * 60) == "3 gün 4 sa")
+    }
+
+    @Test func pastOrUnknownIsNil() {
+        #expect(text(0) == nil)
+        #expect(text(-60) == nil)
+        #expect(AccountUsage.resetIn(nil, now: now) == nil)
+    }
+}

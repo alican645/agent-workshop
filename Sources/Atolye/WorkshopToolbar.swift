@@ -21,7 +21,7 @@ struct WorkshopToolbar: View {
             RunCardsButton(model: model)
             BarSeparator()
             // Hesap ve harcama
-            ProfileMenu(model: model)
+            ProfilesButton(model: model)
             if model.todayTokens > 0 {
                 UsageButton(model: model)
             }

@@ -77,12 +77,12 @@ MCP'ler ve hafızayla kullanırsın.
 - Abonelikle kullananlar için bu bir fatura değil; hangi oturumun ne kadar iş yaptığını karşılaştırmak içindir.
 
 ### 👥 Birden çok Claude hesabı, tek çalışma ortamı
-- Profiller (`Profil 1`, `Profil 2`, …) üst çubuktaki menüden yönetilir; yeni Claude oturumları seçili
+- Profiller (`Profil 1`, `Profil 2`, …) üst çubuktan açılan **Profiller** penceresinden yönetilir (her hesap bir kart: limitler, giriş, beklenen hesap); yeni Claude oturumları seçili
   profille açılır, istersen tek pencereyi başka profille açarsın.
 - Bütün profiller **aynı** skill'leri, plugin'leri, ayarları, hafızayı, komut geçmişini ve dosya geçmişini kullanır.
 - MCP sunucuları ve proje izinleri profiller arasında otomatik eşitlenir: bir hesapta eklediğin MCP
   diğerinde de olur. Hesabın kimlik bilgilerine dokunulmaz.
-- Her profilin 5 saatlik ve haftalık limiti görünür; %90'ı geçince Agent Workshop uyarır.
+- Her profilin 5 saatlik ve haftalık limiti ve sıfırlanmasına kalan süre görünür; %90'ı geçince Agent Workshop uyarır.
 - Profile beklenen hesabı yazarsan, yanlış hesapla girişliyse uyarır; "Giriş yap" giriş sayfasını o e-postayla açar.
 
 ### 🟩 GitHub panosu

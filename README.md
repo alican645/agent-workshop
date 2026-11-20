@@ -72,10 +72,10 @@ click one and the answer goes straight to the agent, even if that session runs i
 - On a subscription this is not a bill — it is for comparing how much work each session did.
 
 ### 👥 Several Claude accounts, one environment
-- Profiles (`Profile 1`, `Profile 2`, …) from the toolbar menu; new sessions open with the selected profile.
+- Profiles (`Profile 1`, `Profile 2`, …) in the **Profiles** window from the top bar — one card per account with its limits, sign-in and expected account; new sessions open with the selected profile.
 - All profiles share the **same** skills, plugins, settings, memory and history. MCP servers and project
   permissions are synced between profiles; credentials are never touched.
-- 5-hour and weekly limits per profile, with a warning past 90%.
+- 5-hour and weekly limits per profile, how long until each resets, and a warning past 90%.
 
 ### 🟩 GitHub dashboard
 - A personal dashboard: a year of contributions, today, last 7 days, current and longest streak,
